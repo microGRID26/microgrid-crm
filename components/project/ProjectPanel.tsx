@@ -191,7 +191,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       .select('folder_url')
       .eq('project_id', pid)
       .single()
-    if (data) setFolderUrl(data.folder_url)
+    if (data && 'folder_url' in data) setFolderUrl((data as any).folder_url)
   }, [pid])
 
   // Load user
