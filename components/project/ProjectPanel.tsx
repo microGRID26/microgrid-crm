@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fmt$, fmtDate, daysAgo, STAGE_LABELS, STAGE_ORDER } from '@/lib/utils'
 import type { Project, Note } from '@/types/database'
@@ -113,6 +113,96 @@ function EditRow({ label, field, value, draft, editing, onChange, small, type = 
         onChange={e => onChange((d: any) => ({ ...d, [field]: e.target.value || null }))}
         className="flex-1 bg-gray-700 text-white text-xs rounded px-2 py-1 border border-gray-600 focus:border-green-500 focus:outline-none"
       />
+    </div>
+  )
+}
+
+function AutocompleteRow({ label, field, value, draft, editing, onChange, table, searchCol = 'name' }: {
+  label: string
+  field: string
+  value?: string | null
+  draft: Record<string, any>
+  editing: boolean
+  onChange: (d: any) => void
+  table: 'ahjs' | 'utilities'
+  searchCol?: string
+}) {
+  const supabase = createClient()
+  const current = field in draft ? draft[field] : value
+  const [query, setQuery] = useState(current ?? '')
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [open, setOpen] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Sync query when draft changes externally
+  useEffect(() => { setQuery(current ?? '') }, [current])
+
+  // Close on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [])
+
+  // Search DB as user types
+  useEffect(() => {
+    if (!focused || query.length < 2) { setSuggestions([]); setOpen(false); return }
+    const timer = setTimeout(async () => {
+      const { data } = await (supabase as any).from(table).select(searchCol).ilike(searchCol, `%${query}%`).order(searchCol).limit(8)
+      const names = (data ?? []).map((r: any) => r[searchCol])
+      setSuggestions(names)
+      setOpen(names.length > 0)
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [query, focused])
+
+  if (!editing) {
+    if (!value) return null
+    return (
+      <div className="flex gap-2 py-0.5">
+        <span className="text-gray-500 text-xs w-28 flex-shrink-0">{label}</span>
+        <span className="text-gray-200 text-xs break-words">{value}</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex gap-2 py-0.5 items-start" ref={ref}>
+      <span className="text-gray-500 text-xs w-28 flex-shrink-0 mt-1">{label}</span>
+      <div className="flex-1 relative">
+        <input
+          type="text"
+          value={query}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          onChange={e => {
+            setQuery(e.target.value)
+            onChange((d: any) => ({ ...d, [field]: e.target.value || null }))
+          }}
+          className="w-full bg-gray-700 text-white text-xs rounded px-2 py-1 border border-gray-600 focus:border-green-500 focus:outline-none"
+          placeholder={`Search ${label}…`}
+        />
+        {open && suggestions.length > 0 && (
+          <div className="absolute z-50 top-full left-0 right-0 mt-0.5 bg-gray-800 border border-gray-600 rounded-md shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+            {suggestions.map(s => (
+              <button
+                key={s}
+                type="button"
+                className="w-full text-left px-3 py-1.5 text-xs text-gray-200 hover:bg-gray-700 hover:text-white transition-colors"
+                onMouseDown={() => {
+                  setQuery(s)
+                  onChange((d: any) => ({ ...d, [field]: s }))
+                  setOpen(false)
+                }}>
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -618,7 +708,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
                     <EditRow label="Site surveyor" field="site_surveyor" value={project.site_surveyor} draft={editDraft} editing={editMode} onChange={setEditDraft} />
                   </Section>
                   <Section title="Permitting">
-                    <EditRow label="AHJ" field="ahj" value={project.ahj} draft={editDraft} editing={editMode} onChange={setEditDraft} />
+                    <AutocompleteRow label="AHJ" field="ahj" value={project.ahj} draft={editDraft} editing={editMode} onChange={setEditDraft} table="ahjs" />
                     {!editMode && ahjInfo && (
                       <div className="ml-0 mt-1 mb-2 pl-28 space-y-0.5">
                         {ahjInfo.permit_phone && <div className="text-xs text-green-400">{ahjInfo.permit_phone}</div>}
@@ -628,7 +718,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
                         {ahjInfo.permit_notes && <div className="text-xs text-gray-400 mt-1 bg-gray-800 rounded p-2">{ahjInfo.permit_notes.slice(0,200)}</div>}
                       </div>
                     )}
-                    <EditRow label="Utility" field="utility" value={project.utility} draft={editDraft} editing={editMode} onChange={setEditDraft} />
+                    <AutocompleteRow label="Utility" field="utility" value={project.utility} draft={editDraft} editing={editMode} onChange={setEditDraft} table="utilities" />
                     {!editMode && utilityInfo && (
                       <div className="ml-0 mt-1 mb-2 pl-28 space-y-0.5">
                         {utilityInfo.phone && <div className="text-xs text-green-400">{utilityInfo.phone}</div>}
