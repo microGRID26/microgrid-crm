@@ -34,6 +34,7 @@ interface User {
   admin: boolean
   active: boolean
   avatar_color: string | null
+  color: string | null
   crew?: string | null
 }
 
@@ -41,8 +42,17 @@ interface Crew {
   id: string
   name: string
   warehouse: string | null
-  active: boolean
-  members?: User[]
+  active: string
+  license_holder: string | null
+  electrician: string | null
+  solar_lead: string | null
+  battery_lead: string | null
+  installer1: string | null
+  installer2: string | null
+  battery_tech1: string | null
+  battery_tech2: string | null
+  battery_apprentice: string | null
+  mpu_electrician: string | null
 }
 
 interface SLAThreshold {
@@ -125,7 +135,7 @@ function Nav({ currentUser }: { currentUser: User | null }) {
         {currentUser && (
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
-              style={{ backgroundColor: currentUser.avatar_color || '#64748b' }}>
+              style={{ backgroundColor: currentUser.color || currentUser.avatar_color || '#64748b' }}>
               {currentUser.name?.charAt(0) ?? '?'}
             </div>
             <span className="text-xs text-gray-400">{currentUser.name}</span>
@@ -635,7 +645,7 @@ function UsersManager() {
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                      style={{ backgroundColor: u.avatar_color || '#64748b' }}>
+                      style={{ backgroundColor: u.color || u.avatar_color || '#64748b' }}>
                       {u.name?.charAt(0) ?? '?'}
                     </div>
                     <span className="text-white font-medium">{u.name}</span>
@@ -696,7 +706,7 @@ function UsersManager() {
               ))}
               {draft.name && (
                 <div className="ml-2 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
-                  style={{ backgroundColor: draft.avatar_color || '#64748b' }}>
+                  style={{ backgroundColor: draft.avatar_color || draft.color || '#64748b' }}>
                   {draft.name.charAt(0)}
                 </div>
               )}
@@ -734,24 +744,14 @@ function UsersManager() {
 function CrewsManager() {
   const supabase = createClient()
   const [crews, setCrews] = useState<Crew[]>([])
-  const [allUsers, setAllUsers] = useState<User[]>([])
   const [editing, setEditing] = useState<Crew | null>(null)
   const [draft, setDraft] = useState<Partial<Crew>>({})
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
 
   const load = useCallback(async () => {
-    const [{ data: crewData }, { data: userData }] = await Promise.all([
-      (supabase as any).from('crews').select('*').order('name'),
-      (supabase as any).from('users').select('*').eq('active', true).order('name'),
-    ])
-    const users: User[] = userData ?? []
-    setAllUsers(users)
-    const crewsWithMembers: Crew[] = (crewData ?? []).map((c: Crew) => ({
-      ...c,
-      members: users.filter((u: User) => u.crew === c.id || u.crew === c.name),
-    }))
-    setCrews(crewsWithMembers)
+    const { data: crewData } = await (supabase as any).from('crews').select('*').order('name')
+    setCrews(crewData ?? [])
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -764,6 +764,7 @@ function CrewsManager() {
       warehouse: draft.warehouse,
       active: draft.active,
     }).eq('id', editing.id)
+    // active stored as text 'TRUE'/'FALSE'
     setSaving(false)
     setEditing(null)
     setToast('Crew saved')
@@ -778,7 +779,7 @@ function CrewsManager() {
       )}
       <div className="mb-4">
         <h2 className="text-base font-semibold text-white">Crews</h2>
-        <p className="text-xs text-gray-500 mt-0.5">{crews.filter(c => c.active).length} active crews</p>
+        <p className="text-xs text-gray-500 mt-0.5">{crews.filter(c => c.active === 'TRUE' || c.active === 'true').length} active crews</p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 overflow-auto">
@@ -791,29 +792,37 @@ function CrewsManager() {
                   <h3 className="text-sm font-semibold text-white">{crew.name}</h3>
                   <p className="text-xs text-gray-500">{crew.warehouse ? `Warehouse: ${crew.warehouse}` : 'No warehouse set'}</p>
                 </div>
-                <Badge active={crew.active} />
+                <Badge active={crew.active === 'TRUE' || crew.active === 'true'} />
               </div>
               <button onClick={() => { setEditing(crew); setDraft({ ...crew }) }}
                 className="px-3 py-1.5 text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-600 rounded-md transition-colors">
                 Edit
               </button>
             </div>
-            {crew.members && crew.members.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {crew.members.map(m => (
-                  <div key={m.id} className="flex items-center gap-1.5 bg-gray-700/50 rounded-full px-2.5 py-1">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                      style={{ backgroundColor: m.avatar_color || '#64748b' }}>
-                      {m.name?.charAt(0)}
+            {(() => {
+              const roles = [
+                { label: 'License Holder', value: crew.license_holder },
+                { label: 'Electrician', value: crew.electrician },
+                { label: 'Solar Lead', value: crew.solar_lead },
+                { label: 'Battery Lead', value: crew.battery_lead },
+                { label: 'Installer 1', value: crew.installer1 },
+                { label: 'Installer 2', value: crew.installer2 },
+                { label: 'Battery Tech 1', value: crew.battery_tech1 },
+                { label: 'Battery Tech 2', value: crew.battery_tech2 },
+                { label: 'Battery Apprentice', value: crew.battery_apprentice },
+                { label: 'MPU Electrician', value: crew.mpu_electrician },
+              ].filter(r => r.value)
+              return roles.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {roles.map(r => (
+                    <div key={r.label} className="flex items-center gap-1.5 bg-gray-700/50 rounded-full px-2.5 py-1">
+                      <span className="text-[10px] text-gray-500">{r.label}:</span>
+                      <span className="text-xs text-gray-300">{r.value}</span>
                     </div>
-                    <span className="text-xs text-gray-300">{m.name}</span>
-                    {m.position && <span className="text-[10px] text-gray-500">· {m.position}</span>}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-600 italic">No members assigned</p>
-            )}
+                  ))}
+                </div>
+              ) : <p className="text-xs text-gray-600 italic">No members assigned</p>
+            })()}
           </div>
         ))}
         {crews.length === 0 && (
@@ -826,8 +835,9 @@ function CrewsManager() {
           <Input label="Crew Name" value={draft.name ?? ''} onChange={v => setDraft(d => ({ ...d, name: v }))} />
           <Input label="Warehouse" value={draft.warehouse ?? ''} onChange={v => setDraft(d => ({ ...d, warehouse: v }))} />
           <label className="flex items-center gap-2 cursor-pointer mt-1">
-            <input type="checkbox" checked={draft.active ?? true}
-              onChange={e => setDraft(d => ({ ...d, active: e.target.checked }))}
+            <input type="checkbox"
+              checked={draft.active === 'TRUE' || draft.active === 'true'}
+              onChange={e => setDraft(d => ({ ...d, active: e.target.checked ? 'TRUE' : 'FALSE' }))}
               className="rounded border-gray-600 bg-gray-800 text-green-500 focus:ring-green-500" />
             <span className="text-xs text-gray-300">Active</span>
           </label>
