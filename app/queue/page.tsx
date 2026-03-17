@@ -112,23 +112,34 @@ export default function QueuePage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [taskStates, setTaskStates] = useState<TaskState[]>([])
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
-  const [userPm, setUserPm] = useState<string>('')
+  const [userPm, setUserPm] = useState<string>(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('mg_pm') ?? ''
+    return ''
+  })
+  const [availablePms, setAvailablePms] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    const pm = user?.email?.split('@')[0] ?? ''
-    setUserPm(pm)
-
-    const [projRes, taskRes] = await Promise.all([
-      supabase.from('projects').select('*').eq('pm', pm),
+    const pm = userPm
+    const [projRes, taskRes, allProjRes] = await Promise.all([
+      pm ? supabase.from('projects').select('*').eq('pm', pm) : Promise.resolve({ data: [] }),
       supabase.from('task_state').select('project_id, task_id, status'),
+      supabase.from('projects').select('pm'),
     ])
 
     if (projRes.data) setProjects(projRes.data as Project[])
     if (taskRes.data) setTaskStates(taskRes.data as TaskState[])
+    if (allProjRes.data) {
+      const pms = [...new Set((allProjRes.data as any[]).map(p => p.pm).filter(Boolean))].sort()
+      setAvailablePms(pms)
+    }
     setLoading(false)
-  }, [])
+  }, [userPm])
+
+  function selectPm(pm: string) {
+    setUserPm(pm)
+    localStorage.setItem('mg_pm', pm)
+  }
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -165,8 +176,15 @@ export default function QueuePage() {
           </a>
         ))}
         <div className="ml-auto text-xs text-gray-400">
-          My Queue — <span className="text-white font-medium">{userPm}</span>
-          <span className="ml-3 text-gray-500">{projects.length} projects</span>
+          <select
+            value={userPm}
+            onChange={e => selectPm(e.target.value)}
+            className="text-xs bg-gray-800 text-gray-200 border border-gray-700 rounded-md px-2 py-1 mr-2"
+          >
+            <option value="">Select PM...</option>
+            {availablePms.map(pm => <option key={pm} value={pm}>{pm}</option>)}
+          </select>
+          <span className="text-gray-500">{projects.length} projects</span>
         </div>
       </nav>
 
