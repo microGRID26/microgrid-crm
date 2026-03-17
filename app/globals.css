@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 :root {
   --green: #1D9E75;
@@ -10,8 +8,7 @@
   --purple: #7C3AED;
 }
 
-* { box-sizing: border-box; }
-
 body {
-  @apply bg-gray-50 text-gray-900 antialiased;
+  background-color: #f9fafb;
+  color: #111827;
 }
