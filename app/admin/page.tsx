@@ -760,8 +760,17 @@ function CrewsManager() {
       name: draft.name,
       warehouse: draft.warehouse,
       active: draft.active,
+      license_holder: draft.license_holder || null,
+      electrician: draft.electrician || null,
+      solar_lead: draft.solar_lead || null,
+      battery_lead: draft.battery_lead || null,
+      installer1: draft.installer1 || null,
+      installer2: draft.installer2 || null,
+      battery_tech1: draft.battery_tech1 || null,
+      battery_tech2: draft.battery_tech2 || null,
+      battery_apprentice: draft.battery_apprentice || null,
+      mpu_electrician: draft.mpu_electrician || null,
     }).eq('id', editing.id)
-    // active stored as text 'TRUE'/'FALSE'
     setSaving(false)
     setEditing(null)
     setToast('Crew saved')
@@ -829,15 +838,32 @@ function CrewsManager() {
 
       {editing && (
         <Modal title={`Edit Crew — ${editing.name}`} onClose={() => setEditing(null)}>
-          <Input label="Crew Name" value={draft.name ?? ''} onChange={v => setDraft(d => ({ ...d, name: v }))} />
-          <Input label="Warehouse" value={draft.warehouse ?? ''} onChange={v => setDraft(d => ({ ...d, warehouse: v }))} />
-          <label className="flex items-center gap-2 cursor-pointer mt-1">
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Crew Name" value={draft.name ?? ''} onChange={v => setDraft(d => ({ ...d, name: v }))} />
+            <Input label="Warehouse" value={draft.warehouse ?? ''} onChange={v => setDraft(d => ({ ...d, warehouse: v }))} />
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox"
               checked={draft.active === 'TRUE' || draft.active === 'true'}
               onChange={e => setDraft(d => ({ ...d, active: e.target.checked ? 'TRUE' : 'FALSE' }))}
               className="rounded border-gray-600 bg-gray-800 text-green-500 focus:ring-green-500" />
             <span className="text-xs text-gray-300">Active</span>
           </label>
+          <div className="border-t border-gray-800 pt-3">
+            <p className="text-xs text-gray-500 font-medium mb-2 uppercase tracking-wide">Crew Members</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="License Holder" value={draft.license_holder ?? ''} onChange={v => setDraft(d => ({ ...d, license_holder: v }))} />
+              <Input label="Electrician" value={draft.electrician ?? ''} onChange={v => setDraft(d => ({ ...d, electrician: v }))} />
+              <Input label="Solar Lead" value={draft.solar_lead ?? ''} onChange={v => setDraft(d => ({ ...d, solar_lead: v }))} />
+              <Input label="Battery Lead" value={draft.battery_lead ?? ''} onChange={v => setDraft(d => ({ ...d, battery_lead: v }))} />
+              <Input label="Installer 1" value={draft.installer1 ?? ''} onChange={v => setDraft(d => ({ ...d, installer1: v }))} />
+              <Input label="Installer 2" value={draft.installer2 ?? ''} onChange={v => setDraft(d => ({ ...d, installer2: v }))} />
+              <Input label="Battery Tech 1" value={draft.battery_tech1 ?? ''} onChange={v => setDraft(d => ({ ...d, battery_tech1: v }))} />
+              <Input label="Battery Tech 2" value={draft.battery_tech2 ?? ''} onChange={v => setDraft(d => ({ ...d, battery_tech2: v }))} />
+              <Input label="Battery Apprentice" value={draft.battery_apprentice ?? ''} onChange={v => setDraft(d => ({ ...d, battery_apprentice: v }))} />
+              <Input label="MPU Electrician" value={draft.mpu_electrician ?? ''} onChange={v => setDraft(d => ({ ...d, mpu_electrician: v }))} />
+            </div>
+          </div>
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setEditing(null)}
               className="px-4 py-1.5 text-xs text-gray-400 hover:text-white border border-gray-700 rounded-md transition-colors">
