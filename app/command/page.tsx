@@ -10,7 +10,7 @@ import type { Project, Schedule } from '@/types/database'
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function cycleDays(p: Project): number {
-  return daysAgo(p.sale_date) || daysAgo(p.stage_date) || 0
+  return daysAgo(p.sale_date) ?? daysAgo(p.stage_date) ?? 0
 }
 
 function getSLA(p: Project) {
@@ -39,12 +39,17 @@ interface Classified {
   ok: Project[]
 }
 
-interface TaskState {
+interface TaskEntry { status: string; reason?: string; completed_date?: string | null }
+
+interface TaskStateRow {
   project_id: string
   task_id: string
   status: string
+  reason?: string | null
   completed_date: string | null
 }
+
+interface StuckTask { name: string; status: 'Pending Resolution' | 'Revision Required'; reason: string }
 
 // ── CLASSIFY PROJECTS ─────────────────────────────────────────────────────────
 function classify(projects: Project[], overduePids: Set<string>): Classified {
@@ -58,6 +63,20 @@ function classify(projects: Project[], overduePids: Set<string>): Classified {
     aging:    projects.filter(p => p.stage !== 'complete' && cycleDays(p) >= 90),
     ok:       active.filter(p => !isBlocked(p) && getSLA(p).status === 'ok' && !isStalled(p)),
   }
+}
+
+function getStuckTasks(p: Project, taskMap: Record<string, TaskEntry>): StuckTask[] {
+  const tasks = STAGE_TASKS[p.stage] ?? []
+  return tasks
+    .filter(t => {
+      const s = taskMap[t.id]?.status ?? 'Not Ready'
+      return s === 'Pending Resolution' || s === 'Revision Required'
+    })
+    .map(t => ({
+      name: t.name,
+      status: (taskMap[t.id]?.status ?? '') as 'Pending Resolution' | 'Revision Required',
+      reason: taskMap[t.id]?.reason ?? '',
+    }))
 }
 
 // ── SLA BADGE ─────────────────────────────────────────────────────────────────
@@ -77,12 +96,9 @@ function SlaBadge({ p }: { p: Project }) {
 }
 
 // ── PROJECT ROW ───────────────────────────────────────────────────────────────
-function ProjectRow({
-  p,
-  onSelect,
-  selected,
-}: {
+function ProjectRow({ p, stuckTasks, onSelect, selected }: {
   p: Project
+  stuckTasks: StuckTask[]
   onSelect: (p: Project) => void
   selected: boolean
 }) {
@@ -92,45 +108,63 @@ function ProjectRow({
   return (
     <div
       onClick={() => onSelect(p)}
-      className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-800 border-b border-gray-800 transition-colors ${selected ? 'bg-gray-800' : ''}`}
+      className={`px-4 py-3 cursor-pointer hover:bg-gray-800 border-b border-gray-800 transition-colors ${selected ? 'bg-gray-800' : ''}`}
     >
-      {/* Stage dot */}
-      <div className={`w-1.5 h-8 rounded-full flex-shrink-0 ${
-        p.blocker ? 'bg-red-500' :
-        sla.status === 'crit' ? 'bg-red-500' :
-        sla.status === 'risk' ? 'bg-amber-500' :
-        sla.status === 'warn' ? 'bg-yellow-500' :
-        'bg-green-500'
-      }`} />
+      <div className="flex items-center gap-3">
+        {/* Stage dot */}
+        <div className={`w-1.5 h-8 rounded-full flex-shrink-0 ${
+          p.blocker ? 'bg-red-500' :
+          sla.status === 'crit' ? 'bg-red-500' :
+          sla.status === 'risk' ? 'bg-amber-500' :
+          sla.status === 'warn' ? 'bg-yellow-500' :
+          'bg-green-500'
+        }`} />
 
-      {/* Name + ID */}
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-white truncate">{p.name}</div>
-        <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
-          <span>{p.id}</span>
-          <span>·</span>
-          <span>{p.city}</span>
-          {p.pm && <><span>·</span><span className="text-gray-400">{p.pm}</span></>}
+        {/* Name + ID */}
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-white truncate">{p.name}</div>
+          <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
+            <span>{p.id}</span>
+            <span>·</span>
+            <span>{p.city}</span>
+            {p.pm && <><span>·</span><span className="text-gray-400">{p.pm}</span></>}
+          </div>
         </div>
+
+        {/* Stage */}
+        <div className="text-xs text-gray-400 hidden sm:block w-20 text-right">
+          {STAGE_LABELS[p.stage] ?? p.stage}
+        </div>
+
+        {/* SLA */}
+        <SlaBadge p={p} />
+
+        {/* Cycle days */}
+        {cycle >= 90 && (
+          <span className="text-xs text-amber-400 hidden md:block">{cycle}d total</span>
+        )}
+
+        {/* Blocker */}
+        {p.blocker && (
+          <div className="text-xs text-red-400 max-w-[160px] truncate hidden lg:block">
+            🚫 {p.blocker}
+          </div>
+        )}
       </div>
 
-      {/* Stage */}
-      <div className="text-xs text-gray-400 hidden sm:block w-20 text-right">
-        {STAGE_LABELS[p.stage] ?? p.stage}
-      </div>
-
-      {/* SLA */}
-      <SlaBadge p={p} />
-
-      {/* Cycle days */}
-      {cycle >= 90 && (
-        <span className="text-xs text-amber-400 hidden md:block">{cycle}d total</span>
-      )}
-
-      {/* Blocker */}
-      {p.blocker && (
-        <div className="text-xs text-red-400 max-w-[160px] truncate hidden lg:block">
-          🚫 {p.blocker}
+      {/* Stuck tasks — shown inline below the name row */}
+      {stuckTasks.length > 0 && (
+        <div className="mt-1.5 ml-5 flex flex-wrap gap-1.5">
+          {stuckTasks.map(t => (
+            <span key={t.name} className={`text-xs rounded px-2 py-0.5 ${
+              t.status === 'Pending Resolution'
+                ? 'bg-red-950 text-red-300'
+                : 'bg-amber-950 text-amber-300'
+            }`}>
+              {t.status === 'Pending Resolution' ? '⏸' : '↩'}{' '}
+              {t.name}{t.reason ? ` — ${t.reason}` : ''}
+            </span>
+          ))}
         </div>
       )}
     </div>
@@ -139,19 +173,13 @@ function ProjectRow({
 
 // ── SECTION ───────────────────────────────────────────────────────────────────
 function CommandSection({
-  id,
-  title,
-  projects,
-  color,
-  onSelect,
-  selectedId,
-  collapsed,
-  onToggle,
+  id, title, projects, color, taskMapAll, onSelect, selectedId, collapsed, onToggle,
 }: {
   id: Section
   title: string
   projects: Project[]
   color: string
+  taskMapAll: Record<string, Record<string, TaskEntry>>
   onSelect: (p: Project) => void
   selectedId: string | null
   collapsed: boolean
@@ -162,7 +190,7 @@ function CommandSection({
     <div className="border-b border-gray-800">
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-850 transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800 transition-colors"
       >
         <span className={`text-xs font-bold uppercase tracking-wider ${color}`}>{title}</span>
         <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${color} bg-opacity-20`}>
@@ -174,6 +202,7 @@ function CommandSection({
         <ProjectRow
           key={p.id}
           p={p}
+          stuckTasks={getStuckTasks(p, taskMapAll[p.id] ?? {})}
           onSelect={onSelect}
           selected={selectedId === p.id}
         />
@@ -199,7 +228,6 @@ function Metric({ label, value, color = 'text-white', onClick }: {
     </button>
   )
 }
-
 
 // ── EXPORT FIELD PICKER ───────────────────────────────────────────────────────
 const FIELD_GROUPS = [
@@ -259,9 +287,7 @@ function ExportModal({ projects, onClose }: { projects: Project[]; onClose: () =
           </div>
           {FIELD_GROUPS.map(group => (
             <div key={group.label}>
-              <button
-                onClick={() => toggleGroup(group.keys)}
-                className="flex items-center gap-2 mb-2 group">
+              <button onClick={() => toggleGroup(group.keys)} className="flex items-center gap-2 mb-2 group">
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider group-hover:text-white transition-colors">
                   {group.label}
                 </span>
@@ -272,12 +298,8 @@ function ExportModal({ projects, onClose }: { projects: Project[]; onClose: () =
               <div className="grid grid-cols-2 gap-1">
                 {group.keys.map(key => (
                   <label key={key} className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(key)}
-                      onChange={() => toggle(key)}
-                      className="rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
-                    />
+                    <input type="checkbox" checked={selected.has(key)} onChange={() => toggle(key)}
+                      className="rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900" />
                     <span className={`text-xs transition-colors ${selected.has(key) ? 'text-gray-200' : 'text-gray-600'}`}>
                       {fieldMap[key] ?? key}
                     </span>
@@ -310,7 +332,7 @@ function ExportModal({ projects, onClose }: { projects: Project[]; onClose: () =
 export default function CommandPage() {
   const supabase = createClient()
   const [projects, setProjects] = useState<Project[]>([])
-  const [taskStates, setTaskStates] = useState<TaskState[]>([])
+  const [taskStates, setTaskStates] = useState<TaskStateRow[]>([])
   const [todaySchedule, setTodaySchedule] = useState<Schedule[]>([])
   const [user, setUser] = useState<{ email: string } | null>(null)
   const [pmFilter, setPmFilter] = useState<string>('all')
@@ -325,25 +347,23 @@ export default function CommandPage() {
     aging: true, ok: false,
   })
   const [loading, setLoading] = useState(true)
+  const [lastRefresh, setLastRefresh] = useState(Date.now())
+  const [showExport, setShowExport] = useState(false)
 
   async function signOut() {
-    const { createClient } = await import('@/lib/supabase/client')
     const supabase = createClient()
     await supabase.auth.signOut()
     window.location.href = '/login'
   }
 
-  const [lastRefresh, setLastRefresh] = useState(Date.now())
-  const [showExport, setShowExport] = useState(false)
-
-  // Load data
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) setUser({ email: user.email ?? '' })
 
     const [projRes, taskRes, schedRes] = await Promise.all([
       supabase.from('projects').select('*').order('stage_date', { ascending: true }),
-      supabase.from('task_state').select('project_id, task_id, status, completed_date'),
+      // Include reason — used to surface context on stuck task badges
+      supabase.from('task_state').select('project_id, task_id, status, reason, completed_date'),
       supabase.from('schedule')
         .select('*, project:projects(name)')
         .eq('date', new Date().toISOString().slice(0, 10))
@@ -351,7 +371,7 @@ export default function CommandPage() {
     ])
 
     if (projRes.data) setProjects(projRes.data as Project[])
-    if (taskRes.data) setTaskStates(taskRes.data as TaskState[])
+    if (taskRes.data) setTaskStates(taskRes.data as TaskStateRow[])
     if (schedRes.data) setTodaySchedule(schedRes.data as any)
     setLastRefresh(Date.now())
     setLoading(false)
@@ -369,6 +389,17 @@ export default function CommandPage() {
     return () => { supabase.removeChannel(channel) }
   }, [loadData])
 
+  // Build task map: { projectId: { taskId: { status, reason, completed_date } } }
+  const taskMapAll: Record<string, Record<string, TaskEntry>> = {}
+  for (const t of taskStates) {
+    if (!taskMapAll[t.project_id]) taskMapAll[t.project_id] = {}
+    taskMapAll[t.project_id][t.task_id] = {
+      status: t.status,
+      reason: t.reason ?? undefined,
+      completed_date: t.completed_date,
+    }
+  }
+
   // Filtered projects
   const filtered = (() => {
     let result = pmFilter === 'all' ? projects : projects.filter(p => p.pm === pmFilter)
@@ -385,7 +416,7 @@ export default function CommandPage() {
     return result
   })()
 
-  // Get overdue task project IDs
+  // Overdue: tasks with completed_date in the past that are not yet Complete
   const overduePids = new Set(
     taskStates
       .filter(t => t.status !== 'Complete' && t.completed_date && daysAgo(t.completed_date) > 0)
@@ -394,8 +425,6 @@ export default function CommandPage() {
 
   const sections = classify(filtered, overduePids)
   const pms = [...new Set(projects.map(p => p.pm).filter(Boolean))].sort() as string[]
-
-  // Stats
   const totalContract = filtered.reduce((s, p) => s + (Number(p.contract) || 0), 0)
 
   function toggleSection(id: Section) {
@@ -454,26 +483,19 @@ export default function CommandPage() {
         </button>
 
         <div className="ml-auto flex items-center gap-3">
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search projects..."
             className="text-xs bg-gray-800 text-gray-200 border border-gray-700 rounded-md px-3 py-1.5 w-44 focus:outline-none focus:border-green-500 placeholder-gray-500"
           />
-          <select
-            value={pmFilter}
-            onChange={e => setPmFilter(e.target.value)}
-            className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5"
-          >
+          <select value={pmFilter} onChange={e => setPmFilter(e.target.value)}
+            className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
             <option value="all">All PMs</option>
             {pms.map(pm => <option key={pm} value={pm}>{pm}</option>)}
           </select>
           <button onClick={loadData} className="text-xs text-gray-500 hover:text-white transition-colors">
             ↻ {Math.round((Date.now() - lastRefresh) / 60000)}m ago
           </button>
-          <button
-            onClick={() => setShowExport(true)}
+          <button onClick={() => setShowExport(true)}
             className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5">
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -481,9 +503,7 @@ export default function CommandPage() {
             Export
           </button>
           {showNameInput ? (
-            <input
-              autoFocus
-              defaultValue={displayName}
+            <input autoFocus defaultValue={displayName}
               onBlur={e => { const v = e.target.value.trim(); if(v){ localStorage.setItem('mg_display_name',v); setDisplayName(v); } setShowNameInput(false); }}
               onKeyDown={e => { if(e.key==='Enter') (e.target as HTMLInputElement).blur(); if(e.key==='Escape') setShowNameInput(false); }}
               className="text-xs bg-gray-800 text-white border border-gray-600 rounded px-2 py-1 w-28 focus:outline-none focus:border-green-500"
@@ -494,10 +514,10 @@ export default function CommandPage() {
               {displayName || user?.email?.split('@')[0]}
             </button>
           )}
-          <button
-            onClick={() => setShowNewProject(true)}
-            className="text-xs bg-green-600 hover:bg-green-500 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
-          >+ New Project</button>
+          <button onClick={() => setShowNewProject(true)}
+            className="text-xs bg-green-600 hover:bg-green-500 text-white font-medium px-3 py-1.5 rounded-lg transition-colors">
+            + New Project
+          </button>
         </div>
       </nav>
 
@@ -537,42 +557,39 @@ export default function CommandPage() {
 
       {/* ── MAIN CONTENT ─────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
-
-        {/* Project list */}
         <div className="flex-1 overflow-y-auto">
-
           <CommandSection id="overdue" title="Overdue Tasks"
-            projects={sections.overdue} color="text-red-400"
+            projects={sections.overdue} color="text-red-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
             collapsed={!!collapsed.overdue} onToggle={() => toggleSection('overdue')} />
 
           <CommandSection id="blocked" title="Blocked"
-            projects={sections.blocked} color="text-red-400"
+            projects={sections.blocked} color="text-red-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
             collapsed={!!collapsed.blocked} onToggle={() => toggleSection('blocked')} />
 
           <CommandSection id="crit" title="Critical — Past SLA"
-            projects={sections.crit} color="text-red-400"
+            projects={sections.crit} color="text-red-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
             collapsed={!!collapsed.crit} onToggle={() => toggleSection('crit')} />
 
           <CommandSection id="risk" title="At Risk"
-            projects={sections.risk} color="text-amber-400"
+            projects={sections.risk} color="text-amber-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
             collapsed={!!collapsed.risk} onToggle={() => toggleSection('risk')} />
 
           <CommandSection id="stall" title="Stalled — No Movement 5+ Days"
-            projects={sections.stall} color="text-yellow-400"
+            projects={sections.stall} color="text-yellow-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
             collapsed={!!collapsed.stall} onToggle={() => toggleSection('stall')} />
 
           <CommandSection id="aging" title="Aging Projects — 90+ Day Cycle"
-            projects={sections.aging} color="text-amber-400"
+            projects={sections.aging} color="text-amber-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
             collapsed={!!collapsed.aging} onToggle={() => toggleSection('aging')} />
 
           <CommandSection id="ok" title={`On Track — ${sections.ok.length}`}
-            projects={sections.ok} color="text-green-400"
+            projects={sections.ok} color="text-green-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
             collapsed={!!collapsed.ok} onToggle={() => toggleSection('ok')} />
         </div>
@@ -596,7 +613,7 @@ export default function CommandPage() {
       {showNewProject && (
         <NewProjectModal
           onClose={() => setShowNewProject(false)}
-          onCreated={(id) => { setShowNewProject(false); loadData(); }}
+          onCreated={() => { setShowNewProject(false); loadData() }}
           existingIds={projects.map(p => p.id)}
           pms={pms}
         />
@@ -604,5 +621,3 @@ export default function CommandPage() {
     </div>
   )
 }
-
-

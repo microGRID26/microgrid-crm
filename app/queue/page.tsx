@@ -25,25 +25,33 @@ function priority(p: Project): number {
   return 4
 }
 
-interface TaskState { project_id: string; task_id: string; status: string }
+// Now carries status + reason per task
+interface TaskEntry { status: string; reason?: string }
+interface TaskStateRow { project_id: string; task_id: string; status: string; reason?: string | null }
 
-function getNextTask(p: Project, taskMap: Record<string, string>): string | null {
+function getNextTask(p: Project, taskMap: Record<string, TaskEntry>): string | null {
   const tasks = STAGE_TASKS[p.stage] ?? []
   for (const t of tasks) {
-    const s = taskMap[t.id] ?? 'Not Ready'
+    const s = taskMap[t.id]?.status ?? 'Not Ready'
     if (s !== 'Complete') return t.name
   }
   return null
 }
 
-function getStuckTasks(p: Project, taskMap: Record<string, string>): string[] {
+interface StuckTask { name: string; status: 'Pending Resolution' | 'Revision Required'; reason: string }
+
+function getStuckTasks(p: Project, taskMap: Record<string, TaskEntry>): StuckTask[] {
   const tasks = STAGE_TASKS[p.stage] ?? []
   return tasks
     .filter(t => {
-      const s = taskMap[t.id] ?? 'Not Ready'
+      const s = taskMap[t.id]?.status ?? 'Not Ready'
       return s === 'Pending Resolution' || s === 'Revision Required'
     })
-    .map(t => t.name)
+    .map(t => ({
+      name: t.name,
+      status: (taskMap[t.id]?.status ?? '') as 'Pending Resolution' | 'Revision Required',
+      reason: taskMap[t.id]?.reason ?? '',
+    }))
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -56,7 +64,7 @@ const STATUS_COLOR: Record<string, string> = {
 export default function QueuePage() {
   const supabase = createClient()
   const [projects, setProjects] = useState<Project[]>([])
-  const [taskStates, setTaskStates] = useState<TaskState[]>([])
+  const [taskStates, setTaskStates] = useState<TaskStateRow[]>([])
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [userPm, setUserPm] = useState<string>(() => {
     if (typeof window !== 'undefined') return localStorage.getItem('mg_pm') ?? ''
@@ -66,23 +74,21 @@ export default function QueuePage() {
   const [loading, setLoading] = useState(true)
 
   async function signOut() {
-    const { createClient } = await import('@/lib/supabase/client')
     const supabase = createClient()
     await supabase.auth.signOut()
     window.location.href = '/login'
   }
 
-
   const loadData = useCallback(async () => {
     const pm = userPm
     const [projRes, taskRes, allProjRes] = await Promise.all([
       pm ? supabase.from('projects').select('*').eq('pm', pm) : Promise.resolve({ data: [] }),
-      supabase.from('task_state').select('project_id, task_id, status'),
+      supabase.from('task_state').select('project_id, task_id, status, reason'),
       supabase.from('projects').select('pm'),
     ])
 
     if (projRes.data) setProjects(projRes.data as Project[])
-    if (taskRes.data) setTaskStates(taskRes.data as TaskState[])
+    if (taskRes.data) setTaskStates(taskRes.data as TaskStateRow[])
     if (allProjRes.data) {
       const pms = [...new Set((allProjRes.data as any[]).map(p => p.pm).filter(Boolean))].sort()
       setAvailablePms(pms)
@@ -97,15 +103,17 @@ export default function QueuePage() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  // Build task map per project
-  const taskMap: Record<string, Record<string, string>> = {}
+  // Build task map per project: { projectId: { taskId: { status, reason } } }
+  const taskMap: Record<string, Record<string, TaskEntry>> = {}
   for (const t of taskStates) {
     if (!taskMap[t.project_id]) taskMap[t.project_id] = {}
-    taskMap[t.project_id][t.task_id] = t.status
+    taskMap[t.project_id][t.task_id] = {
+      status: t.status,
+      reason: t.reason ?? undefined,
+    }
   }
 
   const sorted = [...projects].sort((a, b) => priority(a) - priority(b))
-
   const blocked = sorted.filter(p => p.blocker)
   const active = sorted.filter(p => !p.blocker && p.stage !== 'complete')
   const complete = sorted.filter(p => p.stage === 'complete')
@@ -123,7 +131,7 @@ export default function QueuePage() {
       {/* Nav */}
       <nav className="bg-gray-950 border-b border-gray-800 flex items-center gap-2 px-4 py-2 sticky top-0 z-50">
         <span className="text-green-400 font-bold text-base mr-2">MicroGRID</span>
-                {[
+        {[
           { label: 'Command',  href: '/command'  },
           { label: 'Queue',    href: '/queue'    },
           { label: 'Pipeline', href: '/pipeline' },
@@ -200,7 +208,6 @@ export default function QueuePage() {
       {/* Queue list */}
       <div className="flex-1 overflow-y-auto max-w-4xl mx-auto w-full px-4 py-4">
 
-        {/* Blocked */}
         {blocked.length > 0 && (
           <div className="mb-6">
             <div className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2">🚫 Blocked ({blocked.length})</div>
@@ -208,7 +215,6 @@ export default function QueuePage() {
           </div>
         )}
 
-        {/* Active */}
         {active.length > 0 && (
           <div className="mb-6">
             <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Active ({active.length})</div>
@@ -216,7 +222,6 @@ export default function QueuePage() {
           </div>
         )}
 
-        {/* Complete */}
         {complete.length > 0 && (
           <div className="mb-6">
             <div className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Complete ({complete.length})</div>
@@ -232,7 +237,6 @@ export default function QueuePage() {
         )}
       </div>
 
-      {/* Project Panel */}
       {selectedProject && (
         <ProjectPanel
           project={selectedProject}
@@ -246,18 +250,18 @@ export default function QueuePage() {
 
 function QueueCard({ p, taskMap, onOpen }: {
   p: Project
-  taskMap: Record<string, string>
+  taskMap: Record<string, TaskEntry>
   onOpen: (p: Project) => void
 }) {
   const sla = getSLA(p)
   const nextTask = getNextTask(p, taskMap)
   const stuck = getStuckTasks(p, taskMap)
-  const cycle = daysAgo(p.sale_date) || daysAgo(p.stage_date) || 0
+  const cycle = daysAgo(p.sale_date) ?? daysAgo(p.stage_date) ?? 0
 
   return (
     <div
       onClick={() => onOpen(p)}
-      className="bg-gray-800 hover:bg-gray-750 border border-gray-700 rounded-xl p-4 mb-3 cursor-pointer transition-colors"
+      className="bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl p-4 mb-3 cursor-pointer transition-colors"
     >
       <div className="flex items-start gap-3">
         {/* Priority dot */}
@@ -288,13 +292,24 @@ function QueueCard({ p, taskMap, onOpen }: {
             </div>
           )}
 
-          {/* Stuck tasks */}
+          {/* Stuck tasks — now with reasons */}
           {stuck.length > 0 && (
-            <div className="mt-2 flex gap-2 flex-wrap">
+            <div className="mt-2 flex flex-col gap-1.5">
               {stuck.map(t => (
-                <span key={t} className="text-xs bg-amber-900 text-amber-300 px-2 py-0.5 rounded-full">
-                  ⚠ {t}
-                </span>
+                <div key={t.name} className={`flex items-baseline gap-1.5 text-xs rounded-lg px-2.5 py-1 ${
+                  t.status === 'Pending Resolution'
+                    ? 'bg-red-950 text-red-300'
+                    : 'bg-amber-950 text-amber-300'
+                }`}>
+                  <span>{t.status === 'Pending Resolution' ? '⏸' : '↩'}</span>
+                  <span className="font-medium">{t.name}</span>
+                  {t.reason && (
+                    <>
+                      <span className="opacity-50">—</span>
+                      <span className="opacity-75">{t.reason}</span>
+                    </>
+                  )}
+                </div>
               ))}
             </div>
           )}
