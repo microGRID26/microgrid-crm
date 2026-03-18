@@ -1160,7 +1160,9 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
 
                                 {/* Who + when */}
                                 <div className="text-right flex-shrink-0">
-                                  <div className="text-xs text-gray-400">{entry.changed_by ?? '—'}</div>
+                                  {entry.changed_by && entry.changed_by !== 'migration' && (
+                                    <div className="text-xs text-gray-400">{entry.changed_by}</div>
+                                  )}
                                   <div className="text-xs text-gray-600">{when}</div>
                                 </div>
                               </div>
