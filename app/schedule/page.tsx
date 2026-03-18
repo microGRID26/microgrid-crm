@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { ScheduleAssignModal } from '@/components/project/ScheduleAssignModal'
 import type { Project, Schedule, Crew } from '@/types/database'
 

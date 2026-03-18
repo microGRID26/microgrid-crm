@@ -396,7 +396,7 @@ export default function CommandPage() {
     return result
   })()
 
-  // Get overdue task project IDs
+  // Get project IDs that have any task in Pending Resolution or Revision Required
   const overduePids = new Set(
     taskStates
       .filter(t => t.status === 'Pending Resolution' || t.status === 'Revision Required')
@@ -552,7 +552,7 @@ export default function CommandPage() {
         {/* Project list */}
         <div className="flex-1 overflow-y-auto">
 
-          <CommandSection id="overdue" title="Overdue Tasks"
+          <CommandSection id="overdue" title="Needs Attention — Pending / Revision Required"
             projects={sections.overdue} color="text-red-400"
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
             collapsed={!!collapsed.overdue} onToggle={() => toggleSection('overdue')} />

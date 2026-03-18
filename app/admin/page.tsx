@@ -33,7 +33,6 @@ interface User {
   position: string | null
   admin: boolean
   active: boolean
-  avatar_color: string | null
   color: string | null
   crew?: string | null
 }
@@ -135,7 +134,7 @@ function Nav({ currentUser }: { currentUser: User | null }) {
         {currentUser && (
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
-              style={{ backgroundColor: currentUser.color || currentUser.avatar_color || '#64748b' }}>
+              style={{ backgroundColor: currentUser.color || '#64748b' }}>
               {currentUser.name?.charAt(0) ?? '?'}
             </div>
             <span className="text-xs text-gray-400">{currentUser.name}</span>
@@ -565,7 +564,7 @@ function UsersManager() {
   const openEdit = (u: User) => { setEditing(u); setDraft({ ...u }); setCreating(false) }
   const openCreate = () => {
     setEditing(null)
-    setDraft({ name: '', email: '', department: '', position: '', admin: false, active: true, avatar_color: AVATAR_COLORS[0] })
+    setDraft({ name: '', email: '', department: '', position: '', admin: false, active: true, color: AVATAR_COLORS[0] })
     setCreating(true)
   }
 
@@ -579,7 +578,7 @@ function UsersManager() {
         position: draft.position,
         admin: draft.admin ?? false,
         active: draft.active ?? true,
-        color: draft.avatar_color,
+        color: draft.color,
       })
     } else if (editing) {
       await (supabase as any).from('users').update({
@@ -589,7 +588,7 @@ function UsersManager() {
         position: draft.position,
         admin: draft.admin,
         active: draft.active,
-        color: draft.avatar_color,
+        color: draft.color,
       }).eq('id', editing.id)
     }
     setSaving(false)
@@ -642,7 +641,7 @@ function UsersManager() {
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                      style={{ backgroundColor: u.color || u.avatar_color || '#64748b' }}>
+                      style={{ backgroundColor: u.color || '#64748b' }}>
                       {u.name?.charAt(0) ?? '?'}
                     </div>
                     <span className="text-white font-medium">{u.name}</span>
@@ -697,13 +696,13 @@ function UsersManager() {
             <label className="text-xs text-gray-400 font-medium">Avatar Color</label>
             <div className="flex items-center gap-2">
               {AVATAR_COLORS.map(c => (
-                <button key={c} onClick={() => setDraft(d => ({ ...d, avatar_color: c }))}
-                  className={`w-6 h-6 rounded-full transition-transform ${draft.avatar_color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-900 scale-110' : 'hover:scale-105'}`}
+                <button key={c} onClick={() => setDraft(d => ({ ...d, color: c }))}
+                  className={`w-6 h-6 rounded-full transition-transform ${draft.color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-900 scale-110' : 'hover:scale-105'}`}
                   style={{ backgroundColor: c }} />
               ))}
               {draft.name && (
                 <div className="ml-2 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
-                  style={{ backgroundColor: draft.avatar_color || draft.color || '#64748b' }}>
+                  style={{ backgroundColor: draft.color || '#64748b' }}>
                   {draft.name.charAt(0)}
                 </div>
               )}
