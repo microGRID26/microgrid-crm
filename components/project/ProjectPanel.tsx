@@ -661,12 +661,20 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       completed_date: status === 'Complete' ? new Date().toISOString().slice(0, 10) : null,
     }, { onConflict: 'project_id,task_id' })
 
-    // Auto-flip disposition to 'In Service' when the In Service task is completed
-    if (taskId === 'in_service' && status === 'Complete') {
-      await (supabase as any).from('projects').update({ disposition: 'In Service' }).eq('id', pid)
-      setProject(p => ({ ...p, disposition: 'In Service' }))
-      onProjectUpdated()
-      showToast('Project marked In Service ✓')
+    // Auto-flip disposition when In Service task status changes
+    if (taskId === 'in_service') {
+      if (status === 'Complete') {
+        await (supabase as any).from('projects').update({ disposition: 'In Service' }).eq('id', pid)
+        setProject(p => ({ ...p, disposition: 'In Service' }))
+        onProjectUpdated()
+        showToast('Project marked In Service ✓')
+      } else if (project.disposition === 'In Service') {
+        // Revert only if disposition was auto-set — don't clobber manual overrides
+        await (supabase as any).from('projects').update({ disposition: 'Sale' }).eq('id', pid)
+        setProject(p => ({ ...p, disposition: 'Sale' }))
+        onProjectUpdated()
+        showToast('Disposition reverted to Sale')
+      }
     }
   }
 
