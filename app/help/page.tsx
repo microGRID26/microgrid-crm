@@ -114,6 +114,13 @@ function ForPMs() {
         In the project panel header, click Set Blocker. Describe what's blocking the project. Blocked projects
         appear in red at the top of Command Center. Clear it when resolved.
       </Card>
+
+      <SectionHeader title="Editing a Project" />
+      <Card title="Edit mode">
+        Click the ✏ Edit button in any project panel header to enter edit mode. All fields in the Info tab
+        become editable — including contract amount, system size, financier, equipment, site details, and
+        all milestone dates. Click Save Changes when done, or Cancel to discard.
+      </Card>
     </div>
   )
 }
@@ -299,7 +306,7 @@ function ForAdmins() {
       <SectionHeader title="Database" />
       <Card title="Supabase tables">
         <Ul items={[
-          'projects — 487 rows, main project table',
+          'projects — main project table',
           'task_state — per-project task status',
           'notes — project notes/chat',
           'stage_history — stage transition log',
@@ -322,21 +329,57 @@ function ForAdmins() {
 function WhatsNew() {
   return (
     <div>
+      <SectionHeader title="Session 6 — March 18, 2026" />
+      <Card title="Full codebase audit">
+        Every file in the codebase was audited for bugs, silent failures, and architecture issues. Key findings
+        and fixes applied this session are listed below. Remaining items are tracked internally for future sessions.
+      </Card>
+      <Card title="ProjectPanel — all Info fields now fully editable">
+        All fields in the Info tab are now editable in edit mode, including: contract amount, system kW,
+        financier, financing type, down payment, TPO escalator, advance payment schedule, dealer, all equipment
+        fields (module, inverter, battery, optimizer + quantities), all site and electrical fields (meter location,
+        panel location, voltage, MSP bus rating, MPU, shutdown, performance meter, interconnect breaker, main
+        breaker, HOA, ESID), and all milestone dates.
+      </Card>
+      <Card title="ProjectPanel — Save Changes is now reliable">
+        Previously, clicking Save Changes without touching every field could silently drop data for untouched
+        fields. Edit mode now pre-loads all current values into the draft so Save always sends the correct
+        complete state to the database.
+      </Card>
+      <Card title="ProjectPanel — AHJ info card more reliable">
+        The AHJ info card (phone, website, permit notes shown below the AHJ field) now uses a fuzzy
+        contains-match to find the right AHJ record. Previously an exact-match was used, which caused the
+        info card to silently show nothing if the project's AHJ name had minor formatting differences
+        from the database record.
+      </Card>
+      <Card title="ProjectPanel — Drive folder lookup fixed">
+        The Files tab was silently throwing a database error for projects with no linked Drive folder.
+        This caused unexpected behavior in some cases. Now handled correctly — projects without a Drive
+        folder simply show the "No folder linked" message.
+      </Card>
+      <Card title="ProjectPanel — header syncs after stage advance">
+        After advancing a project's stage from within the panel, the stage label and day counters in the
+        panel header now update immediately without needing to close and reopen the panel.
+      </Card>
+
       <SectionHeader title="Session 5 — March 18, 2026" />
+      <Card title="AHJ, Utility, and HOA clickable info modals">
+        In the project Info tab, the AHJ, Utility, and HOA fields are now clickable green links that open
+        detailed edit modals with all associated contact and portal information.
+      </Card>
       <Card title="Bug fixes — 6 issues resolved">
         <Ul items={[
           'Stage label "Completion" corrected to "Complete" across all views',
-          'Funding page: Days Waiting column now renders correctly (was missing, causing column misalignment)',
-          'BOM tab: React key error fixed — no more console warnings when viewing BOMs',
-          'Command Center: "Needs Attention" section now correctly surfaces projects with Pending Resolution or Revision Required tasks (was always empty before)',
-          'Schedule page: removed unreachable dead code (ghost ProjectPanel that could never open)',
-          'Admin portal: avatar color field unified — was writing to wrong column in some cases',
+          'Funding page: Days Waiting column now renders correctly',
+          'BOM tab: React key error fixed',
+          'Command Center: Needs Attention section now correctly surfaces stuck tasks',
+          'Schedule page: removed dead code (ghost ProjectPanel that could never open)',
+          'Admin portal: avatar color field unified',
         ]} />
       </Card>
       <Card title="Code refactor — SLA thresholds and task lists centralized">
         SLA thresholds and stage task lists were previously copy-pasted in 4 separate files. They now live
-        in a single place (lib/utils.ts) and are imported everywhere. Changing a threshold or task name
-        now only requires editing one file.
+        in a single place (lib/utils.ts) and are imported everywhere.
       </Card>
 
       <SectionHeader title="Session 4 — March 17, 2026" />
