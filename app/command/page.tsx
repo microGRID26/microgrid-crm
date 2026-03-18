@@ -431,17 +431,12 @@ export default function CommandPage() {
   const pms = [...new Set(projects.map(p => p.pm).filter(Boolean))].sort() as string[]
   const totalContract = filtered.reduce((s, p) => s + (Number(p.contract) || 0), 0)
 
-  // When search is active, auto-expand any section that has results
-  // This prevents matches from hiding behind collapsed sections — important as we add more section types
-  useEffect(() => {
-    if (!search.trim()) return
-    setCollapsed(c => ({
-      ...c,
-      inService: sections.inService.length === 0,
-      aging: sections.aging.length === 0 ? c.aging : false,
-      ok: sections.ok.length === 0 ? c.ok : false,
-    }))
-  }, [search, sections.inService.length, sections.aging.length, sections.ok.length])
+  // When search is active, any section with results is force-expanded
+  // Computed synchronously during render — no timing issues
+  const effectiveCollapsed = (id: Section, count: number): boolean => {
+    if (search.trim() && count > 0) return false
+    return !!collapsed[id]
+  }
 
   function toggleSection(id: Section) {
     setCollapsed(c => ({ ...c, [id]: !c[id] }))
@@ -579,42 +574,42 @@ export default function CommandPage() {
           <CommandSection id="overdue" title="Overdue Tasks"
             projects={sections.overdue} color="text-red-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
-            collapsed={!!collapsed.overdue} onToggle={() => toggleSection('overdue')} />
+            collapsed={effectiveCollapsed('overdue', sections.overdue.length)} onToggle={() => toggleSection('overdue')} />
 
           <CommandSection id="blocked" title="Blocked"
             projects={sections.blocked} color="text-red-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
-            collapsed={!!collapsed.blocked} onToggle={() => toggleSection('blocked')} />
+            collapsed={effectiveCollapsed('blocked', sections.blocked.length)} onToggle={() => toggleSection('blocked')} />
 
           <CommandSection id="crit" title="Critical — Past SLA"
             projects={sections.crit} color="text-red-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
-            collapsed={!!collapsed.crit} onToggle={() => toggleSection('crit')} />
+            collapsed={effectiveCollapsed('crit', sections.crit.length)} onToggle={() => toggleSection('crit')} />
 
           <CommandSection id="risk" title="At Risk"
             projects={sections.risk} color="text-amber-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
-            collapsed={!!collapsed.risk} onToggle={() => toggleSection('risk')} />
+            collapsed={effectiveCollapsed('risk', sections.risk.length)} onToggle={() => toggleSection('risk')} />
 
           <CommandSection id="stall" title="Stalled — No Movement 5+ Days"
             projects={sections.stall} color="text-yellow-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
-            collapsed={!!collapsed.stall} onToggle={() => toggleSection('stall')} />
+            collapsed={effectiveCollapsed('stall', sections.stall.length)} onToggle={() => toggleSection('stall')} />
 
           <CommandSection id="aging" title="Aging Projects — 90+ Day Cycle"
             projects={sections.aging} color="text-amber-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
-            collapsed={!!collapsed.aging} onToggle={() => toggleSection('aging')} />
+            collapsed={effectiveCollapsed('aging', sections.aging.length)} onToggle={() => toggleSection('aging')} />
 
           <CommandSection id="ok" title={`On Track — ${sections.ok.length}`}
             projects={sections.ok} color="text-green-400" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
-            collapsed={!!collapsed.ok} onToggle={() => toggleSection('ok')} />
+            collapsed={effectiveCollapsed('ok', sections.ok.length)} onToggle={() => toggleSection('ok')} />
 
           <CommandSection id="inService" title={`In Service (${sections.inService.length})`}
             projects={sections.inService} color="text-gray-500" taskMapAll={taskMapAll}
             onSelect={setSelectedProject} selectedId={selectedProject?.id ?? null}
-            collapsed={!!collapsed.inService} onToggle={() => toggleSection('inService')} />
+            collapsed={effectiveCollapsed('inService', sections.inService.length)} onToggle={() => toggleSection('inService')} />
         </div>
       </div>
 
