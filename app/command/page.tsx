@@ -431,6 +431,18 @@ export default function CommandPage() {
   const pms = [...new Set(projects.map(p => p.pm).filter(Boolean))].sort() as string[]
   const totalContract = filtered.reduce((s, p) => s + (Number(p.contract) || 0), 0)
 
+  // When search is active, auto-expand any section that has results
+  // This prevents matches from hiding behind collapsed sections — important as we add more section types
+  useEffect(() => {
+    if (!search.trim()) return
+    setCollapsed(c => ({
+      ...c,
+      inService: sections.inService.length === 0,
+      aging: sections.aging.length === 0 ? c.aging : false,
+      ok: sections.ok.length === 0 ? c.ok : false,
+    }))
+  }, [search, sections.inService.length, sections.aging.length, sections.ok.length])
+
   function toggleSection(id: Section) {
     setCollapsed(c => ({ ...c, [id]: !c[id] }))
   }
