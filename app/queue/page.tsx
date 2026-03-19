@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/Nav'
 import { daysAgo, fmt$, fmtDate, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS, STAGE_TASKS } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
+import { NewProjectModal } from '@/components/project/NewProjectModal'
 import type { Project } from '@/types/database'
 
 function getSLA(p: Project) {
@@ -67,6 +68,7 @@ export default function QueuePage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [taskStates, setTaskStates] = useState<TaskStateRow[]>([])
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [showNewProject, setShowNewProject] = useState(false)
   const [userPm, setUserPm] = useState<string>(() => {
     if (typeof window !== 'undefined') return localStorage.getItem('mg_pm') ?? ''
     return ''
@@ -139,7 +141,7 @@ export default function QueuePage() {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
-      <Nav active="Queue" right={<>
+      <Nav active="Queue" onNewProject={() => setShowNewProject(true)} right={<>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -219,6 +221,14 @@ export default function QueuePage() {
           project={selectedProject}
           onClose={() => setSelectedProject(null)}
           onProjectUpdated={loadData}
+        />
+      )}
+      {showNewProject && (
+        <NewProjectModal
+          onClose={() => setShowNewProject(false)}
+          onCreated={() => { setShowNewProject(false); loadData() }}
+          existingIds={projects.map(p => p.id)}
+          pms={availablePms}
         />
       )}
     </div>

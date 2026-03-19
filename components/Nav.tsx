@@ -37,9 +37,10 @@ const HELP_ICON = (
 interface NavProps {
   active: string
   right?: React.ReactNode
+  onNewProject?: () => void
 }
 
-export function Nav({ active, right }: NavProps) {
+export function Nav({ active, right, onNewProject }: NavProps) {
   async function signOut() {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -80,6 +81,13 @@ export function Nav({ active, right }: NavProps) {
         {HELP_ICON}
         Help
       </a>
+
+      {onNewProject && (
+        <button onClick={onNewProject}
+          className="text-xs px-3 py-1.5 rounded-md transition-colors bg-green-700 hover:bg-green-600 text-white font-medium">
+          + New Project
+        </button>
+      )}
 
       <button onClick={signOut}
         className="text-xs px-3 py-1.5 rounded-md transition-colors text-gray-500 hover:text-white hover:bg-gray-800">

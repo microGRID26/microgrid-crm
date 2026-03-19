@@ -4,6 +4,7 @@ export interface Project {
   id: string
   name: string
   city: string | null
+  zip: string | null
   address: string | null
   phone: string | null
   email: string | null

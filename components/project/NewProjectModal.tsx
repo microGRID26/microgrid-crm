@@ -88,6 +88,7 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
     name: '',
     address: '',
     city: '',
+    zip: '',
     phone: '',
     email: '',
     sale_date: new Date().toISOString().slice(0, 10),
@@ -100,7 +101,6 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
     // Optional
     contract: '',
     systemkw: '',
-    financing_type: '',
     module: '',
     module_qty: '',
     inverter: '',
@@ -144,6 +144,7 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
       name: form.name.trim(),
       address: form.address.trim(),
       city: form.city.trim() || null,
+      zip: form.zip.trim() || null,
       phone: form.phone.trim(),
       email: form.email.trim(),
       sale_date: form.sale_date || today,
@@ -155,7 +156,6 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
       financier: form.financier.trim(),
       contract: form.contract ? Number(form.contract) : null,
       systemkw: form.systemkw ? Number(form.systemkw) : null,
-      financing_type: form.financing_type.trim() || null,
       module: form.module.trim() || null,
       module_qty: form.module_qty ? Number(form.module_qty) : null,
       inverter: form.inverter.trim() || null,
@@ -188,6 +188,18 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
 
     if (histErr) {
       setError('Project created but stage history failed: ' + histErr.message)
+    }
+
+    // Initialize evaluation tasks as "Ready To Start"
+    if (form.stage === 'evaluation') {
+      const evalTasks = ['welcome', 'ia', 'ub', 'sched_survey', 'ntp']
+      await (supabase as any).from('task_state').insert(
+        evalTasks.map(taskId => ({
+          project_id: id,
+          task_id: taskId,
+          status: 'Ready To Start',
+        }))
+      )
     }
 
     setSaving(false)
@@ -233,6 +245,10 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
                 <input className={inputCls} placeholder="Austin" value={form.city} onChange={e => set('city', e.target.value)} />
               </div>
               <div>
+                <label className={labelCls}>Zip Code</label>
+                <input className={inputCls} placeholder="78701" value={form.zip} onChange={e => set('zip', e.target.value)} />
+              </div>
+              <div>
                 <label className={labelCls}>Phone <span className={reqCls}>*</span></label>
                 <input className={inputCls} placeholder="(555) 555-5555" value={form.phone} onChange={e => set('phone', e.target.value)} />
               </div>
@@ -272,20 +288,14 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
               </div>
               <div>
                 <label className={labelCls}>Financier <span className={reqCls}>*</span></label>
-                <input className={inputCls} placeholder="Edge, Sunrun, etc." value={form.financier} onChange={e => set('financier', e.target.value)} />
+                <input className={inputCls} placeholder="EDGE, Sunrun, etc." value={form.financier} onChange={e => set('financier', e.target.value)} />
               </div>
               <div>
-                <label className={labelCls}>Financing Type</label>
-                <select className={inputCls} value={form.financing_type} onChange={e => set('financing_type', e.target.value)}>
-                  <option value="">Select...</option>
-                  <option>Loan</option>
-                  <option>TPO (Lease, PPA)</option>
-                  <option>Cash</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelCls}>Contract Value ($)</label>
-                <input className={inputCls} type="number" placeholder="75000" value={form.contract} onChange={e => set('contract', e.target.value)} />
+                <label className={labelCls}>Contract Value</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">$</span>
+                  <input className={inputCls + ' pl-6'} type="number" placeholder="75,000" value={form.contract} onChange={e => set('contract', e.target.value)} />
+                </div>
               </div>
               <div>
                 <label className={labelCls}>System Size (kW)</label>
@@ -296,6 +306,7 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
                 <select className={inputCls} value={form.disposition} onChange={e => set('disposition', e.target.value)}>
                   <option>Sale</option>
                   <option>Loyalty</option>
+                  <option>In Service</option>
                   <option>Cancelled</option>
                 </select>
               </div>

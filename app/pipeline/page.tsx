@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/Nav'
 import { daysAgo, fmt$, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
+import { NewProjectModal } from '@/components/project/NewProjectModal'
 import type { Project } from '@/types/database'
 
 function getSLA(p: Project) {
@@ -28,6 +29,7 @@ export default function PipelinePage() {
   const supabase = createClient()
   const [projects, setProjects] = useState<Project[]>([])
   const [selected, setSelected] = useState<Project | null>(null)
+  const [showNewProject, setShowNewProject] = useState(false)
   const [loading, setLoading] = useState(true)
 
   // Filters
@@ -83,7 +85,7 @@ export default function PipelinePage() {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
-      <Nav active="Pipeline" right={<>
+      <Nav active="Pipeline" onNewProject={() => setShowNewProject(true)} right={<>
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search..."
@@ -212,6 +214,14 @@ export default function PipelinePage() {
           project={selected}
           onClose={() => setSelected(null)}
           onProjectUpdated={loadData}
+        />
+      )}
+      {showNewProject && (
+        <NewProjectModal
+          onClose={() => setShowNewProject(false)}
+          onCreated={() => { setShowNewProject(false); loadData() }}
+          existingIds={projects.map(p => p.id)}
+          pms={pms}
         />
       )}
     </div>

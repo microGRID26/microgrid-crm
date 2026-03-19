@@ -451,7 +451,7 @@ export default function CommandPage() {
     <div className="min-h-screen bg-gray-900 flex flex-col">
 
       {/* ── TOP NAV ──────────────────────────────────────────────────────── */}
-      <Nav active="Command" right={<>
+      <Nav active="Command" onNewProject={() => setShowNewProject(true)} right={<>
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search projects..."
             className="text-xs bg-gray-800 text-gray-200 border border-gray-700 rounded-md px-3 py-1.5 w-44 focus:outline-none focus:border-green-500 placeholder-gray-500"
