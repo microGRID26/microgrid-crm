@@ -252,7 +252,7 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
                 <label className={labelCls}>Phone <span className={reqCls}>*</span></label>
                 <input className={inputCls} placeholder="(555) 555-5555" value={form.phone} onChange={e => set('phone', e.target.value)} />
               </div>
-              <div className="col-span-2">
+              <div>
                 <label className={labelCls}>Email <span className={reqCls}>*</span></label>
                 <input className={inputCls} type="email" placeholder="customer@email.com" value={form.email} onChange={e => set('email', e.target.value)} />
               </div>
