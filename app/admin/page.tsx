@@ -71,7 +71,7 @@ interface CRMStats {
   serviceCalls: number
 }
 
-type Module = 'ahj' | 'utility' | 'users' | 'crews' | 'sla' | 'info'
+type Module = 'ahj' | 'utility' | 'users' | 'crews' | 'sla' | 'info' | 'releases'
 
 const DEPARTMENTS = [
   'Inside Operations', 'Sales', 'Executive', 'Field Operations',
@@ -1005,6 +1005,166 @@ INSERT INTO sla_thresholds (stage, target, risk, crit) VALUES
 
 // ── CRM Info ──────────────────────────────────────────────────────────────────
 
+// ── Release Notes ─────────────────────────────────────────────────────────────
+
+function ReleaseNotes() {
+  const sectionCls = "text-xs font-bold text-gray-500 uppercase tracking-widest mt-6 mb-3 px-1"
+  const cardCls = "bg-gray-900 border border-gray-800 rounded-lg px-5 py-4 mb-3"
+  const titleCls = "text-sm font-semibold text-white mb-1"
+  const bodyCls = "text-sm text-gray-400 leading-relaxed"
+  const bullet = (items: string[]) => (
+    <ul className="mt-2 space-y-1">
+      {items.map((item, i) => <li key={i} className="flex items-start gap-2"><span className="text-gray-600 mt-0.5">-</span><span>{item}</span></li>)}
+    </ul>
+  )
+
+  return (
+    <div className="max-w-3xl">
+      <h2 className="text-base font-semibold text-white mb-1">Release Notes</h2>
+      <p className="text-xs text-gray-500 mb-4">Internal version history for NOVA CRM</p>
+
+      <div className={sectionCls}>Session 9 - March 19, 2026</div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Bug Fixes - 11 issues resolved</div>
+        <div className={bodyCls}>
+          {bullet([
+            'Funding pending amount now sums all milestones (was only counting M3)',
+            'Pipeline and Service search no longer overrides dropdown filters',
+            'Auth callback redirects to login on failure instead of blank page',
+            'cycleDays falls back to stage_date when sale_date is null',
+            'Pipeline cycle sort now descending (oldest first) to match other sorts',
+            'ProjectPanel AHJ/Utility refreshes when switching between projects',
+            'NewProjectModal stage history insert now checks for errors',
+            'Funding days waiting handles malformed dates (no more NaN)',
+            'Schedule conflict check re-runs when switching create/edit mode',
+            'Middleware cookie errors no longer crash with 500',
+            'ProjectPanel fetches full project on open (fixes missing fields)',
+          ])}
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Security - RLS + Role-Based Permissions</div>
+        <div className={bodyCls}>
+          Row-level security enabled on all tables. PMs can only edit their own projects.
+          Admins have full write access. Super admin role added for destructive operations (delete).
+          User auto-provisioning on first Google login. Name cascade trigger keeps PM field in sync.
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Performance Audit</div>
+        <div className={bodyCls}>
+          All 8 pages optimized: select(*) replaced with explicit columns (10-13 vs 50+).
+          Schedule page now filters by visible week instead of loading entire history.
+          Service and Schedule pages use nested joins instead of loading all projects for name lookup.
+          Queue removed redundant PM query. Analytics filters In Service at DB level.
+          Database indexes added on stage, disposition, financier, schedule date, service call status.
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Funding Page Overhaul</div>
+        <div className={bodyCls}>
+          Complete rewrite for Taylor Pratt. One row per project with M1/M2/M3 side by side.
+          Inline editing for amount, funded date, status, and notes. Searchable nonfunded code picker
+          with all 218 codes from the master list. Per-milestone status tracking
+          (Not Submitted / Submitted / Funded / Rejected / Complete).
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Project Creation Overhaul</div>
+        <div className={bodyCls}>
+          {bullet([
+            'Required fields: Customer Name, Address, Phone, Email, Dealer, Financier',
+            'Equipment section: Module, Inverter, Battery with quantities',
+            'AHJ and Utility use searchable autocomplete from reference tables',
+            'Added zip code, HOA, consultant email fields',
+            'Evaluation tasks auto-set to Ready To Start on creation',
+            'New Project button available on Command, Queue, and Pipeline pages',
+          ])}
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Project Lifecycle</div>
+        <div className={bodyCls}>
+          Cancel Project sets disposition to Cancelled (removed from active pipeline).
+          Reactivate restores cancelled projects. Delete is super-admin-only with double
+          confirmation and full cascade across all related tables.
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Testing & CI</div>
+        <div className={bodyCls}>
+          156 automated tests (Vitest + React Testing Library) covering utility functions,
+          SLA logic, funding calculations, filter composition, BOM, task detection, auth flow.
+          Pre-commit hook blocks commits with failing tests. GitHub Actions CI runs tests + build
+          on every push.
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>AHJ & Utility Edit Popups</div>
+        <div className={bodyCls}>
+          Clicking the AHJ or Utility name in ProjectPanel opens an edit popup for the
+          reference record (phone, website, permit notes, electric code). Changes save
+          directly to the AHJ/utility table and refresh inline.
+        </div>
+      </div>
+
+      <div className={sectionCls}>Session 8 - March 18, 2026</div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Full codebase audit</div>
+        <div className={bodyCls}>
+          Every file audited for bugs, silent failures, and architecture issues.
+          ProjectPanel Info fields fully editable. Save Changes pre-loads all current values.
+          AHJ info card uses fuzzy match. Drive folder lookup fixed. Header syncs after stage advance.
+        </div>
+      </div>
+
+      <div className={sectionCls}>Session 7 - March 18, 2026</div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Bug fixes and refactoring</div>
+        <div className={bodyCls}>
+          {bullet([
+            'AHJ, Utility, and HOA clickable info modals in ProjectPanel',
+            'Stage label corrected, funding days waiting fixed, BOM key error fixed',
+            'SLA thresholds and task lists centralized in lib/utils.ts',
+          ])}
+        </div>
+      </div>
+
+      <div className={sectionCls}>Session 6 - March 17, 2026</div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Admin Portal</div>
+        <div className={bodyCls}>
+          AHJ Manager (1,633 records, paginated), Utility Manager, Users CRUD,
+          Crews with role-based members, SLA Thresholds editor, CRM Info stats.
+          AHJ/Utility autocomplete in project edit. Export field picker. Help page.
+        </div>
+      </div>
+
+      <div className={sectionCls}>Sessions 3-5 - Earlier</div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Core Features</div>
+        <div className={bodyCls}>
+          Schedule view with crew calendar. Service calls with status tracking.
+          Funding milestones (M1/M2/M3). ProjectPanel Info tab edit mode with
+          stage advance and prerequisite checking.
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CRMInfo() {
   const supabase = createClient()
   const [stats, setStats] = useState<CRMStats | null>(null)
@@ -1153,6 +1313,10 @@ const SIDEBAR_ITEMS: { id: Module; label: string; icon: React.ReactNode; desc: s
     id: 'info', label: 'CRM Info', desc: 'Live stats',
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
   },
+  {
+    id: 'releases', label: 'Release Notes', desc: 'Version history',
+    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+  },
 ]
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
@@ -1271,6 +1435,7 @@ export default function AdminPage() {
             {activeModule === 'crews'   && <CrewsManager />}
             {activeModule === 'sla'     && <SLAManager />}
             {activeModule === 'info'    && <CRMInfo />}
+            {activeModule === 'releases' && <ReleaseNotes />}
           </div>
         </main>
       </div>

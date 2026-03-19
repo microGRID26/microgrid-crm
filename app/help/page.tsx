@@ -4,7 +4,7 @@ import { Nav } from '@/components/Nav'
 
 import { useState } from 'react'
 
-type Tab = 'pms' | 'funding' | 'leadership' | 'everyone' | 'admins' | 'whats_new'
+type Tab = 'pms' | 'funding' | 'leadership' | 'everyone' | 'admins'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'pms',        label: 'For PMs'        },
@@ -12,7 +12,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'leadership', label: 'For Leadership'  },
   { id: 'everyone',   label: 'For Everyone'    },
   { id: 'admins',     label: 'For Admins'      },
-  { id: 'whats_new',  label: "What's New"      },
 ]
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
@@ -328,112 +327,6 @@ function ForAdmins() {
   )
 }
 
-function WhatsNew() {
-  return (
-    <div>
-      <SectionHeader title="Session 6 — March 18, 2026" />
-      <Card title="Full codebase audit">
-        Every file in the codebase was audited for bugs, silent failures, and architecture issues. Key findings
-        and fixes applied this session are listed below. Remaining items are tracked internally for future sessions.
-      </Card>
-      <Card title="ProjectPanel — all Info fields now fully editable">
-        All fields in the Info tab are now editable in edit mode, including: contract amount, system kW,
-        financier, financing type, down payment, TPO escalator, advance payment schedule, dealer, all equipment
-        fields (module, inverter, battery, optimizer + quantities), all site and electrical fields (meter location,
-        panel location, voltage, MSP bus rating, MPU, shutdown, performance meter, interconnect breaker, main
-        breaker, HOA, ESID), and all milestone dates.
-      </Card>
-      <Card title="ProjectPanel — Save Changes is now reliable">
-        Previously, clicking Save Changes without touching every field could silently drop data for untouched
-        fields. Edit mode now pre-loads all current values into the draft so Save always sends the correct
-        complete state to the database.
-      </Card>
-      <Card title="ProjectPanel — AHJ info card more reliable">
-        The AHJ info card (phone, website, permit notes shown below the AHJ field) now uses a fuzzy
-        contains-match to find the right AHJ record. Previously an exact-match was used, which caused the
-        info card to silently show nothing if the project's AHJ name had minor formatting differences
-        from the database record.
-      </Card>
-      <Card title="ProjectPanel — Drive folder lookup fixed">
-        The Files tab was silently throwing a database error for projects with no linked Drive folder.
-        This caused unexpected behavior in some cases. Now handled correctly — projects without a Drive
-        folder simply show the "No folder linked" message.
-      </Card>
-      <Card title="ProjectPanel — header syncs after stage advance">
-        After advancing a project's stage from within the panel, the stage label and day counters in the
-        panel header now update immediately without needing to close and reopen the panel.
-      </Card>
-
-      <SectionHeader title="Session 5 — March 18, 2026" />
-      <Card title="AHJ, Utility, and HOA clickable info modals">
-        In the project Info tab, the AHJ, Utility, and HOA fields are now clickable green links that open
-        detailed edit modals with all associated contact and portal information.
-      </Card>
-      <Card title="Bug fixes — 6 issues resolved">
-        <Ul items={[
-          'Stage label "Completion" corrected to "Complete" across all views',
-          'Funding page: Days Waiting column now renders correctly',
-          'BOM tab: React key error fixed',
-          'Command Center: Needs Attention section now correctly surfaces stuck tasks',
-          'Schedule page: removed dead code (ghost ProjectPanel that could never open)',
-          'Admin portal: avatar color field unified',
-        ]} />
-      </Card>
-      <Card title="Code refactor — SLA thresholds and task lists centralized">
-        SLA thresholds and stage task lists were previously copy-pasted in 4 separate files. They now live
-        in a single place (lib/utils.ts) and are imported everywhere.
-      </Card>
-
-      <SectionHeader title="Session 4 — March 17, 2026" />
-      <Card title="Admin portal — full build">
-        Gear icon (⚙) in the top nav for Greg Kelsch and Heidi Hildreth. Six modules: AHJ Manager,
-        Utility Manager, Users, Crews, SLA Thresholds, CRM Info.
-      </Card>
-      <Card title="AHJ Manager">
-        Search, paginate, and edit all 1,633 TX AHJ records. Edit modal with all permit fields and
-        portal login credentials with masked password and show/hide toggle.
-      </Card>
-      <Card title="Utility Manager">
-        Search and edit all 203 active utility companies.
-      </Card>
-      <Card title="Users module">
-        Full user CRUD with department, position, admin access, and active status. Avatar color picker.
-      </Card>
-      <Card title="Crews module">
-        View all 5 crews with role-based member display. Edit modal for all 10 crew role fields.
-      </Card>
-      <Card title="SLA Thresholds">
-        Editable target/risk/critical days per stage. Saves to sla_thresholds table in Supabase.
-      </Card>
-      <Card title="AHJ & Utility autocomplete">
-        Typing in the AHJ or Utility field in the project edit panel shows a live dropdown of matching
-        records from the database. Select to fill, or type freely for records not in the database.
-      </Card>
-      <Card title="Export field picker">
-        The Export button in Command now opens a modal. Choose exactly which of the 42 fields to include,
-        grouped by category. Export respects current PM filter and search.
-      </Card>
-      <Card title="Help page">
-        This page. Accessible via the ? button in every nav.
-      </Card>
-
-      <SectionHeader title="Session 3 — Earlier" />
-      <Card title="Schedule view">
-        Weekly crew job grid with assign modal. Create, edit, and cancel crew job assignments.
-      </Card>
-      <Card title="Service calls">
-        Service call list with status tracking.
-      </Card>
-      <Card title="Funding milestones">
-        M1/M2/M3 table with days waiting and bulk submit.
-      </Card>
-      <Card title="Project panel — Info tab edit mode">
-        Edit all project fields inline. Stage advance with prerequisite checking. AHJ and utility
-        info cards auto-load when a matching record is found.
-      </Card>
-    </div>
-  )
-}
 
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 
@@ -485,7 +378,6 @@ export default function HelpPage() {
           {tab === 'leadership' && <ForLeadership />}
           {tab === 'everyone'   && <ForEveryone />}
           {tab === 'admins'     && <ForAdmins />}
-          {tab === 'whats_new'  && <WhatsNew />}
         </div>
       </div>
     </div>
