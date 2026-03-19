@@ -1172,9 +1172,8 @@ export default function AdminPage() {
         setCurrentUser(data)
         setIsAdmin(data.admin === true)
       } else {
-        // Check hardcoded admin emails as fallback
-        const adminEmails = ['gkelsch@trismartsolar.com', 'hguevara@trismartsolar.com']
-        setIsAdmin(adminEmails.includes(user.email ?? ''))
+        // No user row found — not an admin. User will be provisioned on next login.
+        setIsAdmin(false)
       }
     }
     checkUser()

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fmt$, fmtDate, daysAgo, STAGE_LABELS, STAGE_ORDER } from '@/lib/utils'
+import { useCurrentUser } from '@/lib/useCurrentUser'
 import type { Project, Note } from '@/types/database'
 import { BomTab } from './BomTab'
 
@@ -563,6 +564,7 @@ interface ProjectPanelProps {
 
 export function ProjectPanel({ project: initialProject, onClose, onProjectUpdated }: ProjectPanelProps) {
   const supabase = createClient()
+  const { user: currentUser } = useCurrentUser()
   const [project, setProject] = useState<Project>(initialProject)
   const [tab, setTab] = useState<'tasks' | 'notes' | 'info' | 'bom' | 'files'>('tasks')
   const [taskStates, setTaskStates] = useState<Record<string, string>>({})
@@ -748,7 +750,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     }, { onConflict: 'project_id,task_id' })
 
     // Fire-and-forget revision trail insert — no await, zero user-facing latency
-    const changedBy = (typeof window !== 'undefined' ? localStorage.getItem('mg_display_name') : null)
+    const changedBy = currentUser?.name
       ?? userEmail.split('@')[0]
       ?? 'unknown'
     void (supabase as any).from('task_history').insert({
@@ -788,7 +790,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     }, { onConflict: 'project_id,task_id' })
 
     // Fire-and-forget — log reason changes to history too
-    const changedBy = (typeof window !== 'undefined' ? localStorage.getItem('mg_display_name') : null)
+    const changedBy = currentUser?.name
       ?? userEmail.split('@')[0]
       ?? 'unknown'
     void (supabase as any).from('task_history').insert({
@@ -808,7 +810,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
   async function addNote() {
     if (!newNote.trim()) return
     setSaving(true)
-    const pm = (typeof window !== 'undefined' ? localStorage.getItem('mg_display_name') : null) ?? userEmail.split('@')[0] ?? 'PM'
+    const pm = currentUser?.name ?? userEmail.split('@')[0] ?? 'PM'
     await (supabase as any).from('notes').insert({
       project_id: pid, text: newNote.trim(),
       time: new Date().toISOString(), pm,

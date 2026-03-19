@@ -11,6 +11,15 @@ export async function GET(request: Request) {
     if (error) {
       return NextResponse.redirect(`${origin}/login?error=auth_failed`)
     }
+
+    // Auto-provision user row on first login
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user?.email) {
+      await (supabase as any).rpc('provision_user', {
+        p_email: user.email,
+        p_name: user.user_metadata?.full_name ?? user.email.split('@')[0],
+      })
+    }
   }
 
   return NextResponse.redirect(`${origin}/command`)
