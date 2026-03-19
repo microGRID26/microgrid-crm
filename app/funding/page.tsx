@@ -111,13 +111,13 @@ function EditableCell({ value, onSave, type = 'text', placeholder = '—', class
     : value ?? placeholder
 
   return (
-    <span
+    <div
       onClick={startEdit}
-      className={`cursor-pointer hover:bg-gray-700 hover:text-white rounded px-1 py-0.5 -mx-1 transition-colors ${saving ? 'opacity-50' : ''} ${className}`}
+      className={`cursor-pointer hover:bg-gray-700 hover:text-white rounded px-1 py-0.5 -mx-1 -my-1 min-h-[24px] flex items-center transition-colors w-full ${saving ? 'opacity-50' : ''} ${className}`}
       title="Click to edit"
     >
       {display}
-    </span>
+    </div>
   )
 }
 
@@ -265,6 +265,10 @@ export default function FundingPage() {
   const [statusFilter, setStatusFilter] = useState<FundingFilter>('eligible')
   const [financierFilter, setFinancierFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [showGuide, setShowGuide] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return localStorage.getItem('mg_funding_guide_v2') !== 'dismissed'
+  })
 
   const loadData = useCallback(async () => {
     const [projRes, fundRes, nfRes] = await Promise.all([
@@ -380,6 +384,48 @@ export default function FundingPage() {
         {pendingAmount > 0 && <div><div className="text-xs text-gray-500">Pending</div><div className="text-xl font-bold text-amber-400 font-mono">{fmt$(pendingAmount)}</div></div>}
         <span className="ml-auto text-xs text-gray-500">{rows.length} rows</span>
       </div>
+
+      {/* Guide */}
+      {showGuide && (
+        <div className="bg-indigo-950 border-b border-indigo-800 px-6 py-3 flex-shrink-0">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-2">How to use the Funding page</div>
+              <div className="grid grid-cols-3 gap-6 text-xs text-indigo-200">
+                <div>
+                  <div className="font-semibold text-white mb-1">Inline editing</div>
+                  <div className="text-indigo-300 space-y-1">
+                    <div>Click any <span className="text-white font-medium">Amount, Funded Date, CB, CB Credit,</span> or <span className="text-white font-medium">Notes</span> cell to edit it directly.</div>
+                    <div>Press <span className="text-white font-medium">Enter</span> to save, <span className="text-white font-medium">Escape</span> to cancel.</div>
+                    <div>Click <span className="text-green-400 font-medium">project name</span> to open the full project panel.</div>
+                  </div>
+                </div>
+                <div>
+                  <div className="font-semibold text-white mb-1">Status & NF codes</div>
+                  <div className="text-indigo-300 space-y-1">
+                    <div>Use the <span className="text-white font-medium">Status</span> dropdown to track: Not Submitted, Submitted, Funded, Rejected, Complete.</div>
+                    <div>Click <span className="text-white font-medium">+</span> in the NF Codes column to search and assign nonfunded codes from the master list.</div>
+                    <div>Click <span className="text-red-300 font-medium">x</span> next to a code to remove it.</div>
+                  </div>
+                </div>
+                <div>
+                  <div className="font-semibold text-white mb-1">Milestone badges</div>
+                  <div className="space-y-1 text-indigo-300">
+                    <div><span className="bg-amber-900 text-amber-300 px-1.5 py-0.5 rounded text-xs font-bold mr-1">M1</span> Eligible — ready to submit</div>
+                    <div><span className="bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded text-xs font-bold mr-1">M2</span> Submitted — awaiting payment</div>
+                    <div><span className="bg-green-900 text-green-300 px-1.5 py-0.5 rounded text-xs font-bold mr-1">M3</span> Funded — payment received</div>
+                    <div><span className="bg-red-900 text-red-300 px-1.5 py-0.5 rounded text-xs font-bold mr-1">M1</span> Rejected — see NF codes</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => { setShowGuide(false); localStorage.setItem('mg_funding_guide_v2', 'dismissed') }}
+              className="text-indigo-400 hover:text-white text-lg flex-shrink-0 leading-none"
+            >x</button>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-gray-950 border-b border-gray-800 flex items-center gap-2 px-4 py-2 flex-shrink-0 flex-wrap">
