@@ -13,49 +13,35 @@ type FundingStatus = 'Not Submitted' | 'Submitted' | 'Funded' | 'Rejected' | 'Co
 
 const FUNDING_STATUSES: FundingStatus[] = ['Not Submitted', 'Submitted', 'Funded', 'Rejected', 'Complete']
 
+interface MsData {
+  amount: number | null
+  funded_date: string | null
+  status: string | null
+  notes: string | null
+  isEligible: boolean
+  isFunded: boolean
+}
+
 interface FundingRow {
   project: Project
   funding: ProjectFunding | null
-  milestone: MilestoneKey
-  amount: number | null
-  funded_date: string | null
-  cb: number | null
-  cb_credit: number | null
+  m1: MsData
+  m2: MsData
+  m3: MsData
   nf1: string | null
   nf2: string | null
   nf3: string | null
-  notes: string | null
-  status: string | null
-  isEligible: boolean
-  isFunded: boolean
-  isNonfunded: boolean
-  daysWaiting: number | null
 }
 
-function getMilestoneData(f: ProjectFunding | null, ms: MilestoneKey) {
-  if (!f) return { amount: null, funded_date: null, cb: null, cb_credit: null, nf1: null, nf2: null, nf3: null, notes: null, status: null }
-  return {
-    amount:      ms === 'm1' ? f.m1_amount : ms === 'm2' ? f.m2_amount : f.m3_amount,
-    funded_date: ms === 'm1' ? f.m1_funded_date : ms === 'm2' ? f.m2_funded_date : f.m3_funded_date,
-    cb:          ms === 'm1' ? f.m1_cb : ms === 'm2' ? f.m2_cb : null,
-    cb_credit:   ms === 'm1' ? f.m1_cb_credit : ms === 'm2' ? f.m2_cb_credit : null,
-    nf1:         f.nonfunded_code_1,
-    nf2:         f.nonfunded_code_2,
-    nf3:         f.nonfunded_code_3,
-    notes:       ms === 'm1' ? f.m1_notes : ms === 'm2' ? f.m2_notes : f.m3_notes,
-    status:      ms === 'm1' ? f.m1_status : ms === 'm2' ? f.m2_status : f.m3_status,
-  }
+function getMsData(f: ProjectFunding | null, p: Project, ms: MilestoneKey): MsData {
+  const eligible = ms === 'm1' ? true : ms === 'm2' ? !!p.install_complete_date : !!p.pto_date
+  if (!f) return { amount: null, funded_date: null, status: null, notes: null, isEligible: eligible, isFunded: false }
+  const amount = ms === 'm1' ? f.m1_amount : ms === 'm2' ? f.m2_amount : f.m3_amount
+  const funded_date = ms === 'm1' ? f.m1_funded_date : ms === 'm2' ? f.m2_funded_date : f.m3_funded_date
+  const status = ms === 'm1' ? f.m1_status : ms === 'm2' ? f.m2_status : f.m3_status
+  const notes = ms === 'm1' ? f.m1_notes : ms === 'm2' ? f.m2_notes : f.m3_notes
+  return { amount, funded_date, status, notes, isEligible: eligible, isFunded: !!funded_date }
 }
-
-function isEligible(p: Project, ms: MilestoneKey): boolean {
-  if (ms === 'm1') return true
-  if (ms === 'm2') return !!p.install_complete_date
-  if (ms === 'm3') return !!p.pto_date
-  return false
-}
-
-const MS_LABELS: Record<MilestoneKey, string> = { m1: 'M1', m2: 'M2', m3: 'M3' }
-const MS_FULL: Record<MilestoneKey, string> = { m1: 'Milestone 1', m2: 'Milestone 2 (Install)', m3: 'Milestone 3 (PTO)' }
 
 // ── Inline Editable Cell ──────────────────────────────────────────────────────
 
@@ -121,9 +107,20 @@ function EditableCell({ value, onSave, type = 'text', placeholder = '—', class
   )
 }
 
+// ── Status Badge ──────────────────────────────────────────────────────────────
+
+function MsBadge({ ms, data }: { ms: MilestoneKey; data: MsData }) {
+  const color = data.status === 'Funded' || data.status === 'Complete' ? 'bg-green-900 text-green-300'
+    : data.status === 'Rejected' ? 'bg-red-900 text-red-300'
+    : data.status === 'Submitted' ? 'bg-blue-900 text-blue-300'
+    : data.isEligible ? 'bg-amber-900 text-amber-300'
+    : 'bg-gray-800 text-gray-500'
+  return <span className={`font-bold px-1 py-0.5 rounded text-[10px] ${color}`}>{ms.toUpperCase()}</span>
+}
+
 // ── Status Dropdown ───────────────────────────────────────────────────────────
 
-function StatusSelect({ value, onSave }: { value: string | null; onSave: (val: string | null) => Promise<void> }) {
+function StatusSelect({ value, onSave, compact }: { value: string | null; onSave: (val: string | null) => Promise<void>; compact?: boolean }) {
   const [saving, setSaving] = useState(false)
 
   const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -137,7 +134,7 @@ function StatusSelect({ value, onSave }: { value: string | null; onSave: (val: s
   const color = value === 'Funded' || value === 'Complete' ? 'text-green-400'
     : value === 'Submitted' ? 'text-blue-400'
     : value === 'Rejected' ? 'text-red-400'
-    : 'text-gray-400'
+    : 'text-gray-500'
 
   return (
     <select
@@ -145,10 +142,10 @@ function StatusSelect({ value, onSave }: { value: string | null; onSave: (val: s
       onChange={handleChange}
       onClick={e => e.stopPropagation()}
       disabled={saving}
-      className={`bg-transparent border-0 text-xs cursor-pointer focus:outline-none ${color} ${saving ? 'opacity-50' : ''}`}
+      className={`bg-transparent border-0 text-[10px] cursor-pointer focus:outline-none w-full ${color} ${saving ? 'opacity-50' : ''}`}
     >
       <option value="">—</option>
-      {FUNDING_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+      {FUNDING_STATUSES.map(s => <option key={s} value={s}>{compact ? s.slice(0, 3) : s}</option>)}
     </select>
   )
 }
@@ -178,7 +175,6 @@ function NfCodePicker({ value, onSave, codes, slot }: {
     ? codes.filter(c => c.code.toLowerCase().includes(query.toLowerCase()) || c.description.toLowerCase().includes(query.toLowerCase()) || c.master_code.toLowerCase().includes(query.toLowerCase()))
     : codes
 
-  // Group by master_code
   const groups: Record<string, NonfundedCode[]> = {}
   filtered.forEach(c => { (groups[c.master_code] ??= []).push(c) })
 
@@ -193,60 +189,69 @@ function NfCodePicker({ value, onSave, codes, slot }: {
   return (
     <div className="relative inline-block" ref={ref}>
       {value ? (
-        <span className="inline-flex items-center gap-1">
+        <span className="inline-flex items-center gap-0.5">
           <span
-            className="bg-red-900/50 text-red-300 text-xs px-1.5 py-0.5 rounded cursor-pointer hover:bg-red-800"
+            className="bg-red-900/50 text-red-300 text-[10px] px-1 py-0.5 rounded cursor-pointer hover:bg-red-800"
             onClick={e => { e.stopPropagation(); setOpen(!open) }}
             title={codes.find(c => c.code === value)?.description ?? value}
-          >
-            {value}
-          </span>
-          <button
-            onClick={e => { e.stopPropagation(); select(null) }}
-            className="text-gray-600 hover:text-red-400 text-xs"
-            title="Remove code"
-          >x</button>
+          >{value}</span>
+          <button onClick={e => { e.stopPropagation(); select(null) }} className="text-gray-600 hover:text-red-400 text-[10px]" title="Remove">x</button>
         </span>
       ) : (
-        <button
-          onClick={e => { e.stopPropagation(); setOpen(!open) }}
-          className="text-gray-600 hover:text-gray-300 text-xs"
-          title={`Add NF code ${slot}`}
-        >+</button>
+        <button onClick={e => { e.stopPropagation(); setOpen(!open) }} className="text-gray-600 hover:text-gray-300 text-xs" title={`Add NF code ${slot}`}>+</button>
       )}
       {open && (
         <div className="absolute z-50 top-full left-0 mt-1 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-          <input
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search codes..."
-            autoFocus
-            className="w-full bg-gray-900 text-white text-xs px-3 py-2 border-b border-gray-700 focus:outline-none"
-          />
+          <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search codes..." autoFocus
+            className="w-full bg-gray-900 text-white text-xs px-3 py-2 border-b border-gray-700 focus:outline-none" />
           <div className="max-h-64 overflow-y-auto">
             {Object.entries(groups).map(([group, items]) => (
               <div key={group}>
-                <div className="px-3 py-1.5 text-xs font-bold text-gray-500 bg-gray-850 uppercase tracking-wider sticky top-0 bg-gray-900">{group}</div>
+                <div className="px-3 py-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-900">{group}</div>
                 {items.map(c => (
-                  <button
-                    key={c.code}
-                    onClick={() => select(c.code)}
-                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 transition-colors flex items-start gap-2"
-                  >
+                  <button key={c.code} onClick={() => select(c.code)}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 transition-colors flex items-start gap-2">
                     <span className="text-amber-400 font-mono font-bold flex-shrink-0 w-12">{c.code}</span>
                     <span className="text-gray-300">{c.description}</span>
                   </button>
                 ))}
               </div>
             ))}
-            {filtered.length === 0 && (
-              <div className="px-3 py-4 text-center text-gray-500 text-xs">No codes match "{query}"</div>
-            )}
+            {filtered.length === 0 && <div className="px-3 py-4 text-center text-gray-500 text-xs">No codes match &ldquo;{query}&rdquo;</div>}
           </div>
         </div>
       )}
     </div>
+  )
+}
+
+// ── Milestone Cell Group ──────────────────────────────────────────────────────
+
+function MsCells({ ms, data, pid, saveFundingField }: {
+  ms: MilestoneKey
+  data: MsData
+  pid: string
+  saveFundingField: (projectId: string, field: string, value: string | number | null) => Promise<void>
+}) {
+  const field = (f: string) => `${ms}_${f}`
+  return (
+    <>
+      <td className="px-1 py-1.5 font-mono text-center">
+        <MsBadge ms={ms} data={data} />
+      </td>
+      <td className="px-1 py-1.5 font-mono">
+        <EditableCell value={data.amount} type="currency"
+          onSave={async val => saveFundingField(pid, field('amount'), val ? Number(val) : null)} />
+      </td>
+      <td className="px-1 py-1.5">
+        <EditableCell value={data.funded_date} type="date"
+          onSave={async val => saveFundingField(pid, field('funded_date'), val)} />
+      </td>
+      <td className="px-1 py-1.5">
+        <StatusSelect value={data.status}
+          onSave={async val => saveFundingField(pid, field('status'), val)} compact />
+      </td>
+    </>
   )
 }
 
@@ -261,13 +266,12 @@ export default function FundingPage() {
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
 
-  const [msFilter, setMsFilter] = useState<MilestoneKey | 'all'>('all')
-  const [statusFilter, setStatusFilter] = useState<FundingFilter>('eligible')
+  const [statusFilter, setStatusFilter] = useState<FundingFilter>('all')
   const [financierFilter, setFinancierFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [showGuide, setShowGuide] = useState(() => {
     if (typeof window === 'undefined') return true
-    return localStorage.getItem('mg_funding_guide_v2') !== 'dismissed'
+    return localStorage.getItem('mg_funding_guide_v3') !== 'dismissed'
   })
 
   const loadData = useCallback(async () => {
@@ -290,32 +294,23 @@ export default function FundingPage() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2000) }
 
-  // ── Save a single funding field ──────────────────────────────────────────────
   const saveFundingField = async (projectId: string, field: string, value: string | number | null) => {
     const update: Record<string, any> = { [field]: value }
     const { error } = await (supabase as any).from('project_funding').upsert(
       { project_id: projectId, ...update },
       { onConflict: 'project_id' }
     )
-    if (error) {
-      showToast('Save failed: ' + error.message)
-      return
-    }
-    // Optimistic update
+    if (error) { showToast('Save failed: ' + error.message); return }
     setFunding(prev => {
       const existing = prev[projectId] ?? { project_id: projectId } as any
       return { ...prev, [projectId]: { ...existing, ...update } }
     })
   }
 
-  // Helper to get the correct field name for a milestone
-  const msField = (ms: MilestoneKey, field: string) => `${ms}_${field}`
   const nfField = (slot: number) => `nonfunded_code_${slot}`
-
   const financiers = [...new Set(projects.map(p => p.financier).filter(Boolean))].sort() as string[]
-  const milestones: MilestoneKey[] = msFilter === 'all' ? ['m1', 'm2', 'm3'] : [msFilter]
 
-  // Build rows
+  // Build one row per project
   const rows: FundingRow[] = []
   projects.forEach(p => {
     if (financierFilter !== 'all' && p.financier !== financierFilter) return
@@ -323,46 +318,31 @@ export default function FundingPage() {
       const q = search.toLowerCase()
       if (!p.name?.toLowerCase().includes(q) && !p.id?.toLowerCase().includes(q) && !p.city?.toLowerCase().includes(q)) return
     }
-    milestones.forEach(ms => {
-      const f = funding[p.id] ?? null
-      const data = getMilestoneData(f, ms)
-      const eligible = isEligible(p, ms)
-      const funded = !!data.funded_date
-      const nonfunded = !funded && !!data.nf1
-      let daysWaiting: number | null = null
-      if (eligible && !funded) {
-        const triggerDate = ms === 'm2' ? p.install_complete_date : ms === 'm3' ? p.pto_date : p.sale_date
-        if (triggerDate) {
-          const d = new Date(triggerDate + 'T00:00:00')
-          if (!isNaN(d.getTime())) daysWaiting = Math.floor((Date.now() - d.getTime()) / 86400000)
-        }
-      }
-      const row: FundingRow = {
-        project: p, funding: f, milestone: ms,
-        ...data,
-        isEligible: eligible, isFunded: funded, isNonfunded: nonfunded,
-        daysWaiting,
-      }
-      if (statusFilter === 'eligible' && (!eligible || funded)) return
-      if (statusFilter === 'funded' && !funded) return
-      if (statusFilter === 'nonfunded' && !nonfunded) return
-      if (statusFilter === 'submitted' && data.status !== 'Submitted') return
-      if (statusFilter === 'rejected' && data.status !== 'Rejected') return
-      rows.push(row)
-    })
+    const f = funding[p.id] ?? null
+    const m1 = getMsData(f, p, 'm1')
+    const m2 = getMsData(f, p, 'm2')
+    const m3 = getMsData(f, p, 'm3')
+
+    // Filter by status across any milestone
+    if (statusFilter === 'eligible' && !m1.isEligible && !m2.isEligible && !m3.isEligible) return
+    if (statusFilter === 'funded' && !m1.isFunded && !m2.isFunded && !m3.isFunded) return
+    if (statusFilter === 'submitted' && m1.status !== 'Submitted' && m2.status !== 'Submitted' && m3.status !== 'Submitted') return
+    if (statusFilter === 'rejected' && m1.status !== 'Rejected' && m2.status !== 'Rejected' && m3.status !== 'Rejected') return
+    if (statusFilter === 'nonfunded' && !f?.nonfunded_code_1) return
+
+    rows.push({ project: p, funding: f, m1, m2, m3, nf1: f?.nonfunded_code_1 ?? null, nf2: f?.nonfunded_code_2 ?? null, nf3: f?.nonfunded_code_3 ?? null })
   })
 
-  rows.sort((a, b) => {
-    if (a.isFunded !== b.isFunded) return a.isFunded ? 1 : -1
-    return (a.project.financier ?? '').localeCompare(b.project.financier ?? '')
-  })
+  rows.sort((a, b) => (a.project.financier ?? '').localeCompare(b.project.financier ?? ''))
 
-  const totalEligible = rows.filter(r => r.isEligible && !r.isFunded).length
-  const totalFunded = rows.filter(r => r.isFunded).length
-  const totalAmount = rows.filter(r => r.isFunded).reduce((s, r) => s + (Number(r.amount) || 0), 0)
-  const pendingAmount = rows.filter(r => r.isEligible && !r.isFunded).reduce((s, r) => s + (Number(r.amount) || 0), 0)
-  const totalSubmitted = rows.filter(r => r.status === 'Submitted').length
-  const totalRejected = rows.filter(r => r.status === 'Rejected').length
+  // Stats
+  const allMs = rows.flatMap(r => [r.m1, r.m2, r.m3])
+  const totalEligible = allMs.filter(d => d.isEligible && !d.isFunded).length
+  const totalFunded = allMs.filter(d => d.isFunded).length
+  const totalAmount = allMs.filter(d => d.isFunded).reduce((s, d) => s + (Number(d.amount) || 0), 0)
+  const pendingAmount = allMs.filter(d => d.isEligible && !d.isFunded).reduce((s, d) => s + (Number(d.amount) || 0), 0)
+  const totalSubmitted = allMs.filter(d => d.status === 'Submitted').length
+  const totalRejected = allMs.filter(d => d.status === 'Rejected').length
 
   if (loading) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -382,7 +362,7 @@ export default function FundingPage() {
         {totalRejected > 0 && <div><div className="text-xs text-gray-500">Rejected</div><div className="text-xl font-bold text-red-400 font-mono">{totalRejected}</div></div>}
         <div><div className="text-xs text-gray-500">Total Funded</div><div className="text-xl font-bold text-white font-mono">{fmt$(totalAmount)}</div></div>
         {pendingAmount > 0 && <div><div className="text-xs text-gray-500">Pending</div><div className="text-xl font-bold text-amber-400 font-mono">{fmt$(pendingAmount)}</div></div>}
-        <span className="ml-auto text-xs text-gray-500">{rows.length} rows</span>
+        <span className="ml-auto text-xs text-gray-500">{rows.length} projects</span>
       </div>
 
       {/* Guide */}
@@ -395,7 +375,7 @@ export default function FundingPage() {
                 <div>
                   <div className="font-semibold text-white mb-1">Inline editing</div>
                   <div className="text-indigo-300 space-y-1">
-                    <div>Click any <span className="text-white font-medium">Amount, Funded Date, CB, CB Credit,</span> or <span className="text-white font-medium">Notes</span> cell to edit it directly.</div>
+                    <div>Click any <span className="text-white font-medium">Amount Due, Funded Date,</span> or <span className="text-white font-medium">Notes</span> cell to edit directly.</div>
                     <div>Press <span className="text-white font-medium">Enter</span> to save, <span className="text-white font-medium">Escape</span> to cancel.</div>
                     <div>Click <span className="text-green-400 font-medium">project name</span> to open the full project panel.</div>
                   </div>
@@ -403,179 +383,135 @@ export default function FundingPage() {
                 <div>
                   <div className="font-semibold text-white mb-1">Status & NF codes</div>
                   <div className="text-indigo-300 space-y-1">
-                    <div>Use the <span className="text-white font-medium">Status</span> dropdown to track: Not Submitted, Submitted, Funded, Rejected, Complete.</div>
-                    <div>Click <span className="text-white font-medium">+</span> in the NF Codes column to search and assign nonfunded codes from the master list.</div>
+                    <div>Each milestone has its own <span className="text-white font-medium">Status</span> dropdown: Not Submitted, Submitted, Funded, Rejected, Complete.</div>
+                    <div>Click <span className="text-white font-medium">+</span> in the NF Codes column to search and assign nonfunded codes.</div>
                     <div>Click <span className="text-red-300 font-medium">x</span> next to a code to remove it.</div>
                   </div>
                 </div>
                 <div>
-                  <div className="font-semibold text-white mb-1">Milestone badges</div>
+                  <div className="font-semibold text-white mb-1">Layout</div>
                   <div className="space-y-1 text-indigo-300">
-                    <div><span className="bg-amber-900 text-amber-300 px-1.5 py-0.5 rounded text-xs font-bold mr-1">M1</span> Eligible — ready to submit</div>
-                    <div><span className="bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded text-xs font-bold mr-1">M2</span> Submitted — awaiting payment</div>
-                    <div><span className="bg-green-900 text-green-300 px-1.5 py-0.5 rounded text-xs font-bold mr-1">M3</span> Funded — payment received</div>
-                    <div><span className="bg-red-900 text-red-300 px-1.5 py-0.5 rounded text-xs font-bold mr-1">M1</span> Rejected — see NF codes</div>
+                    <div>Each row is one project with <span className="text-white font-medium">M1, M2, M3</span> payment columns side by side.</div>
+                    <div><span className="bg-amber-900 text-amber-300 px-1 py-0.5 rounded text-[10px] font-bold">M1</span> Eligible <span className="bg-blue-900 text-blue-300 px-1 py-0.5 rounded text-[10px] font-bold">M2</span> Submitted <span className="bg-green-900 text-green-300 px-1 py-0.5 rounded text-[10px] font-bold">M3</span> Funded <span className="bg-red-900 text-red-300 px-1 py-0.5 rounded text-[10px] font-bold">M1</span> Rejected</div>
                   </div>
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => { setShowGuide(false); localStorage.setItem('mg_funding_guide_v2', 'dismissed') }}
-              className="text-indigo-400 hover:text-white text-lg flex-shrink-0 leading-none"
-            >x</button>
+            <button onClick={() => { setShowGuide(false); localStorage.setItem('mg_funding_guide_v3', 'dismissed') }}
+              className="text-indigo-400 hover:text-white text-lg flex-shrink-0 leading-none">x</button>
           </div>
         </div>
       )}
 
       {/* Filters */}
       <div className="bg-gray-950 border-b border-gray-800 flex items-center gap-2 px-4 py-2 flex-shrink-0 flex-wrap">
-        <select value={msFilter} onChange={e => setMsFilter(e.target.value as any)}
-          className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
-          <option value="all">All Milestones</option>
-          {(['m1','m2','m3'] as MilestoneKey[]).map(ms => <option key={ms} value={ms}>{MS_FULL[ms]}</option>)}
-        </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as FundingFilter)}
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
           <option value="all">All Statuses</option>
-          <option value="eligible">Eligible (unfunded)</option>
-          <option value="submitted">Submitted</option>
-          <option value="funded">Funded</option>
-          <option value="rejected">Rejected</option>
-          <option value="nonfunded">Nonfunded (has NF code)</option>
+          <option value="eligible">Has Eligible</option>
+          <option value="submitted">Has Submitted</option>
+          <option value="funded">Has Funded</option>
+          <option value="rejected">Has Rejected</option>
+          <option value="nonfunded">Has NF Code</option>
         </select>
         <select value={financierFilter} onChange={e => setFinancierFilter(e.target.value)}
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
           <option value="all">All Financiers</option>
           {financiers.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search projects..."
-          className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5 w-48"
-        />
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search projects..."
+          className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5 w-48" />
       </div>
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
         <table className="w-full border-collapse text-xs">
           <thead className="bg-gray-950 sticky top-0 z-10">
+            {/* Group headers */}
             <tr>
-              {['MS','Project','Financier','AHJ','Stage','Install','PTO','Contract','Amount Due','Funded Date','Days','CB','CB Credit','Status','NF Codes','Notes'].map(h => (
-                <th key={h} className="text-left text-xs text-gray-400 font-medium px-2 py-2 border-b border-gray-800 whitespace-nowrap">{h}</th>
-              ))}
+              <th colSpan={6} className="border-b border-gray-800"></th>
+              <th colSpan={4} className="text-center text-[10px] text-amber-400 font-bold border-b border-gray-800 border-l border-gray-700 bg-amber-950/20 py-1">M1 — Advance</th>
+              <th colSpan={4} className="text-center text-[10px] text-blue-400 font-bold border-b border-gray-800 border-l border-gray-700 bg-blue-950/20 py-1">M2 — Install</th>
+              <th colSpan={4} className="text-center text-[10px] text-green-400 font-bold border-b border-gray-800 border-l border-gray-700 bg-green-950/20 py-1">M3 — PTO</th>
+              <th colSpan={2} className="border-b border-gray-800 border-l border-gray-700"></th>
+            </tr>
+            {/* Column headers */}
+            <tr>
+              <th className="text-left text-xs text-gray-400 font-medium px-2 py-2 border-b border-gray-800 whitespace-nowrap">Project</th>
+              <th className="text-left text-xs text-gray-400 font-medium px-2 py-2 border-b border-gray-800 whitespace-nowrap">Financier</th>
+              <th className="text-left text-xs text-gray-400 font-medium px-2 py-2 border-b border-gray-800 whitespace-nowrap">AHJ</th>
+              <th className="text-left text-xs text-gray-400 font-medium px-2 py-2 border-b border-gray-800 whitespace-nowrap">Install</th>
+              <th className="text-left text-xs text-gray-400 font-medium px-2 py-2 border-b border-gray-800 whitespace-nowrap">PTO</th>
+              <th className="text-left text-xs text-gray-400 font-medium px-2 py-2 border-b border-gray-800 whitespace-nowrap">Contract</th>
+              {/* M1 */}
+              <th className="text-center text-[10px] text-gray-500 font-medium px-1 py-2 border-b border-gray-800 border-l border-gray-700"></th>
+              <th className="text-left text-[10px] text-gray-500 font-medium px-1 py-2 border-b border-gray-800">Amt Due</th>
+              <th className="text-left text-[10px] text-gray-500 font-medium px-1 py-2 border-b border-gray-800">Funded</th>
+              <th className="text-left text-[10px] text-gray-500 font-medium px-1 py-2 border-b border-gray-800">Status</th>
+              {/* M2 */}
+              <th className="text-center text-[10px] text-gray-500 font-medium px-1 py-2 border-b border-gray-800 border-l border-gray-700"></th>
+              <th className="text-left text-[10px] text-gray-500 font-medium px-1 py-2 border-b border-gray-800">Amt Due</th>
+              <th className="text-left text-[10px] text-gray-500 font-medium px-1 py-2 border-b border-gray-800">Funded</th>
+              <th className="text-left text-[10px] text-gray-500 font-medium px-1 py-2 border-b border-gray-800">Status</th>
+              {/* M3 */}
+              <th className="text-center text-[10px] text-gray-500 font-medium px-1 py-2 border-b border-gray-800 border-l border-gray-700"></th>
+              <th className="text-left text-[10px] text-gray-500 font-medium px-1 py-2 border-b border-gray-800">Amt Due</th>
+              <th className="text-left text-[10px] text-gray-500 font-medium px-1 py-2 border-b border-gray-800">Funded</th>
+              <th className="text-left text-[10px] text-gray-500 font-medium px-1 py-2 border-b border-gray-800">Status</th>
+              {/* NF + Notes */}
+              <th className="text-left text-xs text-gray-400 font-medium px-2 py-2 border-b border-gray-800 border-l border-gray-700">NF Codes</th>
+              <th className="text-left text-xs text-gray-400 font-medium px-2 py-2 border-b border-gray-800">Notes</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => {
               const pid = row.project.id
-              const ms = row.milestone
+              const f = row.funding
+              // Combine notes from all milestones for display
+              const allNotes = [row.m1.notes, row.m2.notes, row.m3.notes].filter(Boolean).join(' | ')
               return (
-                <tr key={`${pid}-${ms}`}
-                  className="border-b border-gray-800/50 hover:bg-gray-800/40 transition-colors">
-                  {/* MS Badge */}
-                  <td className="px-2 py-2">
-                    <span className={`font-bold px-1.5 py-0.5 rounded text-xs ${
-                      row.status === 'Funded' || row.status === 'Complete' ? 'bg-green-900 text-green-300' :
-                      row.status === 'Rejected' || row.isNonfunded ? 'bg-red-900 text-red-300' :
-                      row.status === 'Submitted' ? 'bg-blue-900 text-blue-300' :
-                      row.isEligible ? 'bg-amber-900 text-amber-300' :
-                      'bg-gray-800 text-gray-500'
-                    }`}>{MS_LABELS[ms]}</span>
+                <tr key={pid} className="border-b border-gray-800/50 hover:bg-gray-800/40 transition-colors">
+                  {/* Project */}
+                  <td className="px-2 py-1.5 max-w-[160px] cursor-pointer" onClick={() => setSelectedProject(row.project)}>
+                    <div className="font-medium text-green-400 hover:text-green-300 truncate text-xs">{row.project.name}</div>
+                    <div className="text-gray-500 truncate text-[10px]">{pid}</div>
                   </td>
-                  {/* Project (click to open panel) */}
-                  <td className="px-2 py-2 max-w-[180px] cursor-pointer" onClick={() => setSelectedProject(row.project)}>
-                    <div className="font-medium text-green-400 hover:text-green-300 truncate">{row.project.name}</div>
-                    <div className="text-gray-500 truncate">{pid} · {row.project.city}</div>
-                  </td>
-                  {/* Financier */}
-                  <td className="px-2 py-2 text-gray-300 whitespace-nowrap">{row.project.financier ?? '—'}</td>
-                  {/* AHJ */}
-                  <td className="px-2 py-2 text-gray-400 whitespace-nowrap">{row.project.ahj ?? '—'}</td>
-                  {/* Stage */}
-                  <td className="px-2 py-2 text-gray-400 whitespace-nowrap">{STAGE_LABELS[row.project.stage]}</td>
-                  {/* Install Date */}
-                  <td className="px-2 py-2 text-gray-400 whitespace-nowrap">{fmtDate(row.project.install_complete_date) || '—'}</td>
-                  {/* PTO */}
-                  <td className="px-2 py-2 text-gray-400 whitespace-nowrap">{fmtDate(row.project.pto_date) || '—'}</td>
-                  {/* Contract */}
-                  <td className="px-2 py-2 text-gray-300 font-mono whitespace-nowrap">{row.project.contract ? fmt$(Number(row.project.contract)) : '—'}</td>
-                  {/* Amount (editable) */}
-                  <td className="px-2 py-2 font-mono">
-                    <EditableCell
-                      value={row.amount}
-                      type="currency"
-                      onSave={async val => saveFundingField(pid, msField(ms, 'amount'), val ? Number(val) : null)}
-                    />
-                  </td>
-                  {/* Funded Date (editable) */}
-                  <td className="px-2 py-2">
-                    <EditableCell
-                      value={row.funded_date}
-                      type="date"
-                      onSave={async val => saveFundingField(pid, msField(ms, 'funded_date'), val)}
-                    />
-                  </td>
-                  {/* Days Waiting */}
-                  <td className="px-2 py-2 font-mono">
-                    {row.daysWaiting !== null
-                      ? <span className={row.daysWaiting >= 30 ? 'text-red-400' : row.daysWaiting >= 14 ? 'text-amber-400' : 'text-gray-300'}>{row.daysWaiting}d</span>
-                      : <span className="text-gray-600">—</span>}
-                  </td>
-                  {/* CB (editable) */}
-                  <td className="px-2 py-2 font-mono">
-                    {ms !== 'm3' ? (
-                      <EditableCell
-                        value={row.cb}
-                        type="currency"
-                        onSave={async val => saveFundingField(pid, msField(ms, 'cb'), val ? Number(val) : null)}
-                      />
-                    ) : <span className="text-gray-600">—</span>}
-                  </td>
-                  {/* CB Credit (editable) */}
-                  <td className="px-2 py-2 font-mono">
-                    {ms !== 'm3' ? (
-                      <EditableCell
-                        value={row.cb_credit}
-                        type="currency"
-                        onSave={async val => saveFundingField(pid, msField(ms, 'cb_credit'), val ? Number(val) : null)}
-                      />
-                    ) : <span className="text-gray-600">—</span>}
-                  </td>
-                  {/* Status (editable dropdown) */}
-                  <td className="px-2 py-2">
-                    <StatusSelect
-                      value={row.status}
-                      onSave={async val => saveFundingField(pid, msField(ms, 'status'), val)}
-                    />
-                  </td>
-                  {/* NF Codes (editable picker) */}
-                  <td className="px-2 py-2">
-                    <div className="flex items-center gap-1.5">
-                      <NfCodePicker value={row.nf1} codes={nfCodes} slot={1}
-                        onSave={async val => saveFundingField(pid, nfField(1), val)} />
-                      <NfCodePicker value={row.nf2} codes={nfCodes} slot={2}
-                        onSave={async val => saveFundingField(pid, nfField(2), val)} />
-                      <NfCodePicker value={row.nf3} codes={nfCodes} slot={3}
-                        onSave={async val => saveFundingField(pid, nfField(3), val)} />
+                  <td className="px-2 py-1.5 text-gray-300 whitespace-nowrap">{row.project.financier ?? '—'}</td>
+                  <td className="px-2 py-1.5 text-gray-400 whitespace-nowrap">{row.project.ahj ?? '—'}</td>
+                  <td className="px-2 py-1.5 text-gray-400 whitespace-nowrap text-[10px]">{fmtDate(row.project.install_complete_date) || '—'}</td>
+                  <td className="px-2 py-1.5 text-gray-400 whitespace-nowrap text-[10px]">{fmtDate(row.project.pto_date) || '—'}</td>
+                  <td className="px-2 py-1.5 text-gray-300 font-mono whitespace-nowrap">{row.project.contract ? fmt$(Number(row.project.contract)) : '—'}</td>
+
+                  {/* M1 */}
+                  <MsCells ms="m1" data={row.m1} pid={pid} saveFundingField={saveFundingField} />
+                  {/* M2 */}
+                  <MsCells ms="m2" data={row.m2} pid={pid} saveFundingField={saveFundingField} />
+                  {/* M3 */}
+                  <MsCells ms="m3" data={row.m3} pid={pid} saveFundingField={saveFundingField} />
+
+                  {/* NF Codes */}
+                  <td className="px-2 py-1.5 border-l border-gray-700">
+                    <div className="flex items-center gap-1">
+                      <NfCodePicker value={row.nf1} codes={nfCodes} slot={1} onSave={async val => saveFundingField(pid, nfField(1), val)} />
+                      <NfCodePicker value={row.nf2} codes={nfCodes} slot={2} onSave={async val => saveFundingField(pid, nfField(2), val)} />
+                      <NfCodePicker value={row.nf3} codes={nfCodes} slot={3} onSave={async val => saveFundingField(pid, nfField(3), val)} />
                     </div>
                   </td>
-                  {/* Notes (editable) */}
-                  <td className="px-2 py-2 max-w-[200px]">
+                  {/* Notes — show combined, edit m1 notes for now */}
+                  <td className="px-2 py-1.5 max-w-[180px]">
                     <EditableCell
-                      value={row.notes}
+                      value={allNotes || null}
                       type="text"
                       placeholder="Add note..."
-                      className="text-gray-400"
-                      onSave={async val => saveFundingField(pid, msField(ms, 'notes'), val)}
+                      className="text-gray-400 text-[10px]"
+                      onSave={async val => saveFundingField(pid, 'm1_notes', val)}
                     />
                   </td>
                 </tr>
               )
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={16} className="text-center py-12 text-gray-500">No funding rows match your filters.</td></tr>
+              <tr><td colSpan={20} className="text-center py-12 text-gray-500">No projects match your filters.</td></tr>
             )}
           </tbody>
         </table>
@@ -583,9 +519,7 @@ export default function FundingPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-5 right-5 bg-green-700 text-white text-xs px-4 py-2 rounded-md shadow-lg z-[200]">
-          {toast}
-        </div>
+        <div className="fixed bottom-5 right-5 bg-green-700 text-white text-xs px-4 py-2 rounded-md shadow-lg z-[200]">{toast}</div>
       )}
 
       {selectedProject && (
