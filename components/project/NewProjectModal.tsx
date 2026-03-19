@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Props {
@@ -18,6 +18,68 @@ function nextProjectId(existingIds: string[]): string {
   return `PROJ-${max + 1}`
 }
 
+// ── Autocomplete Input ────────────────────────────────────────────────────────
+
+function AutocompleteInput({ value, onChange, table, placeholder, className }: {
+  value: string
+  onChange: (v: string) => void
+  table: 'ahjs' | 'utilities'
+  placeholder?: string
+  className?: string
+}) {
+  const supabase = createClient()
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [open, setOpen] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [])
+
+  useEffect(() => {
+    if (!focused || value.length < 2) { setSuggestions([]); setOpen(false); return }
+    const timer = setTimeout(async () => {
+      const { data } = await (supabase as any).from(table).select('name').ilike('name', `%${value}%`).order('name').limit(8)
+      const names = (data ?? []).map((r: any) => r.name)
+      setSuggestions(names)
+      setOpen(names.length > 0)
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [value, focused])
+
+  return (
+    <div className="relative" ref={ref}>
+      <input
+        type="text"
+        value={value}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={className}
+      />
+      {open && suggestions.length > 0 && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-0.5 bg-gray-800 border border-gray-600 rounded-md shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+          {suggestions.map(s => (
+            <button key={s} type="button"
+              onClick={() => { onChange(s); setOpen(false) }}
+              className="w-full text-left px-3 py-1.5 text-xs text-gray-200 hover:bg-gray-700 hover:text-white transition-colors">
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main Modal ────────────────────────────────────────────────────────────────
+
 export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props) {
   const supabase = createClient()
   const [saving, setSaving] = useState(false)
@@ -32,15 +94,25 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
     stage: 'evaluation',
     pm: '',
     disposition: 'Sale',
+    // Required
+    dealer: '',
+    financier: '',
+    // Optional
     contract: '',
     systemkw: '',
-    financier: '',
+    financing_type: '',
+    module: '',
+    module_qty: '',
+    inverter: '',
+    inverter_qty: '',
+    battery: '',
+    battery_qty: '',
     ahj: '',
     utility: '',
+    hoa: '',
     advisor: '',
     consultant: '',
-    dealer: '',
-    financing_type: '',
+    consultant_email: '',
   })
 
   function set(field: string, value: string) {
@@ -48,7 +120,19 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
   }
 
   async function save() {
-    if (!form.name.trim()) { setError('Customer name is required'); return }
+    // Validate required fields
+    const missing: string[] = []
+    if (!form.name.trim()) missing.push('Customer Name')
+    if (!form.address.trim()) missing.push('Address')
+    if (!form.phone.trim()) missing.push('Phone')
+    if (!form.email.trim()) missing.push('Email')
+    if (!form.dealer.trim()) missing.push('Dealer')
+    if (!form.financier.trim()) missing.push('Financier')
+    if (missing.length > 0) {
+      setError('Required: ' + missing.join(', '))
+      return
+    }
+
     setSaving(true)
     setError(null)
 
@@ -58,24 +142,32 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
     const project = {
       id,
       name: form.name.trim(),
-      address: form.address.trim() || null,
+      address: form.address.trim(),
       city: form.city.trim() || null,
-      phone: form.phone.trim() || null,
-      email: form.email.trim() || null,
+      phone: form.phone.trim(),
+      email: form.email.trim(),
       sale_date: form.sale_date || today,
       stage: form.stage,
       stage_date: today,
       pm: form.pm || null,
       disposition: form.disposition,
+      dealer: form.dealer.trim(),
+      financier: form.financier.trim(),
       contract: form.contract ? Number(form.contract) : null,
       systemkw: form.systemkw ? Number(form.systemkw) : null,
-      financier: form.financier.trim() || null,
+      financing_type: form.financing_type.trim() || null,
+      module: form.module.trim() || null,
+      module_qty: form.module_qty ? Number(form.module_qty) : null,
+      inverter: form.inverter.trim() || null,
+      inverter_qty: form.inverter_qty ? Number(form.inverter_qty) : null,
+      battery: form.battery.trim() || null,
+      battery_qty: form.battery_qty ? Number(form.battery_qty) : null,
       ahj: form.ahj.trim() || null,
       utility: form.utility.trim() || null,
+      hoa: form.hoa.trim() || null,
       advisor: form.advisor.trim() || null,
       consultant: form.consultant.trim() || null,
-      dealer: form.dealer.trim() || null,
-      financing_type: form.financing_type.trim() || null,
+      consultant_email: form.consultant_email.trim() || null,
       created_at: new Date().toISOString(),
     }
 
@@ -104,11 +196,12 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
 
   const inputCls = "w-full bg-gray-800 text-white text-xs rounded-lg px-3 py-2 border border-gray-700 focus:border-green-500 focus:outline-none placeholder-gray-500"
   const labelCls = "text-xs text-gray-400 mb-1 block"
+  const reqCls = "text-red-400"
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative bg-gray-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0">
           <div>
@@ -117,136 +210,187 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
               ID: <span className="text-green-400 font-mono">{nextProjectId(existingIds)}</span>
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">×</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">x</button>
         </div>
 
         {/* Form */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
-            {/* Customer */}
-            <div className="col-span-2">
-              <label className={labelCls}>Customer Name *</label>
-              <input className={inputCls} placeholder="First Last" value={form.name} onChange={e => set('name', e.target.value)} autoFocus />
+          {/* ── Customer Info (required) ────────────────────────────────── */}
+          <div>
+            <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3">Customer Info <span className={reqCls}>*</span></h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className={labelCls}>Customer Name <span className={reqCls}>*</span></label>
+                <input className={inputCls} placeholder="First Last" value={form.name} onChange={e => set('name', e.target.value)} autoFocus />
+              </div>
+              <div className="col-span-2">
+                <label className={labelCls}>Street Address <span className={reqCls}>*</span></label>
+                <input className={inputCls} placeholder="123 Main St" value={form.address} onChange={e => set('address', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>City</label>
+                <input className={inputCls} placeholder="Austin" value={form.city} onChange={e => set('city', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Phone <span className={reqCls}>*</span></label>
+                <input className={inputCls} placeholder="(555) 555-5555" value={form.phone} onChange={e => set('phone', e.target.value)} />
+              </div>
+              <div className="col-span-2">
+                <label className={labelCls}>Email <span className={reqCls}>*</span></label>
+                <input className={inputCls} type="email" placeholder="customer@email.com" value={form.email} onChange={e => set('email', e.target.value)} />
+              </div>
             </div>
+          </div>
 
-            <div className="col-span-2">
-              <label className={labelCls}>Street Address</label>
-              <input className={inputCls} placeholder="123 Main St" value={form.address} onChange={e => set('address', e.target.value)} />
+          {/* ── Project Details (required) ──────────────────────────────── */}
+          <div>
+            <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3">Project Details <span className={reqCls}>*</span></h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className={labelCls}>Sale Date</label>
+                <input className={inputCls} type="date" value={form.sale_date} onChange={e => set('sale_date', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Stage</label>
+                <select className={inputCls} value={form.stage} onChange={e => set('stage', e.target.value)}>
+                  {['evaluation','survey','design','permit','install','inspection','complete'].map(s => (
+                    <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>PM</label>
+                <select className={inputCls} value={form.pm} onChange={e => set('pm', e.target.value)}>
+                  <option value="">Select PM...</option>
+                  {pms.map(pm => <option key={pm} value={pm}>{pm}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Dealer <span className={reqCls}>*</span></label>
+                <input className={inputCls} placeholder="Dealer / partner name" value={form.dealer} onChange={e => set('dealer', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Financier <span className={reqCls}>*</span></label>
+                <input className={inputCls} placeholder="Edge, Sunrun, etc." value={form.financier} onChange={e => set('financier', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Financing Type</label>
+                <select className={inputCls} value={form.financing_type} onChange={e => set('financing_type', e.target.value)}>
+                  <option value="">Select...</option>
+                  <option>Loan</option>
+                  <option>TPO (Lease, PPA)</option>
+                  <option>Cash</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Contract Value ($)</label>
+                <input className={inputCls} type="number" placeholder="75000" value={form.contract} onChange={e => set('contract', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>System Size (kW)</label>
+                <input className={inputCls} type="number" step="0.001" placeholder="18.00" value={form.systemkw} onChange={e => set('systemkw', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Disposition</label>
+                <select className={inputCls} value={form.disposition} onChange={e => set('disposition', e.target.value)}>
+                  <option>Sale</option>
+                  <option>Loyalty</option>
+                  <option>Cancelled</option>
+                </select>
+              </div>
             </div>
+          </div>
 
-            <div>
-              <label className={labelCls}>City</label>
-              <input className={inputCls} placeholder="Austin" value={form.city} onChange={e => set('city', e.target.value)} />
+          {/* ── Equipment ───────────────────────────────────────────────── */}
+          <div>
+            <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3">Equipment</h3>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="col-span-2">
+                <label className={labelCls}>Module</label>
+                <input className={inputCls} placeholder="Module model" value={form.module} onChange={e => set('module', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Module Qty</label>
+                <input className={inputCls} type="number" placeholder="20" value={form.module_qty} onChange={e => set('module_qty', e.target.value)} />
+              </div>
+              <div />
+              <div className="col-span-2">
+                <label className={labelCls}>Inverter</label>
+                <input className={inputCls} placeholder="Inverter model" value={form.inverter} onChange={e => set('inverter', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Inverter Qty</label>
+                <input className={inputCls} type="number" placeholder="1" value={form.inverter_qty} onChange={e => set('inverter_qty', e.target.value)} />
+              </div>
+              <div />
+              <div className="col-span-2">
+                <label className={labelCls}>Battery</label>
+                <input className={inputCls} placeholder="Battery model" value={form.battery} onChange={e => set('battery', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Battery Qty</label>
+                <input className={inputCls} type="number" placeholder="0" value={form.battery_qty} onChange={e => set('battery_qty', e.target.value)} />
+              </div>
             </div>
+          </div>
 
-            <div>
-              <label className={labelCls}>Phone</label>
-              <input className={inputCls} placeholder="(555) 555-5555" value={form.phone} onChange={e => set('phone', e.target.value)} />
+          {/* ── Permitting & Utility ────────────────────────────────────── */}
+          <div>
+            <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3">Permitting & Utility</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className={labelCls}>AHJ</label>
+                <AutocompleteInput value={form.ahj} onChange={v => set('ahj', v)} table="ahjs" placeholder="Search AHJs..." className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Utility Company</label>
+                <AutocompleteInput value={form.utility} onChange={v => set('utility', v)} table="utilities" placeholder="Search utilities..." className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>HOA</label>
+                <input className={inputCls} placeholder="HOA name (if applicable)" value={form.hoa} onChange={e => set('hoa', e.target.value)} />
+              </div>
             </div>
+          </div>
 
-            <div className="col-span-2">
-              <label className={labelCls}>Email</label>
-              <input className={inputCls} type="email" placeholder="customer@email.com" value={form.email} onChange={e => set('email', e.target.value)} />
-            </div>
-
-            <div>
-              <label className={labelCls}>Sale Date</label>
-              <input className={inputCls} type="date" value={form.sale_date} onChange={e => set('sale_date', e.target.value)} />
-            </div>
-
-            <div>
-              <label className={labelCls}>Stage</label>
-              <select className={inputCls} value={form.stage} onChange={e => set('stage', e.target.value)}>
-                {['evaluation','survey','design','permit','install','inspection','complete'].map(s => (
-                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className={labelCls}>PM</label>
-              <select className={inputCls} value={form.pm} onChange={e => set('pm', e.target.value)}>
-                <option value="">Select PM...</option>
-                {pms.map(pm => <option key={pm} value={pm}>{pm}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className={labelCls}>Disposition</label>
-              <select className={inputCls} value={form.disposition} onChange={e => set('disposition', e.target.value)}>
-                <option>Sale</option>
-                <option>Loyalty</option>
-                <option>Cancelled</option>
-              </select>
-            </div>
-
-            <div>
-              <label className={labelCls}>Contract Value ($)</label>
-              <input className={inputCls} type="number" placeholder="75000" value={form.contract} onChange={e => set('contract', e.target.value)} />
-            </div>
-
-            <div>
-              <label className={labelCls}>System Size (kW)</label>
-              <input className={inputCls} type="number" step="0.001" placeholder="18.00" value={form.systemkw} onChange={e => set('systemkw', e.target.value)} />
-            </div>
-
-            <div>
-              <label className={labelCls}>Financier</label>
-              <input className={inputCls} placeholder="Edge" value={form.financier} onChange={e => set('financier', e.target.value)} />
-            </div>
-
-            <div>
-              <label className={labelCls}>Financing Type</label>
-              <select className={inputCls} value={form.financing_type} onChange={e => set('financing_type', e.target.value)}>
-                <option value="">Select...</option>
-                <option>Loan</option>
-                <option>TPO (Lease, PPA)</option>
-                <option>Cash</option>
-              </select>
-            </div>
-
-            <div>
-              <label className={labelCls}>AHJ</label>
-              <input className={inputCls} placeholder="City name or County" value={form.ahj} onChange={e => set('ahj', e.target.value)} />
-            </div>
-
-            <div>
-              <label className={labelCls}>Utility Company</label>
-              <input className={inputCls} placeholder="Oncor" value={form.utility} onChange={e => set('utility', e.target.value)} />
-            </div>
-
-            <div>
-              <label className={labelCls}>Energy Advisor</label>
-              <input className={inputCls} placeholder="Full name" value={form.advisor} onChange={e => set('advisor', e.target.value)} />
-            </div>
-
-            <div>
-              <label className={labelCls}>Energy Consultant</label>
-              <input className={inputCls} placeholder="Full name" value={form.consultant} onChange={e => set('consultant', e.target.value)} />
-            </div>
-
-            <div className="col-span-2">
-              <label className={labelCls}>Dealer</label>
-              <input className={inputCls} placeholder="Dealer / partner name" value={form.dealer} onChange={e => set('dealer', e.target.value)} />
+          {/* ── Team ───────────────────────────────────────────────────── */}
+          <div>
+            <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3">Team</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className={labelCls}>Energy Advisor</label>
+                <input className={inputCls} placeholder="Full name" value={form.advisor} onChange={e => set('advisor', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Energy Consultant</label>
+                <input className={inputCls} placeholder="Full name" value={form.consultant} onChange={e => set('consultant', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Consultant Email</label>
+                <input className={inputCls} type="email" placeholder="consultant@email.com" value={form.consultant_email} onChange={e => set('consultant_email', e.target.value)} />
+              </div>
             </div>
           </div>
 
           {error && (
-            <div className="mt-4 text-xs text-red-400 bg-red-950 rounded-lg px-3 py-2">{error}</div>
+            <div className="text-xs text-red-400 bg-red-950 rounded-lg px-3 py-2">{error}</div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-800 flex-shrink-0">
-          <button onClick={onClose} className="text-xs px-4 py-2 text-gray-400 hover:text-white transition-colors">Cancel</button>
-          <button
-            onClick={save}
-            disabled={saving || !form.name.trim()}
-            className="text-xs px-5 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white font-medium rounded-lg transition-colors"
-          >
-            {saving ? 'Creating...' : 'Create Project'}
-          </button>
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-800 flex-shrink-0">
+          <span className="text-[10px] text-gray-600"><span className={reqCls}>*</span> Required fields</span>
+          <div className="flex items-center gap-3">
+            <button onClick={onClose} className="text-xs px-4 py-2 text-gray-400 hover:text-white transition-colors">Cancel</button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="text-xs px-5 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white font-medium rounded-lg transition-colors"
+            >
+              {saving ? 'Creating...' : 'Create Project'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

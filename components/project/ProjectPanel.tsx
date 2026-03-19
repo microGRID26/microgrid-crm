@@ -712,7 +712,14 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
   useEffect(() => {
     setProject(initialProject)
     setBlockerInput(initialProject.blocker ?? '')
-  }, [initialProject.id, initialProject.stage, initialProject.stage_date, initialProject.blocker])
+    // Fetch full project data (parent pages may pass trimmed columns from optimized queries)
+    supabase.from('projects').select('*').eq('id', initialProject.id).single().then(({ data }) => {
+      if (data) {
+        setProject(data as Project)
+        setBlockerInput((data as Project).blocker ?? '')
+      }
+    })
+  }, [initialProject.id])
 
   useEffect(() => {
     setAhjInfo(null)
