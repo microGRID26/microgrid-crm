@@ -646,7 +646,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       const { data } = await (supabase as any).from('utilities').select('phone,website,notes').ilike('name', `%${project.utility}%`).limit(1).maybeSingle()
       setUtilityInfo(data ?? null)
     }
-  }, [project.ahj, project.utility])
+  }, [pid, project.ahj, project.utility])
 
   const loadFolder = useCallback(async () => {
     const { data } = await (supabase as any).from('project_folders').select('folder_url').eq('project_id', pid).maybeSingle()

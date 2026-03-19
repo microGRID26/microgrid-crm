@@ -68,7 +68,7 @@ export default function PipelinePage() {
     return [...cards].sort((a, b) => {
       if (sort === 'sla') return getSLA(b).days - getSLA(a).days
       if (sort === 'contract') return (Number(b.contract) || 0) - (Number(a.contract) || 0)
-      if (sort === 'cycle') return (daysAgo(a.sale_date) || 0) - (daysAgo(b.sale_date) || 0)
+      if (sort === 'cycle') return (daysAgo(b.sale_date) || 0) - (daysAgo(a.sale_date) || 0)
       return (a.name ?? '').localeCompare(b.name ?? '')
     })
   }

@@ -88,11 +88,15 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
     }
 
     // Insert initial stage history
-    await (supabase as any).from('stage_history').insert({
+    const { error: histErr } = await (supabase as any).from('stage_history').insert({
       project_id: id,
       stage: form.stage,
       entered: today,
     })
+
+    if (histErr) {
+      setError('Project created but stage history failed: ' + histErr.message)
+    }
 
     setSaving(false)
     onCreated(id)

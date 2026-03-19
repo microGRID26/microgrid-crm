@@ -11,7 +11,7 @@ import type { Project, Schedule } from '@/types/database'
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function cycleDays(p: Project): number {
-  return daysAgo(p.sale_date) ?? daysAgo(p.stage_date) ?? 0
+  return daysAgo(p.sale_date) || daysAgo(p.stage_date)
 }
 
 function getSLA(p: Project) {

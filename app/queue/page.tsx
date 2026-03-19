@@ -234,7 +234,7 @@ function QueueCard({ p, taskMap, onOpen }: {
   const sla = getSLA(p)
   const nextTask = getNextTask(p, taskMap)
   const stuck = getStuckTasks(p, taskMap)
-  const cycle = daysAgo(p.sale_date) ?? daysAgo(p.stage_date) ?? 0
+  const cycle = daysAgo(p.sale_date) || daysAgo(p.stage_date)
 
   return (
     <div
