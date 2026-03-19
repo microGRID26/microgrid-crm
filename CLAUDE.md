@@ -12,10 +12,24 @@ MicroGRID CRM — solar project management system for TriSMART Solar. Tracks ~48
 npm run dev        # Dev server on :3000
 npm run build      # Production build (Next.js)
 npm run lint       # ESLint (Next.js + TypeScript presets)
+npm test           # Run all tests (Vitest, single run)
+npm run test:watch # Run tests in watch mode
 npm start          # Start production server
 ```
 
-No test framework is configured. Auto-deploys to Vercel on push to `main`.
+Auto-deploys to Vercel on push to `main`.
+
+## Testing
+
+**Vitest** + React Testing Library with jsdom. Config in `vitest.config.ts`, global setup in `vitest.setup.ts` (Supabase mock, localStorage mock).
+
+Tests are in `__tests__/` organized by category:
+- `lib/` — pure utility functions (`daysAgo`, `fmt$`, `fmtDate`, `cn`), CSV export, `useCurrentUser` hook
+- `logic/` — SLA classification, funding eligibility, task stuck detection, filter composition, BOM calculations, cycleDays fallback
+- `pages/` — page-level logic for command (9-section classification), pipeline (sort/filter), queue (priority), funding, schedule, service, admin
+- `auth/` — OAuth callback (exchange, provisioning, error redirect), middleware (route protection, cookie error handling)
+
+The Supabase client is globally mocked in `vitest.setup.ts`. Tests focus on business logic extracted from pages rather than rendering full page components. When adding new features, add corresponding tests for the logic.
 
 ## Tech Stack
 
