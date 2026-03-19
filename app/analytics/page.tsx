@@ -80,7 +80,11 @@ export default function AnalyticsPage() {
       supabase.from('projects').select('*'),
       (supabase as any).from('project_funding').select('*'),
     ])
-    if (projRes.data) setProjects(projRes.data as Project[])
+    if (projRes.data) setProjects(
+      (projRes.data as Project[]).filter(p =>
+        p.disposition !== 'In Service' && p.disposition !== 'Loyalty'
+      )
+    )
     if (fundRes.data) {
       const map: Record<string, ProjectFunding> = {}
       fundRes.data.forEach((f: any) => { map[f.project_id] = f })

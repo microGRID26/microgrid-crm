@@ -44,7 +44,7 @@ export default function ServicePage() {
   const loadData = useCallback(async () => {
     const [svcRes, projRes] = await Promise.all([
       (supabase as any).from('service_calls').select('*').order('created_at', { ascending: false }),
-      supabase.from('projects').select('id, name, city, stage, stage_date, pm, blocker, contract, financier, phone, email, address, systemkw, ahj, utility, advisor, consultant, sale_date, ntp_date, permit_number, module, module_qty, inverter, inverter_qty, battery, battery_qty, optimizer, optimizer_qty, meter_location, panel_location, voltage, msp_bus_rating, mpu, shutdown, performance_meter, interconnection_breaker, main_breaker, hoa, esid, utility_app_number, permit_fee, city_permit_date, utility_permit_date, survey_scheduled_date, survey_date, install_scheduled_date, install_complete_date, city_inspection_date, utility_inspection_date, pto_date, in_service_date, site_surveyor, consultant_email, dealer, financing_type, down_payment, tpo_escalator, financier_adv_pmt, disposition, loyalty, created_at'),
+      supabase.from('projects').select('*'),
     ])
     if (svcRes.data) setCalls(svcRes.data as ServiceCall[])
     if (projRes.data) {
