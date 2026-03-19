@@ -6,6 +6,9 @@ import { fmt$, fmtDate, daysAgo, STAGE_LABELS, STAGE_ORDER } from '@/lib/utils'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import type { Project, Note } from '@/types/database'
 import { BomTab } from './BomTab'
+import { TasksTab } from './TasksTab'
+import { NotesTab } from './NotesTab'
+import { InfoTab } from './InfoTab'
 
 // ── TASK DEFINITIONS ──────────────────────────────────────────────────────────
 const TASKS: Record<string, { id: string; name: string; pre: string[]; req: boolean }[]> = {
@@ -1060,402 +1063,40 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
 
           {/* TASKS */}
           {tab === 'tasks' && (
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="max-w-2xl">
-
-                {/* Toggle — Current Stage · All Tasks · History */}
-                <div className="flex items-center gap-1 mb-5 bg-gray-800 rounded-lg p-1 w-fit">
-                  <button
-                    onClick={() => setTaskView('current')}
-                    className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
-                      taskView === 'current' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    Current Stage
-                  </button>
-                  <button
-                    onClick={() => setTaskView('all')}
-                    className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
-                      taskView === 'all' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    All Tasks
-                  </button>
-                  <button
-                    onClick={() => setTaskView('history')}
-                    className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
-                      taskView === 'history' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    History
-                  </button>
-                </div>
-
-                {/* Current Stage View */}
-                {taskView === 'current' && (
-                  <>
-                    <div className="text-xs text-gray-500 mb-4">
-                      Current stage: <span className="text-white">{STAGE_LABELS[project.stage]}</span>
-                      {' · '}Required tasks must be complete to advance stage.
-                    </div>
-                    {stageTasks.map(task => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        status={taskStates[task.id] ?? 'Not Ready'}
-                        reason={taskReasons[task.id] ?? ''}
-                        pendingReasons={PENDING_REASONS[task.id] ?? []}
-                        revisionReasons={REVISION_REASONS[project.stage] ?? []}
-                        locked={isLocked(task)}
-                        onStatusChange={updateTaskStatus}
-                        onReasonChange={updateTaskReason}
-                      />
-                    ))}
-                    {stageTasks.length === 0 && <div className="text-gray-500 text-xs">No tasks defined for this stage.</div>}
-
-                    <div className="mt-6 space-y-1">
-                      {STAGE_ORDER.filter(s => s !== project.stage && TASKS[s]).map(stageId => {
-                        const tasks = TASKS[stageId] ?? []
-                        const done = tasks.filter(t => taskStates[t.id] === 'Complete').length
-                        const stuck = tasks.filter(t => ['Pending Resolution','Revision Required'].includes(taskStates[t.id] ?? '')).length
-                        if (done === 0 && stuck === 0) return null
-                        return (
-                          <div key={stageId} className="text-xs text-gray-600 flex gap-2">
-                            <span>{STAGE_LABELS[stageId]}</span><span>—</span>
-                            <span>{done}/{tasks.length} complete</span>
-                            {stuck > 0 && <span className="text-red-500">{stuck} stuck</span>}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </>
-                )}
-
-                {/* All Tasks View */}
-                {taskView === 'all' && (
-                  <div className="space-y-6">
-                    {STAGE_ORDER.filter(s => TASKS[s]).map(stageId => {
-                      const tasks = TASKS[stageId] ?? []
-                      const isCurrent = stageId === project.stage
-                      const doneCount = tasks.filter(t => taskStates[t.id] === 'Complete').length
-                      const stuckCount = tasks.filter(t => ['Pending Resolution','Revision Required'].includes(taskStates[t.id] ?? '')).length
-
-                      return (
-                        <div key={stageId}>
-                          {/* Stage header */}
-                          <div className="flex items-center gap-3 mb-2 pb-1.5 border-b border-gray-800">
-                            <span className={`text-xs font-bold uppercase tracking-wider ${isCurrent ? 'text-green-400' : 'text-gray-400'}`}>
-                              {STAGE_LABELS[stageId]}
-                            </span>
-                            {isCurrent && (
-                              <span className="text-xs bg-green-900 text-green-300 px-1.5 py-0.5 rounded font-medium">Current</span>
-                            )}
-                            <span className="text-xs text-gray-600">{doneCount}/{tasks.length} complete</span>
-                            {stuckCount > 0 && (
-                              <span className="text-xs text-red-400">{stuckCount} stuck</span>
-                            )}
-                          </div>
-
-                          {/* Task rows */}
-                          <div className="space-y-0">
-                            {tasks.map(task => {
-                              const status = taskStates[task.id] ?? 'Not Ready'
-                              const reason = taskReasons[task.id] ?? ''
-                              const completedDate = (taskStatesRaw.find(t => t.task_id === task.id)?.completed_date) ?? null
-
-                              return (
-                                <div key={task.id} className={`flex items-center gap-3 py-1.5 px-2 rounded ${
-                                  status === 'Complete' ? 'opacity-50' : ''
-                                }`}>
-                                  {/* Status dot */}
-                                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                                    status === 'Complete'           ? 'bg-green-500'  :
-                                    status === 'Pending Resolution' ? 'bg-red-500'    :
-                                    status === 'Revision Required'  ? 'bg-amber-500'  :
-                                    status === 'In Progress'        ? 'bg-blue-500'   :
-                                    status === 'Scheduled'          ? 'bg-indigo-400' :
-                                    status === 'Ready To Start'     ? 'bg-gray-400'   : 'bg-gray-700'
-                                  }`} />
-
-                                  {/* Task name */}
-                                  <span className={`flex-1 text-xs ${task.req ? 'text-gray-200' : 'text-gray-500'}`}>
-                                    {task.name}
-                                    {!task.req && <span className="text-gray-700 ml-1">(opt)</span>}
-                                  </span>
-
-                                  {/* Reason — if stuck */}
-                                  {reason && (status === 'Pending Resolution' || status === 'Revision Required') && (
-                                    <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                      status === 'Pending Resolution' ? 'bg-red-950 text-red-400' : 'bg-amber-950 text-amber-400'
-                                    }`}>{reason}</span>
-                                  )}
-
-                                  {/* Completed date */}
-                                  {completedDate && (
-                                    <span className="text-xs text-gray-600 flex-shrink-0">
-                                      {new Date(completedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                    </span>
-                                  )}
-
-                                  {/* Status badge */}
-                                  <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${STATUS_STYLE[status] ?? 'bg-gray-800 text-gray-500'}`}>
-                                    {status}
-                                  </span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {/* History View — lazy-loaded, most recent first */}
-                {taskView === 'history' && (
-                  <div>
-                    {!taskHistoryLoaded ? (
-                      <div className="text-xs text-gray-500 text-center py-12 animate-pulse">
-                        Loading history...
-                      </div>
-                    ) : taskHistory.length === 0 ? (
-                      <div className="text-xs text-gray-500 text-center py-12">
-                        <div className="text-2xl mb-2">📋</div>
-                        No history recorded yet.
-                        <div className="mt-1 text-gray-600">Changes will appear here after the task_history table is created.</div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="text-xs text-gray-600 mb-3">{taskHistory.length} change{taskHistory.length !== 1 ? 's' : ''} — most recent first</div>
-                        <div className="divide-y divide-gray-800">
-                          {taskHistory.map((entry, i) => {
-                            const taskName = ALL_TASKS_MAP[entry.task_id] ?? entry.task_id
-                            const when = entry.changed_at
-                              ? new Date(entry.changed_at).toLocaleString('en-US', {
-                                  month: 'short', day: 'numeric', year: 'numeric',
-                                  hour: 'numeric', minute: '2-digit',
-                                })
-                              : ''
-                            return (
-                              <div key={i} className="flex items-start gap-3 py-2.5 px-2 hover:bg-gray-800/40 rounded">
-                                {/* Status dot */}
-                                <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
-                                  entry.status === 'Complete'           ? 'bg-green-500'  :
-                                  entry.status === 'Pending Resolution' ? 'bg-red-500'    :
-                                  entry.status === 'Revision Required'  ? 'bg-amber-500'  :
-                                  entry.status === 'In Progress'        ? 'bg-blue-500'   :
-                                  entry.status === 'Scheduled'          ? 'bg-indigo-400' :
-                                  entry.status === 'Ready To Start'     ? 'bg-gray-400'   : 'bg-gray-700'
-                                }`} />
-
-                                {/* Task + status + reason */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-xs font-medium text-gray-200">{taskName}</span>
-                                    <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${STATUS_STYLE[entry.status] ?? 'bg-gray-800 text-gray-500'}`}>
-                                      {entry.status}
-                                    </span>
-                                  </div>
-                                  {entry.reason && (
-                                    <div className={`mt-0.5 text-xs px-1.5 py-0.5 rounded inline-block ${
-                                      entry.status === 'Pending Resolution' ? 'bg-red-950 text-red-400' :
-                                      entry.status === 'Revision Required'  ? 'bg-amber-950 text-amber-400' :
-                                      'text-gray-500'
-                                    }`}>
-                                      {entry.reason}
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Who + when */}
-                                <div className="text-right flex-shrink-0">
-                                  {entry.changed_by && entry.changed_by !== 'migration' && (
-                                    <div className="text-xs text-gray-400">{entry.changed_by}</div>
-                                  )}
-                                  <div className="text-xs text-gray-600">{when}</div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-
-              </div>
-            </div>
+            <TasksTab
+              project={project}
+              taskStates={taskStates}
+              taskReasons={taskReasons}
+              taskStatesRaw={taskStatesRaw}
+              taskHistory={taskHistory}
+              taskHistoryLoaded={taskHistoryLoaded}
+              taskView={taskView}
+              setTaskView={setTaskView}
+              updateTaskStatus={updateTaskStatus}
+              updateTaskReason={updateTaskReason}
+            />
           )}
+
 
           {/* NOTES */}
           {tab === 'notes' && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="p-4 border-b border-gray-800 flex-shrink-0">
-                <textarea value={newNote} onChange={e => setNewNote(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addNote() }}
-                  placeholder="Add a note… (⌘+Enter to save)" rows={3}
-                  className="w-full bg-gray-800 text-white text-sm rounded-lg p-3 border border-gray-700 focus:border-green-500 focus:outline-none resize-none placeholder-gray-500"
-                />
-                <div className="flex justify-end mt-2">
-                  <button onClick={addNote} disabled={saving || !newNote.trim()}
-                    className="text-xs px-4 py-2 bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white rounded-lg transition-colors">
-                    {saving ? 'Saving...' : 'Add Note'}
-                  </button>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {notes.map(n => (
-                  <div key={n.id} className="bg-gray-800 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-green-400">{n.pm}</span>
-                      <span className="text-xs text-gray-500">
-                        {n.time ? new Date(n.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-200 whitespace-pre-wrap">{n.text}</p>
-                  </div>
-                ))}
-                {notes.length === 0 && (
-                  <div className="text-center py-8 text-gray-500 text-xs">No notes yet.</div>
-                )}
-              </div>
-            </div>
+            <NotesTab notes={notes} newNote={newNote} setNewNote={setNewNote} addNote={addNote} saving={saving} />
           )}
 
           {/* INFO */}
           {tab === 'info' && (
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="grid grid-cols-2 gap-6 max-w-3xl">
-                <div>
-                  <Section title="Customer">
-                    <EditRow label="Name" field="name" value={project.name} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="Address" field="address" value={project.address} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="City" field="city" value={project.city} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="Phone" field="phone" value={project.phone} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="Email" field="email" value={project.email} draft={editDraft} editing={editMode} onChange={setEditDraft} small />
-                  </Section>
-                  <Section title="Project">
-                    <SelectEditRow label="Disposition" field="disposition" value={project.disposition} draft={editDraft} editing={editMode} onChange={setEditDraft}
-                      options={['Sale','Loyalty','Cancelled','In Service']} />
-                    <EditRow label="Contract" field="contract" value={project.contract?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-                    <EditRow label="System kW" field="systemkw" value={project.systemkw?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-                    <SelectEditRow label="Financier" field="financier" value={project.financier} draft={editDraft} editing={editMode} onChange={setEditDraft}
-                      options={['Cash','EDGE','Mosaic','Sungage','GoodLeap','Dividend','Sunrun','Tesla','Sunnova','Loanpal','Other']} />
-                    <SelectEditRow label="Financing type" field="financing_type" value={project.financing_type} draft={editDraft} editing={editMode} onChange={setEditDraft}
-                      options={['Loan','TPO (Lease, PPA)','Cash']} />
-                    <EditRow label="Down payment" field="down_payment" value={project.down_payment?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-                    <EditRow label="TPO escalator" field="tpo_escalator" value={project.tpo_escalator?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-                    <EditRow label="Financier adv pmt" field="financier_adv_pmt" value={project.financier_adv_pmt?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-                    <EditRow label="Dealer" field="dealer" value={project.dealer} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                  </Section>
-                  <Section title="Equipment">
-                    <EditRow label="Module" field="module" value={project.module} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="Module qty" field="module_qty" value={project.module_qty?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-                    <EditRow label="Inverter" field="inverter" value={project.inverter} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="Inverter qty" field="inverter_qty" value={project.inverter_qty?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-                    <EditRow label="Battery" field="battery" value={project.battery} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="Battery qty" field="battery_qty" value={project.battery_qty?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-                    <EditRow label="Optimizer" field="optimizer" value={project.optimizer} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="Optimizer qty" field="optimizer_qty" value={project.optimizer_qty?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-                  </Section>
-                  <Section title="Site">
-                    <SelectEditRow label="Meter location" field="meter_location" value={project.meter_location} draft={editDraft} editing={editMode} onChange={setEditDraft}
-                      options={['Garage','Side of House','Front of House','Back of House','Other']} />
-                    <SelectEditRow label="Panel location" field="panel_location" value={project.panel_location} draft={editDraft} editing={editMode} onChange={setEditDraft}
-                      options={['Garage','Inside House','Outside','Basement','Other']} />
-                    <SelectEditRow label="Voltage" field="voltage" value={project.voltage} draft={editDraft} editing={editMode} onChange={setEditDraft}
-                      options={['120/240V','120/208V','277/480V']} />
-                    <SelectEditRow label="MSP bus rating" field="msp_bus_rating" value={project.msp_bus_rating} draft={editDraft} editing={editMode} onChange={setEditDraft}
-                      options={['100A','125A','150A','200A','225A','320A','400A']} />
-                    <SelectEditRow label="MPU" field="mpu" value={project.mpu} draft={editDraft} editing={editMode} onChange={setEditDraft}
-                      options={['Yes','No','Pending']} />
-                    <SelectEditRow label="Shutdown" field="shutdown" value={project.shutdown} draft={editDraft} editing={editMode} onChange={setEditDraft}
-                      options={['Rapid Shutdown','Standard']} />
-                    <SelectEditRow label="Perf. meter" field="performance_meter" value={project.performance_meter} draft={editDraft} editing={editMode} onChange={setEditDraft}
-                      options={['Yes','No']} />
-                    <SelectEditRow label="IBC breaker" field="interconnection_breaker" value={project.interconnection_breaker} draft={editDraft} editing={editMode} onChange={setEditDraft}
-                      options={['15A','20A','25A','30A','40A','50A','60A']} />
-                    <SelectEditRow label="Main breaker" field="main_breaker" value={project.main_breaker} draft={editDraft} editing={editMode} onChange={setEditDraft}
-                      options={['100A','125A','150A','200A','225A','400A']} />
-                    <EditRow label="HOA" field="hoa" value={project.hoa} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="ESID" field="esid" value={project.esid?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                  </Section>
-                </div>
-                <div>
-                  <Section title="Team">
-                    <EditRow label="PM" field="pm" value={project.pm} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="Advisor" field="advisor" value={project.advisor} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="Consultant" field="consultant" value={project.consultant} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="Consultant email" field="consultant_email" value={project.consultant_email} draft={editDraft} editing={editMode} onChange={setEditDraft} small />
-                    <EditRow label="Site surveyor" field="site_surveyor" value={project.site_surveyor} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                  </Section>
-                  <Section title="Permitting">
-                    <AutocompleteRow label="AHJ" field="ahj" value={project.ahj} draft={editDraft} editing={editMode} onChange={setEditDraft} table="ahjs" onClickValue={openAhjEdit} />
-                    {!editMode && ahjInfo && (
-                      <div className="ml-0 mt-1 mb-2 pl-28 space-y-0.5">
-                        {ahjInfo.permit_phone && <div className="text-xs text-green-400">{ahjInfo.permit_phone}</div>}
-                        {ahjInfo.permit_website && <a href={ahjInfo.permit_website.startsWith('http') ? ahjInfo.permit_website : 'https://'+ahjInfo.permit_website} target="_blank" rel="noopener" className="text-xs text-green-400 hover:underline block">{ahjInfo.permit_website} ↗</a>}
-                        {ahjInfo.max_duration && <div className="text-xs text-gray-500">{ahjInfo.max_duration}d turnaround</div>}
-                        {ahjInfo.electric_code && <div className="text-xs text-gray-500">{ahjInfo.electric_code}</div>}
-                        {ahjInfo.permit_notes && <div className="text-xs text-gray-400 mt-1 bg-gray-800 rounded p-2">{ahjInfo.permit_notes.slice(0,200)}</div>}
-                      </div>
-                    )}
-                    <AutocompleteRow label="Utility" field="utility" value={project.utility} draft={editDraft} editing={editMode} onChange={setEditDraft} table="utilities" onClickValue={openUtilEdit} />
-                    {!editMode && utilityInfo && (
-                      <div className="ml-0 mt-1 mb-2 pl-28 space-y-0.5">
-                        {utilityInfo.phone && <div className="text-xs text-green-400">{utilityInfo.phone}</div>}
-                        {utilityInfo.website && <a href={utilityInfo.website.startsWith('http') ? utilityInfo.website : 'https://'+utilityInfo.website} target="_blank" rel="noopener" className="text-xs text-green-400 hover:underline block">{utilityInfo.website} ↗</a>}
-                        {utilityInfo.notes && <div className="text-xs text-gray-400 mt-1 bg-gray-800 rounded p-2">{utilityInfo.notes.slice(0,150)}</div>}
-                      </div>
-                    )}
-                    <EditRow label="Permit #" field="permit_number" value={project.permit_number} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="Utility app #" field="utility_app_number" value={project.utility_app_number} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-                    <EditRow label="Permit fee" field="permit_fee" value={project.permit_fee?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-                    <EditRow label="City permit" field="city_permit_date" value={project.city_permit_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
-                    <EditRow label="Utility permit" field="utility_permit_date" value={project.utility_permit_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
-                  </Section>
-                  <Section title="Milestones">
-                    <EditRow label="Sale date" field="sale_date" value={project.sale_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
-                    <EditRow label="NTP" field="ntp_date" value={project.ntp_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
-                    <EditRow label="Survey scheduled" field="survey_scheduled_date" value={project.survey_scheduled_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
-                    <EditRow label="Survey complete" field="survey_date" value={project.survey_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
-                    <EditRow label="Install scheduled" field="install_scheduled_date" value={project.install_scheduled_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
-                    <EditRow label="Install complete" field="install_complete_date" value={project.install_complete_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
-                    <EditRow label="City inspection" field="city_inspection_date" value={project.city_inspection_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
-                    <EditRow label="Utility inspection" field="utility_inspection_date" value={project.utility_inspection_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
-                    <EditRow label="PTO" field="pto_date" value={project.pto_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
-                    <EditRow label="In service" field="in_service_date" value={project.in_service_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
-                  </Section>
-                  {stageHistory.length > 0 && (
-                    <Section title="Stage History">
-                      {stageHistory.map((h: any, i: number) => (
-                        <div key={i} className="flex gap-2 py-0.5 text-xs">
-                          <span className="text-gray-500 w-28 flex-shrink-0">{h.entered ? new Date(h.entered + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</span>
-                          <span className="text-gray-300">{h.stage}</span>
-                        </div>
-                      ))}
-                    </Section>
-                  )}
-                  {serviceCalls.length > 0 && (
-                    <Section title="Service Calls">
-                      {serviceCalls.map((sc: any) => (
-                        <div key={sc.id} className="flex items-start gap-2 py-1">
-                          <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${
-                            sc.status === 'open' ? 'bg-red-900 text-red-300' :
-                            sc.status === 'closed' ? 'bg-green-900 text-green-300' :
-                            'bg-amber-900 text-amber-300'
-                          }`}>{sc.status}</span>
-                          <div className="min-w-0">
-                            {sc.issue_type && <div className="text-xs text-gray-300">{sc.issue_type}</div>}
-                            {sc.description && <div className="text-xs text-gray-500 truncate">{sc.description}</div>}
-                          </div>
-                        </div>
-                      ))}
-                    </Section>
-                  )}
-                </div>
-              </div>
-            </div>
+            <InfoTab
+              project={project}
+              editMode={editMode}
+              editDraft={editDraft}
+              setEditDraft={setEditDraft}
+              ahjInfo={ahjInfo}
+              utilityInfo={utilityInfo}
+              openAhjEdit={openAhjEdit}
+              openUtilEdit={openUtilEdit}
+              stageHistory={stageHistory}
+              serviceCalls={serviceCalls}
+            />
           )}
 
           {/* BOM */}
