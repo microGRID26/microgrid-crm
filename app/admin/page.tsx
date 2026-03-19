@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { Nav } from '@/components/Nav'
 import { createClient } from '@/lib/supabase/client'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -100,50 +101,7 @@ const AVATAR_COLORS = [
 
 // ── Nav ──────────────────────────────────────────────────────────────────────
 
-function Nav({ currentUser }: { currentUser: User | null }) {
-  const navItems = [
-    { label: 'Command',  href: '/command'  },
-    { label: 'Queue',    href: '/queue'    },
-    { label: 'Pipeline', href: '/pipeline' },
-    { label: 'Analytics',href: '/analytics'},
-    { label: 'Audit',    href: '/audit'    },
-    { label: 'Schedule', href: '/schedule' },
-    { label: 'Service',  href: '/service'  },
-    { label: 'Funding',  href: '/funding'  },
-  ]
-  return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-gray-900 border-b border-gray-800 h-11 flex items-center px-4 gap-1">
-      <span className="text-white font-semibold text-sm mr-3">MicroGRID</span>
-      {navItems.map(v => (
-        <a key={v.label} href={v.href}
-          className="text-xs px-3 py-1.5 rounded-md transition-colors text-gray-400 hover:text-white hover:bg-gray-800">
-          {v.label}
-        </a>
-      ))}
-      {/* Admin link — always active here */}
-      <a href="/admin"
-        className="text-xs px-3 py-1.5 rounded-md transition-colors bg-gray-800 text-white ml-1 flex items-center gap-1.5">
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-        Admin
-      </a>
-      <div className="ml-auto flex items-center gap-2">
-        {currentUser && (
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
-              style={{ backgroundColor: currentUser.color || '#64748b' }}>
-              {currentUser.name?.charAt(0) ?? '?'}
-            </div>
-            <span className="text-xs text-gray-400">{currentUser.name}</span>
-          </div>
-        )}
-      </div>
-    </nav>
-  )
-}
+
 
 // ── Shared UI ─────────────────────────────────────────────────────────────────
 
@@ -1233,8 +1191,8 @@ export default function AdminPage() {
   if (isAdmin === false) {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col">
-        <Nav currentUser={currentUser} />
-        <div className="flex-1 flex items-center justify-center pt-11">
+        <Nav active="Admin" right={currentUser ? (<div className="flex items-center gap-2"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: currentUser.color || '#64748b' }}>{currentUser.name?.charAt(0) ?? '?'}</div><span className="text-xs text-gray-400">{currentUser.name}</span></div>) : undefined} />
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="w-16 h-16 bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1256,9 +1214,9 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <Nav currentUser={currentUser} />
+      <Nav active="Admin" right={currentUser ? (<div className="flex items-center gap-2"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: currentUser.color || '#64748b' }}>{currentUser.name?.charAt(0) ?? '?'}</div><span className="text-xs text-gray-400">{currentUser.name}</span></div>) : undefined} />
 
-      <div className="flex pt-11 h-screen">
+      <div className="flex h-screen overflow-hidden">
         {/* Sidebar */}
         <aside className="w-52 shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col">
           <div className="px-4 py-4 border-b border-gray-800">
