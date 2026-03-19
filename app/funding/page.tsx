@@ -427,8 +427,7 @@ export default function FundingPage() {
               const ms = row.milestone
               return (
                 <tr key={`${pid}-${ms}`}
-                  onClick={() => setSelectedProject(row.project)}
-                  className="border-b border-gray-800/50 cursor-pointer hover:bg-gray-800/40 transition-colors">
+                  className="border-b border-gray-800/50 hover:bg-gray-800/40 transition-colors">
                   {/* MS Badge */}
                   <td className="px-2 py-2">
                     <span className={`font-bold px-1.5 py-0.5 rounded text-xs ${
@@ -439,9 +438,9 @@ export default function FundingPage() {
                       'bg-gray-800 text-gray-500'
                     }`}>{MS_LABELS[ms]}</span>
                   </td>
-                  {/* Project */}
-                  <td className="px-2 py-2 max-w-[180px]">
-                    <div className="font-medium text-white truncate">{row.project.name}</div>
+                  {/* Project (click to open panel) */}
+                  <td className="px-2 py-2 max-w-[180px] cursor-pointer" onClick={() => setSelectedProject(row.project)}>
+                    <div className="font-medium text-green-400 hover:text-green-300 truncate">{row.project.name}</div>
                     <div className="text-gray-500 truncate">{pid} · {row.project.city}</div>
                   </td>
                   {/* Financier */}
