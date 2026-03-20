@@ -829,18 +829,18 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       completed_date: status === 'Complete' ? new Date().toISOString().slice(0, 10) : null,
     }, { onConflict: 'project_id,task_id' })
 
-    // Fire-and-forget revision trail insert — no await, zero user-facing latency
     const changedBy = currentUser?.name
       ?? userEmail.split('@')[0]
       ?? 'unknown'
-    void (supabase as any).from('task_history').insert({
+    // Log to task_history — await to ensure it completes
+    const { error: histError } = await (supabase as any).from('task_history').insert({
       project_id: pid,
       task_id: taskId,
       status,
       reason: needsReason ? (taskReasons[taskId] ?? null) : null,
       changed_by: changedBy,
-      pm_id: currentUser?.id ?? null,
     })
+    if (histError) console.error('task_history insert failed:', histError)
 
     // ── Cascade resets — reset downstream tasks to Not Ready ────────────────
     if (cascadeResets && cascadeResets.length > 0) {
@@ -860,7 +860,6 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
         status: 'Not Ready',
         reason: null,
         changed_by: `${changedBy} (cascade)`,
-        pm_id: currentUser?.id ?? null,
       }))
       void (supabase as any).from('task_history').insert(historyInserts)
 
@@ -908,18 +907,17 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       reason: reason || null,
     }, { onConflict: 'project_id,task_id' })
 
-    // Fire-and-forget — log reason changes to history too
     const changedBy = currentUser?.name
       ?? userEmail.split('@')[0]
       ?? 'unknown'
-    void (supabase as any).from('task_history').insert({
+    const { error: histError2 } = await (supabase as any).from('task_history').insert({
       project_id: pid,
       task_id: taskId,
       status: taskStates[taskId] ?? 'Not Ready',
       reason: reason || null,
       changed_by: changedBy,
-      pm_id: currentUser?.id ?? null,
     })
+    if (histError2) console.error('task_history reason insert failed:', histError2)
     setTaskHistoryLoaded(false)
   }
 
