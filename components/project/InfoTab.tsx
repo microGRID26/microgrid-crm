@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { STAGE_LABELS } from '@/lib/utils'
+import { STAGE_LABELS, fmt$ } from '@/lib/utils'
 import type { Project } from '@/types/database'
 
 // ── HELPER COMPONENTS ────────────────────────────────────────────────────────
@@ -15,29 +15,36 @@ function EditRow({ label, field, value, draft, editing, onChange, small, type = 
   editing: boolean
   onChange: (d: any) => void
   small?: boolean
-  type?: 'text' | 'date' | 'number'
+  type?: 'text' | 'date' | 'number' | 'currency'
 }) {
   const current = field in draft ? draft[field] : value
+  const inputType = type === 'currency' ? 'number' : type
   if (!editing) {
     if (!value) return null
+    const display = type === 'date' && value
+      ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : type === 'currency' && value
+      ? fmt$(Number(value))
+      : value
     return (
       <div className="flex gap-2 py-0.5">
         <span className="text-gray-500 text-xs w-28 flex-shrink-0">{label}</span>
-        <span className={`text-gray-200 text-xs break-words ${small ? 'text-xs' : ''}`}>
-          {type === 'date' && value ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : value}
-        </span>
+        <span className={`text-gray-200 text-xs break-words ${small ? 'text-xs' : ''}`}>{display}</span>
       </div>
     )
   }
   return (
     <div className="flex gap-2 py-0.5 items-center">
       <span className="text-gray-500 text-xs w-28 flex-shrink-0">{label}</span>
-      <input
-        type={type}
-        value={current ?? ''}
-        onChange={e => onChange((d: any) => ({ ...d, [field]: e.target.value || null }))}
-        className="flex-1 bg-gray-700 text-white text-xs rounded px-2 py-1 border border-gray-600 focus:border-green-500 focus:outline-none"
-      />
+      <div className="flex-1 relative">
+        {type === 'currency' && <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-xs">$</span>}
+        <input
+          type={inputType}
+          value={current ?? ''}
+          onChange={e => onChange((d: any) => ({ ...d, [field]: e.target.value || null }))}
+          className={`w-full bg-gray-700 text-white text-xs rounded px-2 py-1 border border-gray-600 focus:border-green-500 focus:outline-none ${type === 'currency' ? 'pl-5' : ''}`}
+        />
+      </div>
     </div>
   )
 }
@@ -207,13 +214,13 @@ export function InfoTab({ project, editMode, editDraft, setEditDraft, ahjInfo, u
           <Section title="Project">
             <SelectEditRow label="Disposition" field="disposition" value={project.disposition} draft={editDraft} editing={editMode} onChange={setEditDraft}
               options={['Sale','Loyalty','Cancelled','In Service']} />
-            <EditRow label="Contract" field="contract" value={project.contract?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
+            <EditRow label="Contract" field="contract" value={project.contract?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="currency" />
             <EditRow label="System kW" field="systemkw" value={project.systemkw?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
             <SelectEditRow label="Financier" field="financier" value={project.financier} draft={editDraft} editing={editMode} onChange={setEditDraft}
               options={['Cash','EDGE','Mosaic','Sungage','GoodLeap','Dividend','Sunrun','Tesla','Sunnova','Loanpal','Other']} />
             <SelectEditRow label="Financing type" field="financing_type" value={project.financing_type} draft={editDraft} editing={editMode} onChange={setEditDraft}
               options={['Loan','TPO (Lease, PPA)','Cash']} />
-            <EditRow label="Down payment" field="down_payment" value={project.down_payment?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
+            <EditRow label="Down payment" field="down_payment" value={project.down_payment?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="currency" />
             <EditRow label="TPO escalator" field="tpo_escalator" value={project.tpo_escalator?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
             <EditRow label="Financier adv pmt" field="financier_adv_pmt" value={project.financier_adv_pmt?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
             <EditRow label="Dealer" field="dealer" value={project.dealer} draft={editDraft} editing={editMode} onChange={setEditDraft} />
@@ -280,7 +287,7 @@ export function InfoTab({ project, editMode, editDraft, setEditDraft, ahjInfo, u
             )}
             <EditRow label="Permit #" field="permit_number" value={project.permit_number} draft={editDraft} editing={editMode} onChange={setEditDraft} />
             <EditRow label="Utility app #" field="utility_app_number" value={project.utility_app_number} draft={editDraft} editing={editMode} onChange={setEditDraft} />
-            <EditRow label="Permit fee" field="permit_fee" value={project.permit_fee?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
+            <EditRow label="Permit fee" field="permit_fee" value={project.permit_fee?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="currency" />
             <EditRow label="City permit" field="city_permit_date" value={project.city_permit_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
             <EditRow label="Utility permit" field="utility_permit_date" value={project.utility_permit_date} draft={editDraft} editing={editMode} onChange={setEditDraft} type="date" />
           </Section>

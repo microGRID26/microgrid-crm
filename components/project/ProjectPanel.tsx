@@ -327,29 +327,36 @@ function EditRow({ label, field, value, draft, editing, onChange, small, type = 
   editing: boolean
   onChange: (d: any) => void
   small?: boolean
-  type?: 'text' | 'date' | 'number'
+  type?: 'text' | 'date' | 'number' | 'currency'
 }) {
   const current = field in draft ? draft[field] : value
+  const inputType = type === 'currency' ? 'number' : type
   if (!editing) {
     if (!value) return null
+    const display = type === 'date' && value
+      ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : type === 'currency' && value
+      ? fmt$(Number(value))
+      : value
     return (
       <div className="flex gap-2 py-0.5">
         <span className="text-gray-500 text-xs w-28 flex-shrink-0">{label}</span>
-        <span className={`text-gray-200 text-xs break-words ${small ? 'text-xs' : ''}`}>
-          {type === 'date' && value ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : value}
-        </span>
+        <span className={`text-gray-200 text-xs break-words ${small ? 'text-xs' : ''}`}>{display}</span>
       </div>
     )
   }
   return (
     <div className="flex gap-2 py-0.5 items-center">
       <span className="text-gray-500 text-xs w-28 flex-shrink-0">{label}</span>
-      <input
-        type={type}
-        value={current ?? ''}
-        onChange={e => onChange((d: any) => ({ ...d, [field]: e.target.value || null }))}
-        className="flex-1 bg-gray-700 text-white text-xs rounded px-2 py-1 border border-gray-600 focus:border-green-500 focus:outline-none"
-      />
+      <div className="flex-1 relative">
+        {type === 'currency' && <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-xs">$</span>}
+        <input
+          type={inputType}
+          value={current ?? ''}
+          onChange={e => onChange((d: any) => ({ ...d, [field]: e.target.value || null }))}
+          className={`w-full bg-gray-700 text-white text-xs rounded px-2 py-1 border border-gray-600 focus:border-green-500 focus:outline-none ${type === 'currency' ? 'pl-5' : ''}`}
+        />
+      </div>
     </div>
   )
 }

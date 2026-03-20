@@ -81,17 +81,20 @@ function EditableCell({ value, onSave, type = 'text', placeholder = '—', class
 
   if (editing) {
     return (
-      <input
-        ref={inputRef}
-        type={type === 'currency' || type === 'number' ? 'number' : type}
-        step={type === 'currency' ? '0.01' : undefined}
-        value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onBlur={save}
-        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
-        className={`bg-gray-700 text-white text-xs rounded px-2 py-1 border border-green-500 focus:outline-none w-full ${className}`}
-        onClick={e => e.stopPropagation()}
-      />
+      <div className="relative w-full">
+        {type === 'currency' && <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-xs">$</span>}
+        <input
+          ref={inputRef}
+          type={type === 'currency' || type === 'number' ? 'number' : type}
+          step={type === 'currency' ? '0.01' : undefined}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={save}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
+          className={`bg-gray-700 text-white text-xs rounded px-2 py-1 border border-green-500 focus:outline-none w-full ${type === 'currency' ? 'pl-5' : ''} ${className}`}
+          onClick={e => e.stopPropagation()}
+        />
+      </div>
     )
   }
 
