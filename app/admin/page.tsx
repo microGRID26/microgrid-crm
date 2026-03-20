@@ -1390,7 +1390,7 @@ const STATUS_COLORS: Record<string, string> = {
   "Won't Fix": 'bg-gray-800 text-gray-400 border-gray-700',
 }
 
-function FeedbackManager() {
+function FeedbackManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const supabase = createClient()
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -1422,6 +1422,20 @@ function FeedbackManager() {
     }
     setAllEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e))
     setToast('Updated')
+    setTimeout(() => setToast(''), 2000)
+  }
+
+  const deleteFeedback = async (id: number) => {
+    if (!confirm('Delete this feedback entry? This cannot be undone.')) return
+    const { error } = await (supabase as any).from('feedback').delete().eq('id', id)
+    if (error) {
+      console.error('feedback delete failed:', error)
+      setToast('Delete failed')
+      setTimeout(() => setToast(''), 2000)
+      return
+    }
+    setAllEntries(prev => prev.filter(e => e.id !== id))
+    setToast('Deleted')
     setTimeout(() => setToast(''), 2000)
   }
 
@@ -1458,18 +1472,20 @@ function FeedbackManager() {
         </div>
       </div>
 
-      {/* Summary counts */}
+      {/* Summary counts — clickable to filter */}
       <div className="flex flex-wrap gap-2 mb-4">
         {FEEDBACK_TYPES_LIST.map(t => (
-          <span key={t} className={`text-[10px] px-2 py-1 border rounded ${TYPE_COLORS[t]}`}>
+          <button key={t} onClick={() => setFilterType(filterType === t ? '' : t)}
+            className={`text-[10px] px-2 py-1 border rounded transition-colors ${TYPE_COLORS[t]} ${filterType === t ? 'ring-1 ring-white' : 'opacity-70 hover:opacity-100'}`}>
             {t}: {typeCounts[t] || 0}
-          </span>
+          </button>
         ))}
         <span className="text-gray-700 mx-1">|</span>
         {FEEDBACK_STATUSES.map(s => (
-          <span key={s} className={`text-[10px] px-2 py-1 border rounded ${STATUS_COLORS[s]}`}>
+          <button key={s} onClick={() => setFilterStatus(filterStatus === s ? '' : s)}
+            className={`text-[10px] px-2 py-1 border rounded transition-colors ${STATUS_COLORS[s]} ${filterStatus === s ? 'ring-1 ring-white' : 'opacity-70 hover:opacity-100'}`}>
             {s}: {statusCounts[s] || 0}
-          </span>
+          </button>
         ))}
       </div>
 
@@ -1486,9 +1502,17 @@ function FeedbackManager() {
                   {entry.status}
                 </span>
               </div>
-              <span className="text-[10px] text-gray-600">
-                {entry.created_at ? new Date(entry.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-gray-600">
+                  {entry.created_at ? new Date(entry.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
+                </span>
+                {isSuperAdmin && (
+                  <button onClick={() => deleteFeedback(entry.id)}
+                    className="text-[10px] text-gray-600 hover:text-red-400 transition-colors" title="Delete feedback">
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
 
             <p className="text-sm text-white mb-2 whitespace-pre-wrap">{entry.message}</p>
@@ -1677,7 +1701,7 @@ export default function AdminPage() {
             {activeModule === 'sla'     && <SLAManager />}
             {activeModule === 'info'    && <CRMInfo />}
             {activeModule === 'releases' && <ReleaseNotes />}
-            {activeModule === 'feedback' && <FeedbackManager />}
+            {activeModule === 'feedback' && <FeedbackManager isSuperAdmin={isSuperAdmin} />}
           </div>
         </main>
       </div>
