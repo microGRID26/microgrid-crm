@@ -134,6 +134,19 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
       return
     }
 
+    // Validate phone — digits only (allow parens, dashes, spaces, dots, plus)
+    const phoneDigits = form.phone.replace(/[\s\-().+]/g, '')
+    if (!/^\d{10,}$/.test(phoneDigits)) {
+      setError('Phone must be a valid phone number (at least 10 digits)')
+      return
+    }
+
+    // Validate email
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      setError('Email must be a valid email address')
+      return
+    }
+
     setSaving(true)
     setError(null)
 

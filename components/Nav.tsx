@@ -95,11 +95,6 @@ export function Nav({ active, right, onNewProject }: NavProps) {
         </button>
       )}
 
-      <button onClick={signOut}
-        className="text-xs px-3 py-1.5 rounded-md transition-colors text-gray-500 hover:text-white hover:bg-gray-800">
-        Sign out
-      </button>
-
       <ConstructionBanner />
 
       {right && (
@@ -107,6 +102,11 @@ export function Nav({ active, right, onNewProject }: NavProps) {
           {right}
         </div>
       )}
+
+      <button onClick={signOut}
+        className="ml-auto text-xs px-3 py-1.5 rounded-md transition-colors text-gray-500 hover:text-white hover:bg-gray-800">
+        Sign out
+      </button>
     </nav>
   )
 }
