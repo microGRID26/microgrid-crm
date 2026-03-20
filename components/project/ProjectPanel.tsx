@@ -603,10 +603,11 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     }
 
     // ── Auto-detect blocker from Pending Resolution ─────────────────────
+    // Prefix auto-set blockers with ⏸ so we can distinguish from manual blockers
     if (status === 'Pending Resolution') {
       const taskName = ALL_TASKS_MAP[taskId] ?? taskId
-      const reason = taskReasons[taskId] ?? ''
-      const blockerText = reason ? `${taskName}: ${reason}` : taskName
+      const reason = needsReason ? (taskReasons[taskId] ?? '') : ''
+      const blockerText = `⏸ ${taskName}${reason ? ': ' + reason : ''}`
       // Only auto-set if no blocker currently exists
       if (!project.blocker) {
         await (supabase as any).from('projects').update({ blocker: blockerText }).eq('id', pid)
@@ -616,12 +617,11 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       }
     }
 
-    // ── Auto-clear blocker when task moves away from Pending Resolution ──
+    // ── Auto-clear blocker when task resolves (only if auto-set) ─────────
     if (status !== 'Pending Resolution' && status !== 'Revision Required' && !cascadeResets) {
-      // Check if blocker was auto-set from this task (matches task name pattern)
-      const taskName = ALL_TASKS_MAP[taskId] ?? taskId
-      if (project.blocker && project.blocker.startsWith(taskName)) {
-        // Check if any OTHER required tasks are still stuck
+      // Only clear blockers that were auto-set (prefixed with ⏸)
+      if (project.blocker && project.blocker.startsWith('⏸')) {
+        // Check if any OTHER tasks in current stage are still stuck
         const otherStuck = (TASKS[project.stage] ?? []).some(t =>
           t.id !== taskId && (taskStates[t.id] === 'Pending Resolution' || taskStates[t.id] === 'Revision Required')
         )
@@ -1108,9 +1108,9 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       {/* Revision Cascade Confirmation */}
       {cascadeConfirm && (
         <div className="fixed inset-0 bg-black/60 z-[120] flex items-center justify-center" onClick={() => {
-          // Cancel — revert the optimistic update
-          setTaskStates(prev => ({ ...prev, [cascadeConfirm.taskId]: taskStatesRaw.find(t => t.task_id === cascadeConfirm.taskId)?.status ?? 'Not Ready' }))
+          // Cancel — reload task states from DB to ensure clean state
           setCascadeConfirm(null)
+          loadTasks()
         }}>
           <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-3">
@@ -1137,9 +1137,9 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => {
-                  // Cancel — revert optimistic update
-                  setTaskStates(prev => ({ ...prev, [cascadeConfirm.taskId]: taskStatesRaw.find(t => t.task_id === cascadeConfirm.taskId)?.status ?? 'Not Ready' }))
+                  // Cancel — reload task states from DB to ensure clean state
                   setCascadeConfirm(null)
+                  loadTasks()
                 }}
                 className="px-4 py-1.5 text-xs text-gray-400 hover:text-white border border-gray-700 rounded-md"
               >
