@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { escapeIlike } from '@/lib/utils'
 import type { Crew, Project, Schedule } from '@/types/database'
 
 const JOB_TYPES = [
@@ -77,7 +78,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
     if (!projectSearch.trim() || projectSearch.length < 2) { setProjectResults([]); return }
     const q = projectSearch.toLowerCase()
     supabase.from('projects').select('id,name,city,pm')
-      .or(`name.ilike.%${q}%,id.ilike.%${q}%,city.ilike.%${q}%`)
+      .or(`name.ilike.%${escapeIlike(q)}%,id.ilike.%${escapeIlike(q)}%,city.ilike.%${escapeIlike(q)}%`)
       .neq('stage', 'complete')
       .limit(8)
       .then(({ data }) => { if (data) setProjectResults(data as any) })

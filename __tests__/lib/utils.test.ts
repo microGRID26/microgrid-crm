@@ -37,12 +37,12 @@ describe('daysAgo', () => {
 })
 
 describe('fmtDate', () => {
-  it('returns empty string for null', () => {
-    expect(fmtDate(null)).toBe('')
+  it('returns em dash for null', () => {
+    expect(fmtDate(null)).toBe('—')
   })
 
-  it('returns empty string for undefined', () => {
-    expect(fmtDate(undefined)).toBe('')
+  it('returns em dash for undefined', () => {
+    expect(fmtDate(undefined)).toBe('—')
   })
 
   it('formats a valid date', () => {

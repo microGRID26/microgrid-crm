@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { STAGE_LABELS, fmt$ } from '@/lib/utils'
+import { STAGE_LABELS, fmt$, escapeIlike } from '@/lib/utils'
 import type { Project } from '@/types/database'
 
 // ── HELPER COMPONENTS ────────────────────────────────────────────────────────
@@ -115,7 +115,7 @@ function AutocompleteRow({ label, field, value, draft, editing, onChange, table,
   useEffect(() => {
     if (!focused || query.length < 2) { setSuggestions([]); setOpen(false); return }
     const timer = setTimeout(async () => {
-      const { data } = await (supabase as any).from(table).select(searchCol).ilike(searchCol, `%${query}%`).order(searchCol).limit(8)
+      const { data } = await (supabase as any).from(table).select(searchCol).ilike(searchCol, `%${escapeIlike(query)}%`).order(searchCol).limit(8)
       const names = (data ?? []).map((r: any) => r[searchCol])
       setSuggestions(names)
       setOpen(names.length > 0)

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { fmt$, fmtDate, daysAgo, STAGE_LABELS, STAGE_ORDER } from '@/lib/utils'
+import { fmt$, fmtDate, daysAgo, STAGE_LABELS, STAGE_ORDER, escapeIlike } from '@/lib/utils'
 import { TASKS, TASK_STATUSES, STATUS_STYLE, PENDING_REASONS, REVISION_REASONS, ALL_TASKS_MAP, ALL_TASKS_FLAT, TASK_DATE_FIELDS, getSameStageDownstream } from '@/lib/tasks'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import type { Project, Note } from '@/types/database'
@@ -129,7 +129,7 @@ function AutocompleteRow({ label, field, value, draft, editing, onChange, table,
   useEffect(() => {
     if (!focused || query.length < 2) { setSuggestions([]); setOpen(false); return }
     const timer = setTimeout(async () => {
-      const { data } = await (supabase as any).from(table).select(searchCol).ilike(searchCol, `%${query}%`).order(searchCol).limit(8)
+      const { data } = await (supabase as any).from(table).select(searchCol).ilike(searchCol, `%${escapeIlike(query)}%`).order(searchCol).limit(8)
       const names = (data ?? []).map((r: any) => r[searchCol])
       setSuggestions(names)
       setOpen(names.length > 0)
@@ -370,18 +370,18 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
 
   const loadAhjUtil = useCallback(async () => {
     if (project.ahj) {
-      const { data } = await (supabase as any).from('ahjs').select('permit_phone,permit_website,max_duration,electric_code,permit_notes').ilike('name', `%${project.ahj}%`).limit(1).maybeSingle()
+      const { data } = await (supabase as any).from('ahjs').select('permit_phone,permit_website,max_duration,electric_code,permit_notes').ilike('name', `%${escapeIlike(project.ahj)}%`).limit(1).maybeSingle()
       setAhjInfo(data ?? null)
     }
     if (project.utility) {
-      const { data } = await (supabase as any).from('utilities').select('phone,website,notes').ilike('name', `%${project.utility}%`).limit(1).maybeSingle()
+      const { data } = await (supabase as any).from('utilities').select('phone,website,notes').ilike('name', `%${escapeIlike(project.utility)}%`).limit(1).maybeSingle()
       setUtilityInfo(data ?? null)
     }
   }, [pid, project.ahj, project.utility])
 
   const openAhjEdit = async () => {
     if (!project.ahj) return
-    const { data } = await (supabase as any).from('ahjs').select('*').ilike('name', `%${project.ahj}%`).limit(1).maybeSingle()
+    const { data } = await (supabase as any).from('ahjs').select('*').ilike('name', `%${escapeIlike(project.ahj)}%`).limit(1).maybeSingle()
     if (data) setAhjEdit({ ...data })
   }
 
@@ -402,7 +402,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
 
   const openUtilEdit = async () => {
     if (!project.utility) return
-    const { data } = await (supabase as any).from('utilities').select('*').ilike('name', `%${project.utility}%`).limit(1).maybeSingle()
+    const { data } = await (supabase as any).from('utilities').select('*').ilike('name', `%${escapeIlike(project.utility)}%`).limit(1).maybeSingle()
     if (data) setUtilEdit({ ...data })
   }
 

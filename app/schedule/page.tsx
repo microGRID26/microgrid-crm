@@ -68,6 +68,7 @@ export default function SchedulePage() {
     const weekEndDate = isoDate(weekDates[5])
 
     const [crewRes, schedRes] = await Promise.all([
+      // NB: crews.active is stored as STRING 'TRUE'/'FALSE', not a boolean — see CLAUDE.md "Crews Table Quirk"
       supabase.from('crews').select('id, name, warehouse').eq('active', 'TRUE').order('name'),
       supabase.from('schedule').select('id, crew_id, date, job_type, time, project_id, notes, status, pm, pm_id, project:projects(name, city)').gte('date', weekStartDate).lte('date', weekEndDate),
     ])

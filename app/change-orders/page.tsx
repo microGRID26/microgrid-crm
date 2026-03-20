@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { cn, fmtDate, fmt$ } from '@/lib/utils'
+import { cn, fmtDate, fmt$, escapeIlike } from '@/lib/utils'
 import { Nav } from '@/components/Nav'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { useCurrentUser } from '@/lib/useCurrentUser'
@@ -749,7 +749,7 @@ function NewChangeOrderModal({ users, currentUser, onClose, onCreated }: {
       const q = projectSearch.trim()
       const { data } = await supabase.from('projects')
         .select('id, name, city, pm, pm_id, systemkw, module, module_qty, financier, financing_type, contract, tpo_escalator, financier_adv_pmt, down_payment')
-        .or(`name.ilike.%${q}%,id.ilike.%${q}%`)
+        .or(`name.ilike.%${escapeIlike(q)}%,id.ilike.%${escapeIlike(q)}%`)
         .limit(10) as any
       if (data) setProjectResults(data as Project[])
       setSearching(false)

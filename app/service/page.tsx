@@ -140,7 +140,7 @@ export default function ServicePage() {
                     </td>
                     <td className="px-3 py-2 text-gray-400">{call.pm ?? '—'}</td>
                     <td className="px-3 py-2 text-gray-400">{fmtDate(call.created_at?.slice(0,10))}</td>
-                    <td className="px-3 py-2 text-gray-400">{fmtDate(call.scheduled_date) || '—'}</td>
+                    <td className="px-3 py-2 text-gray-400">{fmtDate(call.scheduled_date)}</td>
                     <td className="px-3 py-2">
                       {call.priority && (
                         <span className={`px-2 py-0.5 rounded-full text-xs ${

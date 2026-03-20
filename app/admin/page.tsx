@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Nav } from '@/components/Nav'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrentUser } from '@/lib/useCurrentUser'
-import { cn } from '@/lib/utils'
+import { cn, escapeIlike } from '@/lib/utils'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -230,7 +230,7 @@ function AHJManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
   const load = useCallback(async () => {
     let q = (supabase as any).from('ahjs').select('*', { count: 'exact' })
-    if (search) q = q.ilike('name', `%${search}%`)
+    if (search) q = q.ilike('name', `%${escapeIlike(search)}%`)
     q = q.order('name').range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
     const { data, count } = await q
     setAhjs(data ?? [])
@@ -430,7 +430,7 @@ function UtilityManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
   const load = useCallback(async () => {
     let q = (supabase as any).from('utilities').select('*').order('name')
-    if (search) q = q.ilike('name', `%${search}%`)
+    if (search) q = q.ilike('name', `%${escapeIlike(search)}%`)
     const { data } = await q
     setUtilities(data ?? [])
   }, [search])
@@ -808,6 +808,7 @@ function CrewsManager() {
       )}
       <div className="mb-4">
         <h2 className="text-base font-semibold text-white">Crews</h2>
+        {/* NB: crews.active is stored as STRING 'TRUE'/'FALSE', not a boolean — see CLAUDE.md "Crews Table Quirk" */}
         <p className="text-xs text-gray-500 mt-0.5">{crews.filter(c => c.active === 'TRUE' || c.active === 'true').length} active crews</p>
       </div>
 
@@ -1900,7 +1901,7 @@ function ChangesTab() {
 
     if (userFilter) q = q.eq('changed_by', userFilter)
     if (fieldFilter) q = q.eq('field', fieldFilter)
-    if (search.trim()) q = q.ilike('project_id', `%${search.trim()}%`)
+    if (search.trim()) q = q.ilike('project_id', `%${escapeIlike(search.trim())}%`)
 
     const rangeStart = getDateRangeStart(dateRange)
     if (rangeStart) q = q.gte('changed_at', rangeStart)

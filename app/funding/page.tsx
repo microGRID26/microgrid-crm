@@ -488,8 +488,8 @@ export default function FundingPage() {
                   </td>
                   <td className="px-2 py-1.5 text-gray-300 whitespace-nowrap">{row.project.financier ?? '—'}</td>
                   <td className="px-2 py-1.5 text-gray-400 whitespace-nowrap">{row.project.ahj ?? '—'}</td>
-                  <td className="px-2 py-1.5 text-gray-400 whitespace-nowrap text-[10px]">{fmtDate(row.project.install_complete_date) || '—'}</td>
-                  <td className="px-2 py-1.5 text-gray-400 whitespace-nowrap text-[10px]">{fmtDate(row.project.pto_date) || '—'}</td>
+                  <td className="px-2 py-1.5 text-gray-400 whitespace-nowrap text-[10px]">{fmtDate(row.project.install_complete_date)}</td>
+                  <td className="px-2 py-1.5 text-gray-400 whitespace-nowrap text-[10px]">{fmtDate(row.project.pto_date)}</td>
                   <td className="px-2 py-1.5 text-gray-300 font-mono whitespace-nowrap">{row.project.contract ? fmt$(Number(row.project.contract)) : '—'}</td>
 
                   {/* M1 */}

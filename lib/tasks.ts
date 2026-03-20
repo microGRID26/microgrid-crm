@@ -312,6 +312,32 @@ for (const [stage, tasks] of Object.entries(TASKS)) {
   for (const t of tasks) TASK_TO_STAGE[t.id] = stage
 }
 
+// Validate no cycles in prerequisite chains at module load
+;(function validateNoCycles() {
+  const allTasks = Object.values(TASKS).flat()
+  const taskMap = new Map(allTasks.map(t => [t.id, t]))
+
+  function hasCycle(startId: string, visited: Set<string>, path: string[]): boolean {
+    if (visited.has(startId)) {
+      console.error('Task prerequisite cycle detected:', [...path, startId].join(' → '))
+      return true
+    }
+    visited.add(startId)
+    path.push(startId)
+    const task = taskMap.get(startId)
+    if (task) {
+      for (const preId of task.pre) {
+        if (hasCycle(preId, new Set(visited), [...path])) return true
+      }
+    }
+    return false
+  }
+
+  for (const t of allTasks) {
+    hasCycle(t.id, new Set(), [])
+  }
+})()
+
 // ── CASCADE HELPER ──────────────────────────────────────────────────────────
 // Find same-stage downstream dependents (BFS through prereq chain)
 export function getSameStageDownstream(taskId: string): string[] {

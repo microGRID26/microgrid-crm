@@ -11,12 +11,16 @@ export function fmt$(n: number | null | undefined): string {
 }
 
 export function fmtDate(d: string | null | undefined): string {
-  if (!d) return ''
+  if (!d) return '—'
   try {
     return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
       month: 'short', day: 'numeric', year: 'numeric'
     })
-  } catch { return '' }
+  } catch { return '—' }
+}
+
+export function escapeIlike(s: string): string {
+  return s.replace(/[%_\\]/g, '\\$&')
 }
 
 export function daysAgo(d: string | null | undefined): number {
