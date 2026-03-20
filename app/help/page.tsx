@@ -279,37 +279,126 @@ function ForPMs() {
       <Card title="What are change orders?">
         When a system design changes after the initial proposal (usually panel count reduction during engineering),
         a Homeowner Change Order (HCO) is required. This happens on almost every job — the proposal maxes out
-        the roof, then engineering right-sizes it. The Change Orders page tracks these through a 6-step workflow.
+        the roof, then engineering right-sizes it. The Change Orders page tracks these through a 6-step workflow
+        with automatic status progression.
       </Card>
+
       <Card title="Creating a change order">
-        Go to the Change Orders page and click New Change Order. Search for the project — original values
-        (panel count, system size, panel type, plan type) auto-populate from the project data. Set the type,
-        reason, origin, priority, and who it is assigned to.
+        Click <span className="text-xs px-2 py-0.5 rounded bg-green-700 text-white font-medium">+ New Change Order</span> on
+        the Change Orders page. Search for the project — original design values auto-populate:
+        <div className="mt-2 bg-gray-800 rounded-lg px-3 py-2 text-xs text-gray-400 space-y-0.5">
+          <div>Panel Count: <span className="text-gray-200">48</span></div>
+          <div>Panel Type: <span className="text-gray-200">HY-DH108P8-405B</span></div>
+          <div>System Size: <span className="text-gray-200">19.44 kW</span></div>
+        </div>
+        <div className="mt-2 text-sm text-gray-400">Set the type, reason, origin, priority, and assignment. The title auto-fills as &quot;Change Order - [Project Name]&quot;.</div>
       </Card>
+
+      <Card title="Change order statuses">
+        <div className="mt-2 space-y-1.5 text-xs">
+          <div className="flex items-center gap-2"><span className="bg-red-900 text-red-300 px-2 py-0.5 rounded-full">Open</span><span className="text-gray-400">— newly created, not started</span></div>
+          <div className="flex items-center gap-2"><span className="bg-blue-900 text-blue-300 px-2 py-0.5 rounded-full">In Progress</span><span className="text-gray-400">— auto-set when first workflow step is checked</span></div>
+          <div className="flex items-center gap-2"><span className="bg-amber-900 text-amber-300 px-2 py-0.5 rounded-full">Waiting On Signature</span><span className="text-gray-400">— design done, waiting for homeowner to sign</span></div>
+          <div className="flex items-center gap-2"><span className="bg-green-900 text-green-300 px-2 py-0.5 rounded-full">Complete</span><span className="text-gray-400">— auto-set when all 6 workflow steps are done</span></div>
+          <div className="flex items-center gap-2"><span className="bg-gray-700 text-gray-400 px-2 py-0.5 rounded-full">Cancelled</span><span className="text-gray-400">— change order was abandoned</span></div>
+        </div>
+      </Card>
+
+      {/* ── Workflow mockup ───────────────────────────────────────── */}
+      <Card title="Workflow steps & automation">
+        Each change order has a 6-step design workflow. Check steps off as they complete — saves immediately.
+        <div className="mt-3 bg-gray-800/50 rounded-lg p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Design Workflow</span>
+            <span className="text-xs text-gray-500">4/6 steps</span>
+          </div>
+          <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-3">
+            <div className="h-full rounded-full bg-green-600" style={{ width: '67%' }} />
+          </div>
+          <div className="space-y-1">
+            {[
+              { label: '1. Design Request Submitted (HCO)', done: true },
+              { label: '2. Design In Progress', done: true },
+              { label: '3. Design Pending Approval (HCO)', done: true },
+              { label: '4. Design Approved (HCO)', done: true },
+              { label: '5. Design Complete', done: false },
+              { label: '6. Design Complete and Signed (HCO)', done: false },
+            ].map(s => (
+              <div key={s.label} className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg ${s.done ? 'bg-green-900/20' : ''}`}>
+                <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${s.done ? 'bg-green-600 border-green-600' : 'border-gray-600'}`}>
+                  {s.done && <span className="text-white text-[10px]">✓</span>}
+                </div>
+                <span className={`text-xs ${s.done ? 'text-green-300 line-through' : 'text-gray-300'}`}>{s.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mt-2 text-sm text-gray-400">
+          <strong className="text-gray-300">Automations:</strong>
+        </div>
+        <Ul items={[
+          'Checking the first step on an Open change order auto-sets status to In Progress',
+          'Checking all 6 steps auto-sets status to Complete',
+          'You can still manually change the status at any time (e.g., to set Waiting On Signature)',
+        ]} />
+      </Card>
+
+      {/* ── Design Comparison mockup ─────────────────────────────── */}
+      <Card title="Design comparison">
+        The detail panel shows original vs new design values. Edit new values inline — changed values highlight green.
+        <div className="mt-3 bg-gray-900 rounded-lg border border-gray-800 overflow-hidden text-xs">
+          <div className="grid grid-cols-3 gap-0 px-3 py-2 bg-gray-800/50 border-b border-gray-800">
+            <span className="text-gray-500 font-medium">Field</span>
+            <span className="text-gray-500 font-medium text-center">Original</span>
+            <span className="text-gray-500 font-medium text-center">New</span>
+          </div>
+          <div className="grid grid-cols-3 gap-0 px-3 py-1.5 border-b border-gray-800/50">
+            <span className="text-gray-400">Panel Count</span>
+            <span className="text-gray-300 text-center">48</span>
+            <span className="text-green-400 font-medium text-center">42</span>
+          </div>
+          <div className="grid grid-cols-3 gap-0 px-3 py-1.5 border-b border-gray-800/50">
+            <span className="text-gray-400">Panel Type</span>
+            <span className="text-gray-300 text-center">HY-DH108P8-405B</span>
+            <span className="text-gray-400 text-center">-</span>
+          </div>
+          <div className="grid grid-cols-3 gap-0 px-3 py-1.5 border-b border-gray-800/50">
+            <span className="text-gray-400">System Size (kW)</span>
+            <span className="text-gray-300 text-center">19.44</span>
+            <span className="text-green-400 font-medium text-center">17.01</span>
+          </div>
+          <div className="grid grid-cols-3 gap-0 px-3 py-1.5">
+            <span className="text-gray-400">KWH/YR</span>
+            <span className="text-gray-300 text-center">23,953</span>
+            <span className="text-green-400 font-medium text-center">22,346</span>
+          </div>
+        </div>
+        <div className="mt-2 text-xs text-gray-500">Click any New value to edit it. Changes save when you click away or press Enter.</div>
+      </Card>
+
+      <Card title="Design notes">
+        Add timestamped notes to track communication. Each note records your name, date, and time automatically.
+        Notes stack newest-first, like a log:
+        <div className="mt-2 bg-gray-800 rounded-lg px-3 py-2 text-xs">
+          <div className="text-gray-300 leading-relaxed">3/20/26 9:15 AM Greg Kelsch - Sent text to rep for an update on getting the HCO signed</div>
+          <div className="text-gray-300 leading-relaxed mt-2">3/18/26 2:30 PM Jen Harper - EC is working with customer to get AC relocated</div>
+          <div className="text-gray-300 leading-relaxed mt-2">3/15/26 11:00 AM Greg Kelsch - HCO sent to customer for signature</div>
+        </div>
+      </Card>
+
       <Card title="Working a change order">
-        Click any row to open the detail panel. From there you can:
+        Click any row in the queue to open the detail panel. From there you can:
         <Ul items={[
           'Change status, priority, type, reason, origin, and assignment via dropdowns',
-          'Check off workflow steps as they complete (saves immediately)',
-          'Enter new design values (new panel count, system size, etc.) — changed values highlight green',
-          'Add timestamped notes to track communication and progress',
+          'Check off workflow steps (auto-advances status)',
+          'Enter new design values — changed values highlight green',
+          'Add timestamped notes to track communication',
           'Click the project name to open its full project panel',
         ]} />
       </Card>
-      <Card title="Workflow steps">
-        Each change order follows this 6-step design workflow:
-        <Ul items={[
-          '1. Design Request Submitted (HCO)',
-          '2. Design In Progress',
-          '3. Design Pending Approval (HCO)',
-          '4. Design Approved (HCO)',
-          '5. Design Complete',
-          '6. Design Complete and Signed (HCO)',
-        ]} />
-        The progress bar in the queue table shows how far along each change order is.
-      </Card>
+
       <Card title="Change orders in the project panel">
-        When you open any project panel, the header shows an amber badge (e.g., &quot;2 Change Orders&quot;) if
+        When you open any project panel, the header shows an amber badge (e.g., <span className="text-amber-400">&quot;2 Change Orders&quot;</span>) if
         there are active change orders. Click it to jump to the Change Orders page filtered to that project.
       </Card>
 
