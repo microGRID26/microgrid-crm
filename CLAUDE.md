@@ -36,7 +36,7 @@ The Supabase client is globally mocked in `vitest.setup.ts`. Tests focus on busi
 - **Next.js 16** (App Router, `"use client"` pages — no RSC data fetching)
 - **React 19** + TypeScript (strict)
 - **Tailwind CSS v4** (PostCSS plugin, not config-based)
-- **Supabase** — PostgreSQL, Auth (Google OAuth restricted to @trismartsolar.com), Realtime subscriptions
+- **Supabase** — PostgreSQL, Auth (Google OAuth, External — primary domains `@gomicrogridenergy.com` and `@energydevelopmentgroup.com`, legacy `@trismartsolar.com` logins still work), Realtime subscriptions
 - **No state management library** — pure `useState`/`useEffect`/`useCallback` + Supabase realtime channels
 
 ## Architecture
@@ -97,6 +97,10 @@ Each pipeline stage has defined tasks in `STAGE_TASKS` (lib/utils.ts). Tasks hav
 
 Also note: the `Project` type defines a `loyalty: string | null` field, but it is **never read anywhere** in the codebase. All loyalty logic uses `p.disposition === 'Loyalty'` instead. The `loyalty` column appears to be legacy/dead.
 
+### Role-Based Access
+
+The `users` table has a `role` column with values: `super_admin`, `admin`, `finance`, `manager`, `user`. The `useCurrentUser()` hook returns `role`, `isAdmin`, `isSuperAdmin`, `isFinance`, `isManager` convenience booleans. RLS policies use `auth_is_admin()` and `auth_is_super_admin()` Postgres functions that check the `role` column. When adding admin-gated features, check `isAdmin` or `isSuperAdmin` from the hook on the client side; the database enforces the same via RLS.
+
 ### Crews Table Quirk
 
 The `active` column on `crews` is stored as a **string** (`'TRUE'`/`'FALSE'`), not a boolean. The schedule page filters with `.eq('active', 'TRUE')` (uppercase only), while the admin page defensively checks both cases (`c.active === 'TRUE' || c.active === 'true'`). When querying crews, always filter on the string `'TRUE'`, and be aware that mixed-case values may exist in the data.
@@ -144,5 +148,5 @@ daysAgo(p.sale_date) || daysAgo(p.stage_date)
 ## Known Bugs
 
 - The `loyalty` field on `projects` is unused — all loyalty logic checks `disposition === 'Loyalty'` instead. The column should eventually be dropped or reconciled.
-- No RLS policies are enforced — any authenticated user can read/write all data. Auth is Google OAuth domain-restricted to @trismartsolar.com but there are no row-level permissions.
+- RLS policies are enforced but still evolving. `auth_is_admin()` and `auth_is_super_admin()` Postgres functions gate write access based on the `role` column. Some tables may still have permissive policies that need tightening.
 - The `active` field on `crews` is a string instead of a boolean, leading to defensive dual-case checking throughout the codebase.

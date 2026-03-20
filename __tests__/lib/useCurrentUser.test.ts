@@ -12,7 +12,7 @@ describe('useCurrentUser', () => {
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
           single: vi.fn(() => Promise.resolve({
-            data: { id: '1', name: 'Greg Kelsch', role: 'super_admin', email: 'gkelsch@trismartsolar.com' },
+            data: { id: '1', name: 'Greg Kelsch', role: 'super_admin', email: 'greg@gomicrogridenergy.com' },
             error: null,
           })),
         })),
@@ -24,7 +24,7 @@ describe('useCurrentUser', () => {
         from: mockFrom,
         auth: {
           getUser: vi.fn(() => Promise.resolve({
-            data: { user: { email: 'gkelsch@trismartsolar.com' } },
+            data: { user: { email: 'greg@gomicrogridenergy.com' } },
             error: null,
           })),
         },
@@ -56,7 +56,7 @@ describe('useCurrentUser', () => {
         })),
         auth: {
           getUser: vi.fn(() => Promise.resolve({
-            data: { user: { email: 'newuser@trismartsolar.com' } },
+            data: { user: { email: 'newuser@gomicrogridenergy.com' } },
             error: null,
           })),
         },

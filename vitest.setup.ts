@@ -45,7 +45,7 @@ export function createMockSupabase() {
     from: vi.fn(() => chainable()),
     rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
     auth: {
-      getUser: vi.fn(() => Promise.resolve({ data: { user: { email: 'test@trismartsolar.com', user_metadata: { full_name: 'Test User' } } }, error: null })),
+      getUser: vi.fn(() => Promise.resolve({ data: { user: { email: 'test@gomicrogridenergy.com', user_metadata: { full_name: 'Test User' } } }, error: null })),
       signInWithOAuth: vi.fn(() => Promise.resolve({ data: {}, error: null })),
       signOut: vi.fn(() => Promise.resolve({ error: null })),
       exchangeCodeForSession: vi.fn(() => Promise.resolve({ data: {}, error: null })),

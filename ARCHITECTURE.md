@@ -14,7 +14,7 @@ Solar installation project management CRM for TriSMART Solar. Tracks 487 active 
 - **Frontend**: Next.js 14 (App Router) + TypeScript + Tailwind v4
 - **Backend**: Supabase (PostgreSQL + Auth + Realtime)
 - **Hosting**: Vercel Hobby (gkelsch-7941's projects)
-- **Auth**: Google OAuth via Supabase Auth (restricted to @trismartsolar.com)
+- **Auth**: Google OAuth (External) via Supabase Auth, primary domains `@gomicrogridenergy.com` and `@energydevelopmentgroup.com`
 
 ## Credentials (ROTATE THESE)
 - Supabase anon key: `sb_publishable_XXXX`
@@ -141,7 +141,7 @@ complete: pto_received, in_service
 - Site URL: https://microgrid-crm.vercel.app
 - Callback: https://hzymsezqfxzpbcqryeim.supabase.co/auth/v1/callback
 - Redirect URLs in Supabase: both Vercel URLs
-- Currently allows any Google account (domain restriction via `hd` param in client — enforce with RLS)
+- Google OAuth (External), primary domains `@gomicrogridenergy.com` and `@energydevelopmentgroup.com`
 
 ## File Structure
 ```

@@ -17,7 +17,7 @@ describe('auth callback', () => {
   it('redirects to /command on successful exchange', async () => {
     mockSupabase.auth.exchangeCodeForSession.mockResolvedValue({ data: {}, error: null })
     mockSupabase.auth.getUser.mockResolvedValue({
-      data: { user: { email: 'test@trismartsolar.com', user_metadata: { full_name: 'Test User' } } },
+      data: { user: { email: 'test@gomicrogridenergy.com', user_metadata: { full_name: 'Test User' } } },
       error: null,
     })
 
@@ -39,7 +39,7 @@ describe('auth callback', () => {
   it('provisions user after successful exchange', async () => {
     mockSupabase.auth.exchangeCodeForSession.mockResolvedValue({ data: {}, error: null })
     mockSupabase.auth.getUser.mockResolvedValue({
-      data: { user: { email: 'new@trismartsolar.com', user_metadata: { full_name: 'New User' } } },
+      data: { user: { email: 'new@gomicrogridenergy.com', user_metadata: { full_name: 'New User' } } },
       error: null,
     })
 
@@ -56,7 +56,7 @@ describe('auth callback', () => {
     }
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith('provision_user', {
-      p_email: 'new@trismartsolar.com',
+      p_email: 'new@gomicrogridenergy.com',
       p_name: 'New User',
     })
   })
@@ -64,7 +64,7 @@ describe('auth callback', () => {
   it('uses email prefix when full_name is missing', async () => {
     mockSupabase.auth.exchangeCodeForSession.mockResolvedValue({ data: {}, error: null })
     mockSupabase.auth.getUser.mockResolvedValue({
-      data: { user: { email: 'test@trismartsolar.com', user_metadata: {} } },
+      data: { user: { email: 'test@gomicrogridenergy.com', user_metadata: {} } },
       error: null,
     })
 
@@ -80,7 +80,7 @@ describe('auth callback', () => {
     }
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith('provision_user', {
-      p_email: 'test@trismartsolar.com',
+      p_email: 'test@gomicrogridenergy.com',
       p_name: 'test',
     })
   })

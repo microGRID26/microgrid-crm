@@ -1091,6 +1091,13 @@ function ReleaseNotes() {
       <div className={sectionCls}>Session 9 - March 19, 2026</div>
 
       <div className={cardCls}>
+        <div className={titleCls}>Roles System — 5-Level Permissions</div>
+        <div className={bodyCls}>
+          Replaced admin/super_admin booleans with a single role column: Super Admin, Admin, Finance, Manager, User. useCurrentUser hook returns computed permission helpers. Admin nav link hidden for non-admin roles. Users module shows role dropdown with color-coded badges. Migration backfills existing users from old booleans.
+        </div>
+      </div>
+
+      <div className={cardCls}>
         <div className={titleCls}>Bug Fixes - 11 issues resolved</div>
         <div className={bodyCls}>
           {bullet([
@@ -1334,7 +1341,7 @@ function CRMInfo() {
                 { label: 'Stack',      value: 'Next.js 16 + TypeScript + Tailwind v4' },
                 { label: 'Database',   value: 'Supabase (PostgreSQL)' },
                 { label: 'Hosting',    value: 'Vercel Hobby' },
-                { label: 'Auth',       value: 'Google OAuth (@trismartsolar.com / @microgrid.com)' },
+                { label: 'Auth',       value: 'Google OAuth (@gomicrogridenergy.com + 1 more)' },
                 { label: 'Repo',       value: 'github.com/microGRID26/microgrid-crm' },
                 { label: 'Phase',      value: 'Phase 3 — Admin Portal' },
               ].map(r => (
