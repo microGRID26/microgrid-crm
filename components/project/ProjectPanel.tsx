@@ -938,7 +938,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
                 <button onClick={() => setShowBlockerForm(false)} className="text-xs text-gray-500 hover:text-white px-2">Cancel</button>
               </div>
             )}
-            {!showBlockerForm && !editMode && (currentUser?.isManager || currentUser?.id === project.pm_id) && (
+            {!showBlockerForm && !editMode && currentUser && (
               <button onClick={startEdit} className="text-xs px-3 py-1.5 rounded-lg font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
                 ✏ Edit
               </button>
