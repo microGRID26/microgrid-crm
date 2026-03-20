@@ -4,8 +4,10 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/Nav'
 import { ScheduleAssignModal } from '@/components/project/ScheduleAssignModal'
+import { JobBriefPanel } from '@/components/project/JobBriefPanel'
+import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { cn } from '@/lib/utils'
-import type { Schedule, Crew } from '@/types/database'
+import type { Schedule, Crew, Project } from '@/types/database'
 
 const JOB_COLORS: Record<string, { bg: string; text: string }> = {
   survey:     { bg: 'bg-blue-900',   text: 'text-blue-200'   },
@@ -71,6 +73,12 @@ export default function SchedulePage() {
     jobType: string
   } | null>(null)
 
+  // Job Brief panel state
+  const [briefScheduleId, setBriefScheduleId] = useState<string | null>(null)
+
+  // ProjectPanel state (opened from Job Brief)
+  const [projectPanelProject, setProjectPanelProject] = useState<Project | null>(null)
+
   const loadData = useCallback(async () => {
     const weekDates = getWeekDates(weekOffset)
     const weekStartDate = isoDate(weekDates[0])
@@ -79,7 +87,7 @@ export default function SchedulePage() {
     const [crewRes, schedRes] = await Promise.all([
       // NB: crews.active is stored as STRING 'TRUE'/'FALSE', not a boolean — see CLAUDE.md "Crews Table Quirk"
       supabase.from('crews').select('id, name, warehouse').eq('active', 'TRUE').order('name'),
-      (supabase as any).from('schedule').select('id, crew_id, date, job_type, time, project_id, notes, status, pm, pm_id').gte('date', weekStartDate).lte('date', weekEndDate),
+      (supabase as any).from('schedule').select('id, crew_id, date, job_type, time, project_id, notes, status, pm, pm_id, arrival_window, arrays, pitch, stories, special_equipment, electrical_notes, wind_speed, risk_category, travel_adder, wifi_info, msp_upgrade').gte('date', weekStartDate).lte('date', weekEndDate),
     ])
 
     if (crewRes.data) setCrews(crewRes.data as Crew[])
@@ -289,7 +297,7 @@ export default function SchedulePage() {
                         return (
                           <div
                             key={job.id}
-                            onClick={e => { e.stopPropagation(); setAssignModal({ crewId: crew.id, date: iso, scheduleId: job.id, projectId: job.project_id, jobType: job.job_type }) }}
+                            onClick={e => { e.stopPropagation(); setBriefScheduleId(job.id) }}
                             className={cn(
                               colors.bg, colors.text,
                               'rounded px-2 py-1.5 mb-1 cursor-pointer hover:opacity-80 transition-opacity',
@@ -319,6 +327,41 @@ export default function SchedulePage() {
           </tbody>
         </table>
       </div>
+
+      {/* Job Brief Panel — slide-out when clicking a job card */}
+      {briefScheduleId && (
+        <JobBriefPanel
+          scheduleId={briefScheduleId}
+          onClose={() => setBriefScheduleId(null)}
+          onEdit={() => {
+            // Find the job to get crew/date/project info for the modal
+            const job = schedule.find(s => s.id === briefScheduleId) as any
+            setBriefScheduleId(null)
+            if (job) {
+              setAssignModal({
+                crewId: job.crew_id,
+                date: job.date,
+                scheduleId: job.id,
+                projectId: job.project_id,
+                jobType: job.job_type,
+              })
+            }
+          }}
+          onOpenProject={(project) => {
+            setBriefScheduleId(null)
+            setProjectPanelProject(project)
+          }}
+        />
+      )}
+
+      {/* ProjectPanel — opened from Job Brief */}
+      {projectPanelProject && (
+        <ProjectPanel
+          project={projectPanelProject}
+          onClose={() => setProjectPanelProject(null)}
+          onProjectUpdated={() => loadData()}
+        />
+      )}
 
       {assignModal && (
         <ScheduleAssignModal

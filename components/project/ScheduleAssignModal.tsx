@@ -34,6 +34,20 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
     project_id: projectId ?? '',
     status: 'scheduled',
   })
+  const [installDetails, setInstallDetails] = useState({
+    arrival_window: '',
+    arrays: '',
+    pitch: '',
+    stories: '',
+    special_equipment: '',
+    electrical_notes: '',
+    wind_speed: '',
+    risk_category: '',
+    travel_adder: '',
+    wifi_info: '',
+    msp_upgrade: '',
+  })
+  const [installOpen, setInstallOpen] = useState(false)
   const [projectSearch, setProjectSearch] = useState('')
   const [projectResults, setProjectResults] = useState<Project[]>([])
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
@@ -45,6 +59,10 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
+  }
+
+  function setInstall(field: string, value: string) {
+    setInstallDetails(d => ({ ...d, [field]: value }))
   }
 
   // Load existing job if editing
@@ -62,6 +80,27 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
           project_id: data.project_id,
           status: data.status,
         })
+        // Populate install detail fields from existing record
+        setInstallDetails({
+          arrival_window: data.arrival_window ?? '',
+          arrays: data.arrays != null ? String(data.arrays) : '',
+          pitch: data.pitch ?? '',
+          stories: data.stories ?? '',
+          special_equipment: data.special_equipment ?? '',
+          electrical_notes: data.electrical_notes ?? '',
+          wind_speed: data.wind_speed ?? '',
+          risk_category: data.risk_category ?? '',
+          travel_adder: data.travel_adder ?? '',
+          wifi_info: data.wifi_info ?? '',
+          msp_upgrade: data.msp_upgrade ?? '',
+        })
+        // Auto-expand install details if any field has data
+        if (data.job_type === 'install') {
+          const hasData = data.arrival_window || data.arrays || data.pitch || data.stories ||
+            data.special_equipment || data.electrical_notes || data.wind_speed ||
+            data.risk_category || data.travel_adder || data.wifi_info || data.msp_upgrade
+          if (hasData) setInstallOpen(true)
+        }
       }
     })
   }, [scheduleId])
@@ -109,7 +148,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
     setSaving(true)
     setError(null)
     const pid = selectedProject?.id ?? form.project_id
-    const record = {
+    const record: Record<string, any> = {
       crew_id: form.crew_id,
       project_id: pid,
       date: form.date,
@@ -117,6 +156,20 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
       time: form.time || null,
       notes: form.notes || null,
       status: form.status,
+    }
+    // Include install detail fields when job_type is install
+    if (form.job_type === 'install') {
+      record.arrival_window = installDetails.arrival_window || null
+      record.arrays = installDetails.arrays ? Number(installDetails.arrays) : null
+      record.pitch = installDetails.pitch || null
+      record.stories = installDetails.stories || null
+      record.special_equipment = installDetails.special_equipment || null
+      record.electrical_notes = installDetails.electrical_notes || null
+      record.wind_speed = installDetails.wind_speed || null
+      record.risk_category = installDetails.risk_category || null
+      record.travel_adder = installDetails.travel_adder || null
+      record.wifi_info = installDetails.wifi_info || null
+      record.msp_upgrade = installDetails.msp_upgrade || null
     }
     let result
     if (scheduleId) {
@@ -152,14 +205,14 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
+      <div className="relative bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 flex-shrink-0">
           <h2 className="text-sm font-bold text-white">{scheduleId ? 'Edit Scheduled Job' : 'Schedule Job'}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">×</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">x</button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto">
           {/* Project search */}
           <div>
             <label className={labelCls}>Project *</label>
@@ -167,10 +220,10 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
               <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-green-600">
                 <div className="flex-1">
                   <div className="text-xs font-medium text-white">{selectedProject.name}</div>
-                  <div className="text-xs text-gray-400">{selectedProject.id} · {(selectedProject as any).city}</div>
+                  <div className="text-xs text-gray-400">{selectedProject.id} - {(selectedProject as any).city}</div>
                 </div>
                 <button onClick={() => { setSelectedProject(null); set('project_id', '') }}
-                  className="text-gray-500 hover:text-white text-xs">✕</button>
+                  className="text-gray-500 hover:text-white text-xs">x</button>
               </div>
             ) : (
               <div className="relative">
@@ -187,7 +240,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
                       <div key={p.id} onClick={() => { setSelectedProject(p); setProjectSearch(''); setProjectResults([]) }}
                         className="px-3 py-2 hover:bg-gray-700 cursor-pointer">
                         <div className="text-xs font-medium text-white">{p.name}</div>
-                        <div className="text-xs text-gray-400">{p.id} · {(p as any).city}</div>
+                        <div className="text-xs text-gray-400">{p.id} - {(p as any).city}</div>
                       </div>
                     ))}
                   </div>
@@ -201,7 +254,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
             <label className={labelCls}>Crew *</label>
             <select className={inputCls} value={form.crew_id} onChange={e => set('crew_id', e.target.value)}>
               {crews.map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.warehouse ? ` · ${c.warehouse}` : ''}</option>
+                <option key={c.id} value={c.id}>{c.name}{c.warehouse ? ` - ${c.warehouse}` : ''}</option>
               ))}
             </select>
           </div>
@@ -246,9 +299,109 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
               value={form.notes} onChange={e => set('notes', e.target.value)} />
           </div>
 
+          {/* Install Details — collapsible, only visible for install job type */}
+          {form.job_type === 'install' && (
+            <div className="border border-gray-700 rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setInstallOpen(o => !o)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-gray-800 hover:bg-gray-750 text-xs font-medium text-gray-300 transition-colors"
+              >
+                <span>Install Details</span>
+                <span className="text-gray-500">{installOpen ? '▲' : '▼'}</span>
+              </button>
+              {installOpen && (
+                <div className="p-3 space-y-3 bg-gray-850">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Arrival Window</label>
+                      <input className={inputCls} placeholder="e.g. 7-9"
+                        value={installDetails.arrival_window} onChange={e => setInstall('arrival_window', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Arrays</label>
+                      <input className={inputCls} type="number" placeholder="e.g. 2"
+                        value={installDetails.arrays} onChange={e => setInstall('arrays', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Pitch</label>
+                      <input className={inputCls} placeholder="e.g. 26,27"
+                        value={installDetails.pitch} onChange={e => setInstall('pitch', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Stories</label>
+                      <select className={inputCls} value={installDetails.stories} onChange={e => setInstall('stories', e.target.value)}>
+                        <option value="">Select...</option>
+                        <option value="Single Story">Single Story</option>
+                        <option value="Two Story">Two Story</option>
+                        <option value="Three Story">Three Story</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Special Equipment</label>
+                    <input className={inputCls} placeholder="e.g. Crane, lift..."
+                      value={installDetails.special_equipment} onChange={e => setInstall('special_equipment', e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>MSP Upgrade</label>
+                      <select className={inputCls} value={installDetails.msp_upgrade} onChange={e => setInstall('msp_upgrade', e.target.value)}>
+                        <option value="">Select...</option>
+                        <option value="No">No</option>
+                        <option value="Yes - 100A to 200A">Yes - 100A to 200A</option>
+                        <option value="Yes - 200A to 400A">Yes - 200A to 400A</option>
+                        <option value="Yes - Other">Yes - Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>WiFi Info</label>
+                      <input className={inputCls} placeholder="e.g. Customer will provide"
+                        value={installDetails.wifi_info} onChange={e => setInstall('wifi_info', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Wind Speed</label>
+                      <input className={inputCls} placeholder="e.g. 126 VMPH"
+                        value={installDetails.wind_speed} onChange={e => setInstall('wind_speed', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Risk Category</label>
+                      <select className={inputCls} value={installDetails.risk_category} onChange={e => setInstall('risk_category', e.target.value)}>
+                        <option value="">Select...</option>
+                        <option value="A">A</option>
+                        <option value="B">B</option>
+                        <option value="C">C</option>
+                        <option value="D">D</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Travel Adder</label>
+                    <select className={inputCls} value={installDetails.travel_adder} onChange={e => setInstall('travel_adder', e.target.value)}>
+                      <option value="">Select...</option>
+                      <option value="0-60 miles">0-60 miles</option>
+                      <option value="61-120 miles">61-120 miles</option>
+                      <option value="121-180 miles">121-180 miles</option>
+                      <option value="180+ miles">180+ miles</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Electrical Notes</label>
+                    <textarea className={inputCls} rows={3} placeholder="Electrical notes for the crew..."
+                      value={installDetails.electrical_notes} onChange={e => setInstall('electrical_notes', e.target.value)} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Conflict warning */}
           {conflict && (
-            <div className="text-xs text-amber-400 bg-amber-950 rounded-lg px-3 py-2">⚠ {conflict}</div>
+            <div className="text-xs text-amber-400 bg-amber-950 rounded-lg px-3 py-2">Warning: {conflict}</div>
           )}
 
           {/* Error message */}
@@ -258,7 +411,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-3 px-5 py-4 border-t border-gray-800">
+        <div className="flex items-center gap-3 px-5 py-4 border-t border-gray-800 flex-shrink-0">
           {scheduleId && (
             <button onClick={deleteJob} disabled={deleting}
               className="text-xs px-3 py-2 bg-red-900 hover:bg-red-800 text-red-300 rounded-lg transition-colors disabled:opacity-50">
