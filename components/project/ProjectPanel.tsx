@@ -311,6 +311,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     taskName: string
     resets: { id: string; name: string; currentStatus: string }[]
   } | null>(null)
+  const [changeOrderCount, setChangeOrderCount] = useState(0)
 
   const pid = project.id
   const stageTasks = TASKS[project.stage] ?? []
@@ -451,6 +452,12 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     loadAhjUtil()
     loadServiceCalls()
     loadStageHistory()
+    // Load change order count for this project
+    ;(supabase as any).from('change_orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', initialProject.id)
+      .not('status', 'in', '("Complete","Cancelled")')
+      .then(({ count }: any) => setChangeOrderCount(count ?? 0))
   }, [initialProject.id])
 
   // Eager-load task history for inline expansion in stage view
@@ -738,6 +745,15 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
                 <span>·</span><span>{days}d in stage</span>
                 <span>·</span><span>{cycle}d total</span>
                 <span>·</span><span>{project.pm}</span>
+                {changeOrderCount > 0 && (
+                  <>
+                    <span>·</span>
+                    <a href={`/change-orders?project=${project.id}`}
+                      className="text-amber-400 hover:text-amber-300 hover:underline">
+                      {changeOrderCount} Change Order{changeOrderCount !== 1 ? 's' : ''}
+                    </a>
+                  </>
+                )}
               </div>
             </div>
             <button onClick={onClose} className="text-gray-400 hover:text-white text-xl ml-4 flex-shrink-0">×</button>
