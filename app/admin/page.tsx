@@ -1090,6 +1090,64 @@ function ReleaseNotes() {
       <h2 className="text-base font-semibold text-white mb-1">Release Notes</h2>
       <p className="text-xs text-gray-500 mb-4">Internal version history for MicroGRID CRM</p>
 
+      <div className={sectionCls}>Session 10 (cont.) - March 21, 2026</div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Schedule System Overhaul</div>
+        <div className={bodyCls}>
+          {bullet([
+            'Job Brief panel — click any job card to see full project details, customer info, system specs, install details',
+            'Install Details fields — arrival window, arrays, pitch, stories, special equipment, MSP upgrade, WiFi, electrical notes, wind speed, risk category, travel adder',
+            'Crew mobile app at /crew — touch-friendly cards, tappable phone/map links, status actions',
+            'Status badges on job cards (green=complete, blue=scheduled, amber=in progress)',
+            'PM auto-populated on new schedule entries from project data',
+            'Search added to schedule page (filter by project name/ID)',
+            'Realtime subscription for schedule changes',
+            'Cancelled jobs hidden by default with toggle',
+          ])}
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Schedule ↔ Task Integration</div>
+        <div className={bodyCls}>
+          {bullet([
+            'Crew marks job complete → auto-completes corresponding task (install_done, site_survey, city_insp)',
+            'Task completion triggers full automation chain: date populated → funding eligible → stage advance',
+            'Creating schedule entry auto-marks scheduling task as "Scheduled"',
+            'Quick Schedule button in ProjectPanel Tasks tab for schedulable tasks (Ready To Start)',
+          ])}
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Mobile Optimization</div>
+        <div className={bodyCls}>
+          {bullet([
+            'Hamburger menu for mobile nav (11 links collapsed into drawer)',
+            'Scroll lock on all modals/panels (prevents background scroll on touch)',
+            'ProjectPanel full-screen on mobile',
+            'Task dropdowns larger touch targets on mobile (44px+)',
+            'Feedback button icon-only on mobile',
+            'Clickable addresses (Google Maps links) on Job Brief, crew page, Info tab',
+            'Dark background on html/body (fixes white flash on mobile Safari)',
+          ])}
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Performance & Cleanup</div>
+        <div className={bodyCls}>
+          {bullet([
+            'ProjectPanel queries parallelized via Promise.all (7 queries run simultaneously)',
+            'Command Center memoized: useMemo on taskMapAll, filtered, sections, pms, totalContract',
+            'Permission matrix added to Admin portal (read-only role vs feature reference)',
+            'Session tracking fixed — localStorage fallback prevents duplicate sessions on mobile',
+            'Nav streamlined: Audit and Crew removed from main nav (9 links), accessible via Admin sidebar and direct URL',
+          ])}
+        </div>
+      </div>
+
       <div className={sectionCls}>Session 10 - March 20, 2026</div>
 
       <div className={cardCls}>
