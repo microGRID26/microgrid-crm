@@ -203,14 +203,14 @@ export default function SchedulePage() {
     [filteredCrews, days, schedMap]
   )
 
+  // Batch complete: mark all non-complete, non-cancelled jobs for a day as complete
+  const [completing, setCompleting] = useState<string | null>(null) // date ISO string
+
   if (loading) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
       <div className="text-green-400 text-sm animate-pulse">Loading schedule...</div>
     </div>
   )
-
-  // Batch complete: mark all non-complete, non-cancelled jobs for a day as complete
-  const [completing, setCompleting] = useState<string | null>(null) // date ISO string
   async function batchComplete(date: string) {
     const dayJobs = schedule.filter(j =>
       j.date === date && (j as any).status !== 'complete' && (j as any).status !== 'cancelled'
