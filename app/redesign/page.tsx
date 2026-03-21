@@ -1233,6 +1233,14 @@ export default function RedesignPage() {
                   <FileDown className="w-3.5 h-3.5" />
                   Print / Save as PDF
                 </button>
+                <a
+                  href="/planset"
+                  target="_blank"
+                  className="text-xs text-amber-400 hover:text-amber-300 border border-amber-700 hover:border-amber-500 rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5 font-medium"
+                >
+                  <FileDown className="w-3.5 h-3.5" />
+                  View Full Plan Set (6 Sheets)
+                </a>
               </div>
               <div className="overflow-x-auto bg-white rounded-lg p-4">
                 <SingleLineDiagram
