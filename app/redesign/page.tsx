@@ -257,59 +257,63 @@ export default function RedesignPage() {
 
     const newTotalPanels = panelFitEstimates.reduce((s, e) => s + e.newCount, 0)
 
-    // Auto string configuration
+    // Auto string configuration — distribute panels evenly, never below minimum
     const stringConfigs: StringConfig[] = []
-    let mpptCounter = 0
-    let remainingPanels = newTotalPanels
 
-    for (let ri = 0; ri < panelFitEstimates.length && remainingPanels > 0; ri++) {
-      let roofPanels = panelFitEstimates[ri].newCount
-      while (roofPanels > 0 && mpptCounter < totalStringInputs) {
-        const currentMppt = Math.floor(mpptCounter / target.stringsPerMppt) + 1
-        const currentString = (mpptCounter % target.stringsPerMppt) + 1
+    // Step 1: figure out how many strings we need and size them evenly
+    const maxStrings = totalStringInputs
+    const neededStrings = Math.min(Math.ceil(newTotalPanels / recommendedStringSize), maxStrings)
+    const baseSize = Math.floor(newTotalPanels / neededStrings)
+    const extraPanels = newTotalPanels % neededStrings
 
-        const modulesInString = Math.min(recommendedStringSize, roofPanels, remainingPanels)
-        if (modulesInString < minModulesPerString && remainingPanels >= minModulesPerString) {
-          // Skip too-small strings; leftover handled on next face
-          break
-        }
-        if (modulesInString <= 0) break
-
-        stringConfigs.push({
-          mppt: currentMppt,
-          string: currentString,
-          modules: modulesInString,
-          vocCold: parseFloat((modulesInString * vocCorrected).toFixed(1)),
-          vmpNominal: parseFloat((modulesInString * target.panelVmp).toFixed(1)),
-          current: target.panelImp,
-          roofFaceIndex: ri,
-        })
-
-        roofPanels -= modulesInString
-        remainingPanels -= modulesInString
-        mpptCounter++
-      }
+    // Build string sizes: distribute remainder across first N strings
+    const stringSizes: number[] = []
+    for (let i = 0; i < neededStrings; i++) {
+      let size = baseSize + (i < extraPanels ? 1 : 0)
+      // Clamp to max modules per string
+      if (size > maxModulesPerString) size = maxModulesPerString
+      stringSizes.push(size)
     }
 
-    // Handle any remaining panels by filling remaining string inputs
-    while (remainingPanels > 0 && mpptCounter < totalStringInputs) {
-      const currentMppt = Math.floor(mpptCounter / target.stringsPerMppt) + 1
-      const currentString = (mpptCounter % target.stringsPerMppt) + 1
-      const modulesInString = Math.min(recommendedStringSize, remainingPanels)
-      if (modulesInString <= 0) break
+    // Step 2: assign strings to roof faces proportionally
+    const roofFaceAssignments: number[] = [] // which roof face each string belongs to
+    let stringIdx = 0
+    let assigned = 0
+    for (let ri = 0; ri < panelFitEstimates.length && stringIdx < stringSizes.length; ri++) {
+      let roofRemaining = panelFitEstimates[ri].newCount
+      while (roofRemaining > 0 && stringIdx < stringSizes.length) {
+        const take = Math.min(stringSizes[stringIdx], roofRemaining)
+        if (take < minModulesPerString && roofRemaining < minModulesPerString) {
+          // Not enough panels left on this roof for a full string — move to next roof
+          break
+        }
+        roofFaceAssignments[stringIdx] = ri
+        roofRemaining -= stringSizes[stringIdx]
+        assigned += stringSizes[stringIdx]
+        stringIdx++
+      }
+    }
+    // Any unassigned strings get -1 (overflow)
+    while (stringIdx < stringSizes.length) {
+      roofFaceAssignments[stringIdx] = -1
+      stringIdx++
+    }
+
+    // Step 3: build string configs with inverter/MPPT assignment
+    for (let i = 0; i < stringSizes.length; i++) {
+      const mpptGlobal = Math.floor(i / target.stringsPerMppt) + 1
+      const stringInMppt = (i % target.stringsPerMppt) + 1
+      const modules = stringSizes[i]
 
       stringConfigs.push({
-        mppt: currentMppt,
-        string: currentString,
-        modules: modulesInString,
-        vocCold: parseFloat((modulesInString * vocCorrected).toFixed(1)),
-        vmpNominal: parseFloat((modulesInString * target.panelVmp).toFixed(1)),
+        mppt: mpptGlobal,
+        string: stringInMppt,
+        modules,
+        vocCold: parseFloat((modules * vocCorrected).toFixed(1)),
+        vmpNominal: parseFloat((modules * target.panelVmp).toFixed(1)),
         current: target.panelImp,
-        roofFaceIndex: -1,
+        roofFaceIndex: roofFaceAssignments[i] ?? -1,
       })
-
-      remainingPanels -= modulesInString
-      mpptCounter++
     }
 
     // Engineering notes
