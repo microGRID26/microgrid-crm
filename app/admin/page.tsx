@@ -92,7 +92,7 @@ interface CRMStats {
   serviceCalls: number
 }
 
-type Module = 'ahj' | 'utility' | 'users' | 'crews' | 'sla' | 'info' | 'releases' | 'feedback' | 'audit'
+type Module = 'ahj' | 'utility' | 'users' | 'crews' | 'sla' | 'info' | 'releases' | 'feedback' | 'audit' | 'permissions'
 
 const DEPARTMENTS = [
   'Inside Operations', 'Sales', 'Executive', 'Field Operations',
@@ -2081,6 +2081,74 @@ function ChangesTab() {
   )
 }
 
+// ── Permission Matrix ─────────────────────────────────────────────────────────
+
+const PERM_ROWS = [
+  { feature: 'View projects', user: 'R', manager: 'R', finance: 'R', admin: 'R', super_admin: 'R' },
+  { feature: 'Edit projects', user: 'W', manager: 'W', finance: 'W', admin: 'W', super_admin: 'W' },
+  { feature: 'Create projects', user: 'W', manager: 'W', finance: 'W', admin: 'W', super_admin: 'W' },
+  { feature: 'Cancel / Reactivate', user: '—', manager: '—', finance: '—', admin: 'W', super_admin: 'W' },
+  { feature: 'Delete projects', user: '—', manager: '—', finance: '—', admin: '—', super_admin: 'D' },
+  { feature: 'Set blockers', user: 'W', manager: 'W', finance: 'W', admin: 'W', super_admin: 'W' },
+  { feature: 'Task management', user: 'RW', manager: 'RW', finance: 'RW', admin: 'RW', super_admin: 'RW' },
+  { feature: 'Change orders', user: 'RW', manager: 'RW', finance: 'RW', admin: 'RW', super_admin: 'RW' },
+  { feature: 'Schedule jobs', user: 'RW', manager: 'RW', finance: 'RW', admin: 'RW', super_admin: 'RW' },
+  { feature: 'Funding page', user: 'R', manager: 'R', finance: 'RW', admin: 'RW', super_admin: 'RW' },
+  { feature: 'Admin portal', user: '—', manager: '—', finance: '—', admin: 'RW', super_admin: 'RW' },
+  { feature: 'Delete AHJ / Utility', user: '—', manager: '—', finance: '—', admin: '—', super_admin: 'D' },
+  { feature: 'Delete feedback', user: '—', manager: '—', finance: '—', admin: '—', super_admin: 'D' },
+  { feature: 'Manage users', user: '—', manager: '—', finance: '—', admin: 'RW', super_admin: 'RW' },
+  { feature: 'Assign Super Admin', user: '—', manager: '—', finance: '—', admin: '—', super_admin: 'W' },
+  { feature: 'Audit trail', user: '—', manager: '—', finance: '—', admin: 'R', super_admin: 'R' },
+]
+
+const PERM_BADGE: Record<string, string> = {
+  'R': 'bg-blue-900/50 text-blue-300 border-blue-800',
+  'W': 'bg-green-900/50 text-green-300 border-green-800',
+  'RW': 'bg-green-900/50 text-green-300 border-green-800',
+  'D': 'bg-red-900/50 text-red-300 border-red-800',
+  '—': 'bg-gray-800/30 text-gray-600 border-gray-800',
+}
+
+function PermissionMatrix() {
+  const roles = ['user', 'manager', 'finance', 'admin', 'super_admin'] as const
+  const roleLabels: Record<string, string> = { user: 'User', manager: 'Manager', finance: 'Finance', admin: 'Admin', super_admin: 'Super Admin' }
+  return (
+    <div>
+      <h2 className="text-base font-semibold text-white mb-1">Permission Matrix</h2>
+      <p className="text-xs text-gray-500 mb-4">Read-only reference. R = Read, W = Write, D = Delete, — = No access</p>
+      <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-gray-800/50">
+              <th className="text-xs text-gray-400 font-medium text-left px-4 py-2.5">Feature</th>
+              {roles.map(r => (
+                <th key={r} className="text-xs text-gray-400 font-medium text-center px-3 py-2.5">{roleLabels[r]}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {PERM_ROWS.map(row => (
+              <tr key={row.feature} className="border-t border-gray-800/50">
+                <td className="text-xs text-gray-200 px-4 py-2">{row.feature}</td>
+                {roles.map(r => {
+                  const val = (row as any)[r] as string
+                  return (
+                    <td key={r} className="text-center px-3 py-2">
+                      <span className={`text-[10px] px-2 py-0.5 rounded border ${PERM_BADGE[val] ?? PERM_BADGE['—']}`}>{val}</span>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-gray-600 mt-3">Permission changes require a code update. Contact CIO.</p>
+    </div>
+  )
+}
+
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
 const SIDEBAR_ITEMS: { id: Module; label: string; icon: React.ReactNode; desc: string }[] = [
@@ -2115,6 +2183,10 @@ const SIDEBAR_ITEMS: { id: Module; label: string; icon: React.ReactNode; desc: s
   {
     id: 'feedback', label: 'Feedback', desc: 'User feedback',
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>,
+  },
+  {
+    id: 'permissions', label: 'Permissions', desc: 'Role access matrix',
+    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
   },
   {
     id: 'audit', label: 'Audit Trail', desc: 'Sessions & changes',
@@ -2229,6 +2301,7 @@ export default function AdminPage() {
             {activeModule === 'info'    && <CRMInfo />}
             {activeModule === 'releases' && <ReleaseNotes />}
             {activeModule === 'feedback' && <FeedbackManager isSuperAdmin={isSuperAdmin} />}
+            {activeModule === 'permissions' && <PermissionMatrix />}
             {activeModule === 'audit'    && <AuditTrailManager />}
           </div>
         </main>

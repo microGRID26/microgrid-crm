@@ -42,6 +42,15 @@ interface TasksTabProps {
   stageHistory: any[]
   updateTaskStatus: (taskId: string, status: string) => void
   updateTaskReason: (taskId: string, reason: string) => void
+  onScheduleTask?: (jobType: string) => void
+}
+
+// Tasks that can be scheduled — maps task_id to schedule job_type
+const SCHEDULABLE_TASKS: Record<string, string> = {
+  sched_survey: 'survey',
+  sched_install: 'install',
+  sched_city: 'inspection',
+  sched_util: 'inspection',
 }
 
 // ── COMPONENT ────────────────────────────────────────────────────────────────
@@ -55,6 +64,7 @@ export function TasksTab({
   stageHistory,
   updateTaskStatus,
   updateTaskReason,
+  onScheduleTask,
 }: TasksTabProps) {
   const [viewStage, setViewStage] = useState<string>(project.stage)
   const [expandedTask, setExpandedTask] = useState<string | null>(null)
@@ -307,6 +317,16 @@ export function TasksTab({
                               return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                             })()}
                           </span>
+                        )}
+
+                        {/* Quick schedule button for schedulable tasks */}
+                        {onScheduleTask && SCHEDULABLE_TASKS[task.id] && !locked && status === 'Ready To Start' && (
+                          <button
+                            onClick={() => onScheduleTask(SCHEDULABLE_TASKS[task.id])}
+                            className="text-[10px] bg-green-900/60 text-green-400 px-1.5 py-0.5 rounded font-medium flex-shrink-0 hover:bg-green-800/60 transition-colors"
+                          >
+                            Schedule
+                          </button>
                         )}
 
                         {/* Status dropdown */}

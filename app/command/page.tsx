@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { daysAgo, fmt$, fmtDate, STAGE_LABELS, SLA_THRESHOLDS, STAGE_TASKS } from '@/lib/utils'
 import { exportProjectsCSV, ALL_EXPORT_FIELDS, DEFAULT_EXPORT_KEYS } from '@/lib/export-utils'
@@ -424,18 +424,21 @@ export default function CommandPage() {
   }, [])
 
   // Build task map: { projectId: { taskId: { status, reason, completed_date } } }
-  const taskMapAll: Record<string, Record<string, TaskEntry>> = {}
-  for (const t of taskStates) {
-    if (!taskMapAll[t.project_id]) taskMapAll[t.project_id] = {}
-    taskMapAll[t.project_id][t.task_id] = {
-      status: t.status,
-      reason: t.reason ?? undefined,
-      completed_date: t.completed_date,
+  const taskMapAll = useMemo(() => {
+    const map: Record<string, Record<string, TaskEntry>> = {}
+    for (const t of taskStates) {
+      if (!map[t.project_id]) map[t.project_id] = {}
+      map[t.project_id][t.task_id] = {
+        status: t.status,
+        reason: t.reason ?? undefined,
+        completed_date: t.completed_date,
+      }
     }
-  }
+    return map
+  }, [taskStates])
 
   // Filtered projects
-  const filtered = (() => {
+  const filtered = useMemo(() => {
     let result = pmFilter === 'all' ? projects : projects.filter(p => p.pm_id === pmFilter)
     if (search.trim()) {
       const q = search.toLowerCase().trim()
@@ -448,27 +451,29 @@ export default function CommandPage() {
       )
     }
     return result
-  })()
+  }, [projects, pmFilter, search])
 
   // Overdue: tasks with completed_date in the past that are not yet Complete
-  const overduePids = new Set(
+  const overduePids = useMemo(() => new Set(
     taskStates
       .filter(t => t.status !== 'Complete' && t.completed_date && daysAgo(t.completed_date) > 0)
       .map(t => t.project_id)
-  )
+  ), [taskStates])
 
   // Pending Resolution: projects with any task in Pending Resolution status
-  const pendingPids = new Set(
+  const pendingPids = useMemo(() => new Set(
     taskStates
       .filter(t => t.status === 'Pending Resolution')
       .map(t => t.project_id)
-  )
+  ), [taskStates])
 
-  const sections = classify(filtered, overduePids, pendingPids)
-  const pmMap = new Map<string, string>()
-  projects.forEach(p => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
-  const pms = [...pmMap.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-  const totalContract = filtered.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+  const sections = useMemo(() => classify(filtered, overduePids, pendingPids), [filtered, overduePids, pendingPids])
+  const pms = useMemo(() => {
+    const pmMap = new Map<string, string>()
+    projects.forEach(p => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
+    return [...pmMap.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [projects])
+  const totalContract = useMemo(() => filtered.reduce((s, p) => s + (Number(p.contract) || 0), 0), [filtered])
 
   // When search is active, any section with results is force-expanded — synchronous, no timing issues
   const effectiveCollapsed = (id: Section, count: number): boolean => {

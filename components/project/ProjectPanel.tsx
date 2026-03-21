@@ -10,6 +10,7 @@ import { BomTab } from './BomTab'
 import { TasksTab } from './TasksTab'
 import { NotesTab } from './NotesTab'
 import { InfoTab } from './InfoTab'
+import { ScheduleAssignModal } from './ScheduleAssignModal'
 
 function Row({ label, value, small }: { label: string; value?: string | null; small?: boolean }) {
   if (!value) return null
@@ -312,6 +313,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     resets: { id: string; name: string; currentStatus: string }[]
   } | null>(null)
   const [changeOrderCount, setChangeOrderCount] = useState(0)
+  const [scheduleModal, setScheduleModal] = useState<{ jobType: string; crews: any[] } | null>(null)
 
   // Lock background scroll when panel is open
   useEffect(() => {
@@ -449,15 +451,17 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
   useEffect(() => {
     setAhjInfo(null)
     setUtilityInfo(null)
-    // Reset history cache when project changes
     setTaskHistory([])
     setTaskHistoryLoaded(false)
-    loadTasks()
-    loadNotes()
-    loadFolder()
-    loadAhjUtil()
-    loadServiceCalls()
-    loadStageHistory()
+    // Parallelize all data loading
+    Promise.all([
+      loadTasks(),
+      loadNotes(),
+      loadFolder(),
+      loadAhjUtil(),
+      loadServiceCalls(),
+      loadStageHistory(),
+    ])
     // Load change order count for this project
     ;(supabase as any).from('change_orders')
       .select('id', { count: 'exact', head: true })
@@ -1065,6 +1069,10 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
               stageHistory={stageHistory}
               updateTaskStatus={updateTaskStatus}
               updateTaskReason={updateTaskReason}
+              onScheduleTask={async (jobType) => {
+                const { data } = await supabase.from('crews').select('id, name, warehouse').eq('active', 'TRUE').order('name')
+                setScheduleModal({ jobType, crews: data ?? [] })
+              }}
             />
           )}
 
@@ -1214,6 +1222,20 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
             </div>
           </div>
         </div>
+      )}
+
+      {/* Schedule Job Modal — opened from TasksTab quick schedule button */}
+      {scheduleModal && (
+        <ScheduleAssignModal
+          crewId={null}
+          date={new Date().toISOString().slice(0, 10)}
+          scheduleId={null}
+          projectId={project.id}
+          jobType={scheduleModal.jobType}
+          crews={scheduleModal.crews}
+          onClose={() => setScheduleModal(null)}
+          onSaved={() => { setScheduleModal(null); loadTasks(); showToast('Job scheduled') }}
+        />
       )}
 
       {/* Utility Edit Popup */}
