@@ -84,7 +84,7 @@ export default function AuditPage() {
       if (!p.name?.toLowerCase().includes(q) && !p.id?.toLowerCase().includes(q) && !p.city?.toLowerCase().includes(q)) return
     }
     const stageTasks = STAGE_TASKS[p.stage] ?? []
-    let flagged: { task: { id: string; name: string }; status: string }[] = []
+    const flagged: { task: { id: string; name: string }; status: string }[] = []
 
     if (filter === 'stuck') {
       ALL_TASKS.forEach(t => { const s = ts(p.id, t.id); if (STUCK.includes(s)) flagged.push({ task: t, status: s }) })

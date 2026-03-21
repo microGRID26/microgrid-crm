@@ -727,7 +727,7 @@ function ForLeadership() {
         Last 6 months of install completions by count and contract value. Green bars show completed months.
       </Card>
       <Card title="PM breakdown">
-        Each PM's active project count, portfolio value, critical/blocked counts, and installs in the
+        Each PM&apos;s active project count, portfolio value, critical/blocked counts, and installs in the
         selected period.
       </Card>
       <Card title="Revenue by Dealer">
@@ -887,7 +887,7 @@ function ForEveryone() {
       </Card>
       <Card title="Searching projects">
         The search bar in the Command nav searches by project name, ID, city, PM, and address in real time.
-        The PM filter next to it narrows results to a single PM's portfolio.
+        The PM filter next to it narrows results to a single PM&apos;s portfolio.
       </Card>
       <Card title="Exporting to CSV">
         Click the Export button in the Command nav. A modal lets you choose exactly which fields to include

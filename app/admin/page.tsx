@@ -2281,7 +2281,7 @@ export default function AdminPage() {
               </svg>
             </div>
             <h1 className="text-lg font-semibold text-white mb-2">Admin Access Required</h1>
-            <p className="text-sm text-gray-500">You don't have permission to view this page.</p>
+            <p className="text-sm text-gray-500">You don&apos;t have permission to view this page.</p>
             <a href="/command" className="inline-block mt-4 text-xs text-blue-400 hover:text-blue-300 transition-colors">
               ← Back to Command Center
             </a>

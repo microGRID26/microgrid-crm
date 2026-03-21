@@ -334,7 +334,7 @@ export default function CrewPage() {
 
       // Fetch project details
       const pids = [...new Set(rawJobs.map((j: any) => j.project_id).filter(Boolean))]
-      let projMap: Record<string, any> = {}
+      const projMap: Record<string, any> = {}
       if (pids.length > 0) {
         const { data: projData } = await supabase
           .from('projects')
