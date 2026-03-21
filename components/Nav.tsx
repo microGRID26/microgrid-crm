@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { ConstructionBanner } from '@/components/ConstructionBanner'
 import { Menu, X } from 'lucide-react'
+import { NotificationBell } from '@/components/NotificationBell'
 
 // ── Shared nav for all pages ──────────────────────────────────────────────────
 // Usage: <Nav active="Queue" right={<>search + filters</>} />
@@ -12,6 +13,7 @@ import { Menu, X } from 'lucide-react'
 // right:  optional right-side content (search bars, filters, counts)
 
 const NAV_LINKS = [
+  { label: 'Dashboard', href: '/dashboard' },
   { label: 'Command',  href: '/command'  },
   { label: 'Queue',    href: '/queue'    },
   { label: 'Pipeline', href: '/pipeline' },
@@ -70,6 +72,8 @@ export function Nav({ active, right, onNewProject }: NavProps) {
               {v.label}
             </a>
           ))}
+
+          {!loading && currentUser && <NotificationBell />}
 
           {(!loading && currentUser?.isAdmin) && (
             <a href="/admin"
@@ -171,6 +175,12 @@ export function Nav({ active, right, onNewProject }: NavProps) {
 
               {/* Divider */}
               <div className="border-t border-gray-800 my-2" />
+
+              {!loading && currentUser && (
+                <div className="px-4 py-2">
+                  <NotificationBell />
+                </div>
+              )}
 
               {(!loading && currentUser?.isAdmin) && (
                 <a href="/admin"

@@ -6,55 +6,10 @@ import { cn, fmtDate, fmt$, escapeIlike } from '@/lib/utils'
 import { Nav } from '@/components/Nav'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { useCurrentUser } from '@/lib/useCurrentUser'
-import type { Project } from '@/types/database'
+import type { Project, ChangeOrder } from '@/types/database'
 import { ClipboardList, Plus, X, Check } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
-
-// ── TYPES ────────────────────────────────────────────────────────────────────
-interface ChangeOrder {
-  id: number
-  project_id: string
-  title: string
-  status: string
-  priority: string
-  type: string
-  reason: string | null
-  origin: string | null
-  original_kwh_yr: number | null
-  original_panel_count: number | null
-  original_panel_size: string | null
-  original_panel_type: string | null
-  original_system_size: number | null
-  original_lease_ppa_price: number | null
-  original_lease_ppa_escalator: number | null
-  original_loan_amount: number | null
-  original_adv_pmt_schedule: string | null
-  original_financier_fee: number | null
-  original_plan_type: string | null
-  new_kwh_yr: number | null
-  new_panel_count: number | null
-  new_panel_size: string | null
-  new_panel_type: string | null
-  new_system_size: number | null
-  new_lease_ppa_price: number | null
-  new_lease_ppa_escalator: number | null
-  new_loan_amount: number | null
-  new_adv_pmt_schedule: string | null
-  new_financier_fee: number | null
-  design_request_submitted: boolean
-  design_in_progress: boolean
-  design_pending_approval: boolean
-  design_approved: boolean
-  design_complete: boolean
-  design_signed: boolean
-  assigned_to: string | null
-  created_by: string | null
-  created_at: string | null
-  updated_at: string | null
-  notes: string | null
-  project?: { name: string; city: string; pm: string | null; pm_id: string | null } | null
-}
 
 // ── CONSTANTS ────────────────────────────────────────────────────────────────
 const STATUSES = ['Open', 'In Progress', 'Waiting On Signature', 'Complete', 'Cancelled'] as const
@@ -772,7 +727,7 @@ function NewChangeOrderModal({ users, currentUser, onClose, onCreated }: {
   async function handleCreate() {
     if (!selectedProject || !title.trim()) return
     setSaving(true)
-    const p = selectedProject as any
+    const p = selectedProject
     const now = new Date().toISOString()
     const payload = {
       project_id: selectedProject.id,
@@ -912,9 +867,9 @@ function NewChangeOrderModal({ users, currentUser, onClose, onCreated }: {
             <div>
               <div className="text-xs text-gray-500 mb-1">Auto-populated from project:</div>
               <div className="bg-gray-800 rounded-lg px-3 py-2 text-xs text-gray-400 space-y-0.5">
-                {(selectedProject as any).module_qty && <div>Panel Count: <span className="text-gray-200">{(selectedProject as any).module_qty}</span></div>}
-                {(selectedProject as any).module && <div>Panel Type: <span className="text-gray-200">{(selectedProject as any).module}</span></div>}
-                {(selectedProject as any).systemkw && <div>System Size: <span className="text-gray-200">{(selectedProject as any).systemkw} kW</span></div>}
+                {selectedProject.module_qty && <div>Panel Count: <span className="text-gray-200">{selectedProject.module_qty}</span></div>}
+                {selectedProject.module && <div>Panel Type: <span className="text-gray-200">{selectedProject.module}</span></div>}
+                {selectedProject.systemkw && <div>System Size: <span className="text-gray-200">{selectedProject.systemkw} kW</span></div>}
               </div>
             </div>
           )}

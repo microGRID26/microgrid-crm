@@ -236,6 +236,72 @@ export interface SLAThreshold {
   crit: number
 }
 
+export interface ChangeOrder {
+  id: number
+  project_id: string
+  title: string
+  status: string
+  priority: string
+  type: string
+  reason: string | null
+  origin: string | null
+  assigned_to: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  notes: string | null
+  design_request_submitted: boolean
+  design_in_progress: boolean
+  design_pending_approval: boolean
+  design_approved: boolean
+  design_complete: boolean
+  design_signed: boolean
+  original_panel_count: number | null
+  original_panel_type: string | null
+  original_system_size: number | null
+  original_panel_size: string | null
+  original_kwh_yr: number | null
+  original_lease_ppa_price: number | null
+  original_lease_ppa_escalator: number | null
+  original_loan_amount: number | null
+  original_adv_pmt_schedule: string | null
+  original_financier_fee: number | null
+  original_plan_type: string | null
+  new_panel_count: number | null
+  new_panel_type: string | null
+  new_system_size: number | null
+  new_panel_size: string | null
+  new_kwh_yr: number | null
+  new_lease_ppa_price: number | null
+  new_lease_ppa_escalator: number | null
+  new_loan_amount: number | null
+  new_adv_pmt_schedule: string | null
+  new_financier_fee: number | null
+  project?: { name: string; city: string; pm: string | null; pm_id: string | null }
+}
+
+export interface Feedback {
+  id: number
+  user_name: string | null
+  user_email: string | null
+  type: string
+  page: string | null
+  message: string
+  status: string
+  admin_notes: string | null
+  created_at: string
+}
+
+export interface UserSession {
+  id: string
+  user_id: string
+  user_name: string
+  user_email: string
+  logged_in_at: string
+  last_active_at: string
+  page: string | null
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -318,6 +384,21 @@ export type Database = {
         Row: AuditLog
         Insert: Omit<AuditLog, 'id' | 'changed_at'> & { id?: number; changed_at?: string }
         Update: Partial<AuditLog>
+      }
+      change_orders: {
+        Row: ChangeOrder
+        Insert: Omit<ChangeOrder, 'id'> & { id?: number }
+        Update: Partial<ChangeOrder>
+      }
+      feedback: {
+        Row: Feedback
+        Insert: Omit<Feedback, 'id' | 'status' | 'created_at'> & { id?: number; status?: string; created_at?: string }
+        Update: Partial<Feedback>
+      }
+      user_sessions: {
+        Row: UserSession
+        Insert: Omit<UserSession, 'id'> & { id?: string }
+        Update: Partial<UserSession>
       }
     }
   }

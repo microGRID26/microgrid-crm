@@ -5,6 +5,7 @@ import { Nav } from '@/components/Nav'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { cn, escapeIlike } from '@/lib/utils'
+import type { Feedback, UserSession } from '@/types/database'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -1576,17 +1577,7 @@ function CRMInfo() {
 
 // ── Feedback Manager ──────────────────────────────────────────────────────
 
-interface FeedbackEntry {
-  id: number
-  user_name: string | null
-  user_email: string | null
-  type: string
-  page: string | null
-  message: string
-  status: string
-  admin_notes: string | null
-  created_at: string
-}
+type FeedbackEntry = Feedback
 
 const FEEDBACK_STATUSES = ['New', 'Reviewing', 'In Progress', 'Addressed', "Won't Fix"] as const
 const FEEDBACK_TYPES_LIST = ['Bug', 'Feature Request', 'Improvement', 'Question'] as const
@@ -1780,15 +1771,7 @@ function FeedbackManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
 // ── Audit Trail ──────────────────────────────────────────────────────────────
 
-interface AuditSession {
-  id: string
-  user_id: string
-  user_name: string
-  user_email: string
-  logged_in_at: string
-  last_active_at: string
-  page: string | null
-}
+type AuditSession = UserSession
 
 interface AuditChange {
   id: string
