@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fmt$, fmtDate, daysAgo, STAGE_LABELS, STAGE_ORDER, escapeIlike } from '@/lib/utils'
-import { TASKS, TASK_STATUSES, STATUS_STYLE, PENDING_REASONS, REVISION_REASONS, ALL_TASKS_MAP, ALL_TASKS_FLAT, TASK_DATE_FIELDS, getSameStageDownstream } from '@/lib/tasks'
+import { TASKS, TASK_STATUSES, STATUS_STYLE, PENDING_REASONS, REVISION_REASONS, ALL_TASKS_MAP, ALL_TASKS_FLAT, TASK_TO_STAGE, TASK_DATE_FIELDS, getSameStageDownstream } from '@/lib/tasks'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import type { Project, Note } from '@/types/database'
 import { BomTab } from './BomTab'
@@ -313,6 +313,10 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     resets: { id: string; name: string; currentStatus: string }[]
   } | null>(null)
   const [changeOrderCount, setChangeOrderCount] = useState(0)
+  const [changeOrderSuggest, setChangeOrderSuggest] = useState<{
+    taskName: string; reason: string; stage: string
+  } | null>(null)
+  const [coSaving, setCoSaving] = useState(false)
   const [scheduleModal, setScheduleModal] = useState<{ jobType: string; crews: any[] } | null>(null)
 
   // Lock background scroll when panel is open
@@ -592,6 +596,14 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
 
     // Invalidate cache so History view reloads fresh on next open
     setTaskHistoryLoaded(false)
+
+    // ── Suggest change order after Revision Required ────────────────────
+    if (status === 'Revision Required') {
+      const reason = taskReasons[taskId] ?? ''
+      const stage = TASK_TO_STAGE[taskId] ?? project.stage
+      const taskName = ALL_TASKS_MAP[taskId] ?? taskId
+      setChangeOrderSuggest({ taskName, reason, stage })
+    }
 
     // ── Auto-populate project date when task is marked Complete ────────────
     // Only set if the field is currently empty — never overwrite manual entries
@@ -1218,6 +1230,71 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
                 className="px-4 py-1.5 text-xs bg-amber-700 hover:bg-amber-600 text-white rounded-md font-medium"
               >
                 Reset {cascadeConfirm.resets.length} task{cascadeConfirm.resets.length > 1 ? 's' : ''} & continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Order Suggestion — after Revision Required */}
+      {changeOrderSuggest && (
+        <div className="fixed inset-0 bg-black/60 z-[120] flex items-center justify-center" onClick={() => setChangeOrderSuggest(null)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-blue-400 text-lg">📋</span>
+              <h3 className="text-sm font-semibold text-white">Create Change Order?</h3>
+            </div>
+            <p className="text-xs text-gray-300 mb-4">
+              <span className="text-white font-medium">{changeOrderSuggest.taskName}</span> was set to Revision Required
+              {changeOrderSuggest.reason ? ` for "${changeOrderSuggest.reason}"` : ''}.
+              Would you like to create a change order to track this?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setChangeOrderSuggest(null)}
+                className="px-4 py-1.5 text-xs text-gray-400 hover:text-white border border-gray-700 rounded-md"
+              >
+                Skip
+              </button>
+              <button
+                disabled={coSaving}
+                onClick={async () => {
+                  setCoSaving(true)
+                  const now = new Date().toISOString()
+                  const userName = currentUser?.name ?? userEmail.split('@')[0] ?? 'unknown'
+                  const p = project as any
+                  const { data, error } = await (supabase as any)
+                    .from('change_orders')
+                    .insert({
+                      project_id: project.id,
+                      title: `${changeOrderSuggest.reason || changeOrderSuggest.taskName} - ${project.name}`,
+                      status: 'Open',
+                      priority: 'Medium',
+                      type: 'HCO Change Order',
+                      reason: changeOrderSuggest.reason || null,
+                      origin: `Revision Required: ${changeOrderSuggest.taskName}`,
+                      created_by: userName,
+                      created_at: now,
+                      updated_at: now,
+                      original_panel_count: p.module_qty ?? null,
+                      original_panel_type: p.module ?? null,
+                      original_system_size: p.systemkw ?? null,
+                    })
+                    .select('id')
+                    .single()
+                  setCoSaving(false)
+                  setChangeOrderSuggest(null)
+                  if (data) {
+                    setChangeOrderCount(prev => prev + 1)
+                    showToast('Change order created')
+                  } else {
+                    console.error('Failed to create change order:', error)
+                    showToast('Failed to create change order')
+                  }
+                }}
+                className="px-4 py-1.5 text-xs bg-blue-700 hover:bg-blue-600 text-white rounded-md font-medium"
+              >
+                {coSaving ? 'Creating...' : 'Create Change Order'}
               </button>
             </div>
           </div>

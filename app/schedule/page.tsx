@@ -209,6 +209,58 @@ export default function SchedulePage() {
     </div>
   )
 
+  // Batch complete: mark all non-complete, non-cancelled jobs for a day as complete
+  const [completing, setCompleting] = useState<string | null>(null) // date ISO string
+  async function batchComplete(date: string) {
+    const dayJobs = schedule.filter(j =>
+      j.date === date && (j as any).status !== 'complete' && (j as any).status !== 'cancelled'
+    )
+    if (dayJobs.length === 0) return
+    setCompleting(date)
+
+    const JOB_TO_TASK: Record<string, string> = {
+      install: 'install_done', survey: 'site_survey', inspection: 'city_insp',
+    }
+    const TASK_DATE: Record<string, string> = {
+      install_done: 'install_complete_date', site_survey: 'survey_date', city_insp: 'city_inspection_date',
+    }
+    const today = new Date().toISOString().slice(0, 10)
+
+    for (const job of dayJobs) {
+      // Update schedule status
+      await (supabase as any).from('schedule').update({ status: 'complete' }).eq('id', job.id)
+
+      // Task sync
+      const taskId = JOB_TO_TASK[job.job_type]
+      if (taskId && job.project_id) {
+        try {
+          await (supabase as any).from('task_state').upsert({
+            project_id: job.project_id, task_id: taskId,
+            status: 'Complete', completed_date: today, started_date: today,
+          }, { onConflict: 'project_id,task_id' })
+
+          await (supabase as any).from('task_history').insert({
+            project_id: job.project_id, task_id: taskId,
+            status: 'Complete', changed_by: 'Crew (batch complete)',
+          })
+
+          const dateField = TASK_DATE[taskId]
+          if (dateField) {
+            const { data: proj } = await supabase.from('projects').select(dateField).eq('id', job.project_id).single()
+            if (proj && !(proj as any)[dateField]) {
+              await (supabase as any).from('projects').update({ [dateField]: today }).eq('id', job.project_id)
+            }
+          }
+        } catch (e) {
+          console.error('Batch complete task sync failed:', e)
+        }
+      }
+    }
+
+    setCompleting(null)
+    loadData()
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
       <Nav active="Schedule" right={
@@ -276,7 +328,21 @@ export default function SchedulePage() {
                     'text-xs font-medium text-left px-3 py-2 border-b border-r border-gray-800 min-w-36',
                     isToday ? 'text-green-300 bg-green-950/40' : 'text-gray-400'
                   )}>
-                    <div>{DAYS[i]}</div>
+                    <div className="flex items-center justify-between">
+                      <span>{DAYS[i]}</span>
+                      {(() => {
+                        const pending = schedule.filter(j => j.date === iso && (j as any).status !== 'complete' && (j as any).status !== 'cancelled')
+                        return pending.length > 0 ? (
+                          <button
+                            onClick={() => batchComplete(iso)}
+                            disabled={completing === iso}
+                            className="text-[10px] text-green-500 hover:text-green-300 font-normal"
+                          >
+                            {completing === iso ? '...' : `Complete ${pending.length}`}
+                          </button>
+                        ) : null
+                      })()}
+                    </div>
                     <div className={cn('text-xs font-normal', isToday ? 'text-green-300' : 'text-gray-500')}>
                       {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </div>
