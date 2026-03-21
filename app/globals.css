@@ -12,3 +12,79 @@ body {
   background-color: #f9fafb;
   color: #111827;
 }
+
+@media print {
+  /* Hide nav and controls */
+  nav, .no-print {
+    display: none !important;
+  }
+
+  /* Page title */
+  body::before {
+    content: "MicroGRID Schedule";
+    display: block;
+    font-size: 18px;
+    font-weight: 700;
+    text-align: center;
+    padding: 12px 0 8px;
+    color: #111827;
+  }
+
+  /* White background, black text */
+  body, html {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Remove dark backgrounds */
+  div, td, th, tr, table, thead {
+    background: white !important;
+    color: black !important;
+    border-color: #d1d5db !important;
+  }
+
+  /* Remove hover effects */
+  * {
+    transition: none !important;
+  }
+
+  /* Schedule table fills page */
+  .min-h-screen {
+    min-height: auto !important;
+  }
+
+  table {
+    width: 100% !important;
+    font-size: 10px !important;
+  }
+
+  th {
+    font-weight: 600 !important;
+    border-bottom: 2px solid #111827 !important;
+  }
+
+  /* Print-friendly job card colors */
+  .bg-blue-900\/40 { background: #dbeafe !important; }
+  .bg-amber-900\/40 { background: #fef3c7 !important; }
+  .bg-purple-900\/40 { background: #ede9fe !important; }
+  .bg-green-900\/40 { background: #d1fae5 !important; }
+  .bg-red-900\/40 { background: #fee2e2 !important; }
+  .bg-gray-800 { background: #f3f4f6 !important; }
+  .bg-gray-900 { background: white !important; }
+  .bg-gray-950 { background: white !important; }
+  .bg-green-950\/40 { background: #ecfdf5 !important; }
+
+  /* Make text readable on light backgrounds */
+  .text-gray-400, .text-gray-500, .text-gray-300, .text-gray-200, .text-white {
+    color: #374151 !important;
+  }
+  .text-green-300, .text-green-400 {
+    color: #047857 !important;
+  }
+  .text-blue-300 { color: #1d4ed8 !important; }
+  .text-amber-300 { color: #b45309 !important; }
+  .text-purple-300 { color: #6d28d9 !important; }
+  .text-red-300 { color: #b91c1c !important; }
+}

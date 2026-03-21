@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/Nav'
 import { fmt$, fmtDate, daysAgo, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS } from '@/lib/utils'
@@ -91,38 +91,42 @@ export default function AnalyticsPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  const active = projects.filter(p => p.stage !== 'complete')
-  const complete = projects.filter(p => p.stage === 'complete')
+  const active = useMemo(() => projects.filter(p => p.stage !== 'complete'), [projects])
+  const complete = useMemo(() => projects.filter(p => p.stage === 'complete'), [projects])
 
   // Period metrics
-  const installs = projects.filter(p => inRange(p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null), period))
-  const completions = projects.filter(p => p.stage === 'complete' && inRange(p.stage_date, period))
-  const m2Funded = projects.filter(p => { const f = funding[p.id]; return f && inRange(f.m2_funded_date, period) })
-  const m3Funded = projects.filter(p => { const f = funding[p.id]; return f && inRange(f.m3_funded_date, period) })
-  const sales = projects.filter(p => inRange(p.sale_date, period))
-
-  const installVal = installs.reduce((s, p) => s + (Number(p.contract) || 0), 0)
-  const completionVal = completions.reduce((s, p) => s + (Number(p.contract) || 0), 0)
-  const m2Val = m2Funded.reduce((s, p) => { const f = funding[p.id]; return s + (Number(f?.m2_amount) || 0) }, 0)
-  const m3Val = m3Funded.reduce((s, p) => { const f = funding[p.id]; return s + (Number(f?.m3_amount) || 0) }, 0)
-  const salesVal = sales.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+  const { installs, completions, m2Funded, m3Funded, sales, installVal, completionVal, m2Val, m3Val, salesVal } = useMemo(() => {
+    const installs = projects.filter(p => inRange(p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null), period))
+    const completions = projects.filter(p => p.stage === 'complete' && inRange(p.stage_date, period))
+    const m2Funded = projects.filter(p => { const f = funding[p.id]; return f && inRange(f.m2_funded_date, period) })
+    const m3Funded = projects.filter(p => { const f = funding[p.id]; return f && inRange(f.m3_funded_date, period) })
+    const sales = projects.filter(p => inRange(p.sale_date, period))
+    return {
+      installs, completions, m2Funded, m3Funded, sales,
+      installVal: installs.reduce((s, p) => s + (Number(p.contract) || 0), 0),
+      completionVal: completions.reduce((s, p) => s + (Number(p.contract) || 0), 0),
+      m2Val: m2Funded.reduce((s, p) => { const f = funding[p.id]; return s + (Number(f?.m2_amount) || 0) }, 0),
+      m3Val: m3Funded.reduce((s, p) => { const f = funding[p.id]; return s + (Number(f?.m3_amount) || 0) }, 0),
+      salesVal: sales.reduce((s, p) => s + (Number(p.contract) || 0), 0),
+    }
+  }, [projects, funding, period])
 
   // Forecast buckets
-  const next30 = active.filter(p => (STAGE_DAYS_REMAINING[p.stage] ?? 60) <= 30)
-  const next60 = active.filter(p => { const d = STAGE_DAYS_REMAINING[p.stage] ?? 60; return d > 30 && d <= 60 })
-  const next90 = active.filter(p => { const d = STAGE_DAYS_REMAINING[p.stage] ?? 60; return d > 60 && d <= 90 })
+  const next30 = useMemo(() => active.filter(p => (STAGE_DAYS_REMAINING[p.stage] ?? 60) <= 30), [active])
+  const next60 = useMemo(() => active.filter(p => { const d = STAGE_DAYS_REMAINING[p.stage] ?? 60; return d > 30 && d <= 60 }), [active])
+  const next90 = useMemo(() => active.filter(p => { const d = STAGE_DAYS_REMAINING[p.stage] ?? 60; return d > 60 && d <= 90 }), [active])
 
   // Stage distribution
-  const stageDist = STAGE_ORDER.filter(s => s !== 'complete').map(s => ({
+  const stageDist = useMemo(() => STAGE_ORDER.filter(s => s !== 'complete').map(s => ({
     stage: s,
     label: STAGE_LABELS[s],
     count: active.filter(p => p.stage === s).length,
     value: active.filter(p => p.stage === s).reduce((sum, p) => sum + (Number(p.contract) || 0), 0),
-  }))
-  const maxStageCount = Math.max(...stageDist.map(s => s.count), 1)
+  })), [active])
+  const maxStageCount = useMemo(() => Math.max(...stageDist.map(s => s.count), 1), [stageDist])
 
   // Last 6 months completions
-  const months = Array.from({ length: 6 }, (_, i) => {
+  const months = useMemo(() => Array.from({ length: 6 }, (_, i) => {
     const d = new Date()
     d.setMonth(d.getMonth() - (5 - i))
     const start = new Date(d.getFullYear(), d.getMonth(), 1)
@@ -138,39 +142,43 @@ export default function AnalyticsPage() {
       count: mps.length,
       value: mps.reduce((s, p) => s + (Number(p.contract) || 0), 0),
     }
-  })
-  const maxMonthCount = Math.max(...months.map(m => m.count), 1)
+  }), [projects])
+  const maxMonthCount = useMemo(() => Math.max(...months.map(m => m.count), 1), [months])
 
   // PM breakdown
-  const pmMap = new Map<string, string>()
-  projects.forEach(p => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
-  const pmPairs = [...pmMap.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-  const pmStats = pmPairs.map(({ id: pmId, name: pm }) => {
-    const ps = projects.filter(p => p.pm_id === pmId)
-    const activePs = ps.filter(p => p.stage !== 'complete')
-    return {
-      pm,
-      total: ps.length,
-      active: activePs.length,
-      blocked: activePs.filter(p => p.blocker).length,
-      value: activePs.reduce((s, p) => s + (Number(p.contract) || 0), 0),
-      installs: ps.filter(p => inRange(p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null), period)).length,
-    }
-  }).sort((a, b) => b.active - a.active)
+  const pmStats = useMemo(() => {
+    const pmMap = new Map<string, string>()
+    projects.forEach(p => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
+    const pmPairs = [...pmMap.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+    return pmPairs.map(({ id: pmId, name: pm }) => {
+      const ps = projects.filter(p => p.pm_id === pmId)
+      const activePs = ps.filter(p => p.stage !== 'complete')
+      return {
+        pm,
+        total: ps.length,
+        active: activePs.length,
+        blocked: activePs.filter(p => p.blocker).length,
+        value: activePs.reduce((s, p) => s + (Number(p.contract) || 0), 0),
+        installs: ps.filter(p => inRange(p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null), period)).length,
+      }
+    }).sort((a, b) => b.active - a.active)
+  }, [projects, period])
 
   // Financier breakdown
-  const financiers = [...new Set(projects.map(p => p.financier).filter(Boolean))] as string[]
-  const finStats = financiers.map(f => {
-    const ps = active.filter(p => p.financier === f)
-    return {
-      financier: f,
-      count: ps.length,
-      value: ps.reduce((s, p) => s + (Number(p.contract) || 0), 0),
-    }
-  }).sort((a, b) => b.count - a.count)
-  const maxFinCount = Math.max(...finStats.map(f => f.count), 1)
+  const finStats = useMemo(() => {
+    const financiers = [...new Set(projects.map(p => p.financier).filter(Boolean))] as string[]
+    return financiers.map(f => {
+      const ps = active.filter(p => p.financier === f)
+      return {
+        financier: f,
+        count: ps.length,
+        value: ps.reduce((s, p) => s + (Number(p.contract) || 0), 0),
+      }
+    }).sort((a, b) => b.count - a.count)
+  }, [projects, active])
+  const maxFinCount = useMemo(() => Math.max(...finStats.map(f => f.count), 1), [finStats])
 
-  const totalPortfolio = active.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+  const totalPortfolio = useMemo(() => active.reduce((s, p) => s + (Number(p.contract) || 0), 0), [active])
 
   if (loading) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">

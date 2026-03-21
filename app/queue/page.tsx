@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/Nav'
 import { daysAgo, fmt$, fmtDate, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS, STAGE_TASKS } from '@/lib/utils'
@@ -105,33 +105,36 @@ export default function QueuePage() {
   useEffect(() => { loadData() }, [loadData])
 
   // Build task map per project: { projectId: { taskId: { status, reason } } }
-  const taskMap: Record<string, Record<string, TaskEntry>> = {}
-  for (const t of taskStates) {
-    if (!taskMap[t.project_id]) taskMap[t.project_id] = {}
-    taskMap[t.project_id][t.task_id] = {
-      status: t.status,
-      reason: t.reason ?? undefined,
+  const taskMap = useMemo(() => {
+    const map: Record<string, Record<string, TaskEntry>> = {}
+    for (const t of taskStates) {
+      if (!map[t.project_id]) map[t.project_id] = {}
+      map[t.project_id][t.task_id] = {
+        status: t.status,
+        reason: t.reason ?? undefined,
+      }
     }
-  }
+    return map
+  }, [taskStates])
 
   // In Service and Cancelled projects excluded — PMs are done with them
   // Loyalty projects remain per CLAUDE.md (PMs still actively manage them)
-  const live = projects.filter(p => p.disposition !== 'In Service' && p.disposition !== 'Cancelled')
+  const live = useMemo(() => projects.filter(p => p.disposition !== 'In Service' && p.disposition !== 'Cancelled'), [projects])
 
   // Apply search filter
-  const searched = search.trim()
+  const searched = useMemo(() => search.trim()
     ? live.filter(p => {
         const q = search.toLowerCase()
         return p.name?.toLowerCase().includes(q) ||
           p.id?.toLowerCase().includes(q) ||
           p.city?.toLowerCase().includes(q)
       })
-    : live
+    : live, [live, search])
 
-  const sorted = [...searched].sort((a, b) => priority(a) - priority(b))
-  const blocked = sorted.filter(p => p.blocker)
-  const active = sorted.filter(p => !p.blocker && p.stage !== 'complete')
-  const complete = sorted.filter(p => p.stage === 'complete')
+  const sorted = useMemo(() => [...searched].sort((a, b) => priority(a) - priority(b)), [searched])
+  const blocked = useMemo(() => sorted.filter(p => p.blocker), [sorted])
+  const active = useMemo(() => sorted.filter(p => !p.blocker && p.stage !== 'complete'), [sorted])
+  const complete = useMemo(() => sorted.filter(p => p.stage === 'complete'), [sorted])
 
   if (loading) {
     return (

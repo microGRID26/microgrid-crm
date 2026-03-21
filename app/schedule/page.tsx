@@ -268,7 +268,7 @@ export default function SchedulePage() {
         } />
 
       {/* Controls */}
-      <div className="bg-gray-950 border-b border-gray-800 flex items-center gap-3 px-4 py-2 flex-shrink-0">
+      <div className="no-print bg-gray-950 border-b border-gray-800 flex items-center gap-3 px-4 py-2 flex-shrink-0">
         <button onClick={() => setWeekOffset(w => w - 1)} className="text-gray-400 hover:text-white text-sm px-2">◀</button>
         <span className="text-xs text-white font-medium">{weekLabel}</span>
         <button onClick={() => setWeekOffset(w => w + 1)} className="text-gray-400 hover:text-white text-sm px-2">▶</button>
@@ -303,6 +303,9 @@ export default function SchedulePage() {
             <span className="text-xs text-gray-500">Show cancelled</span>
           </label>
         </div>
+        <button onClick={() => window.print()} className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5">
+          Print
+        </button>
         {/* Legend */}
         <div className="ml-auto flex items-center gap-3">
           {Object.entries(JOB_LABELS).map(([k, v]) => (
@@ -400,6 +403,13 @@ export default function SchedulePage() {
                           </div>
                         )
                       })}
+                      {(() => {
+                        const activeJobs = jobs.filter(j => (j as any).status !== 'cancelled')
+                        const n = activeJobs.length
+                        if (n === 0) return <div className="text-[10px] text-green-500 opacity-60 mt-1">Available</div>
+                        if (n === 1) return <div className="text-[10px] text-amber-500 opacity-60 mt-1">1 job</div>
+                        return <div className="text-[10px] text-red-400 opacity-60 mt-1">{n} jobs</div>
+                      })()}
                     </td>
                   )
                 })}

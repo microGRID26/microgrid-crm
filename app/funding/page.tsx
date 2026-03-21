@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/Nav'
 import { useCurrentUser } from '@/lib/useCurrentUser'
@@ -318,41 +318,48 @@ export default function FundingPage() {
   }
 
   const nfField = (slot: number) => `nonfunded_code_${slot}`
-  const financiers = [...new Set(projects.map(p => p.financier).filter(Boolean))].sort() as string[]
+  const financiers = useMemo(() => [...new Set(projects.map(p => p.financier).filter(Boolean))].sort() as string[], [projects])
 
   // Build one row per project
-  const rows: FundingRow[] = []
-  projects.forEach(p => {
-    if (financierFilter !== 'all' && p.financier !== financierFilter) return
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      if (!p.name?.toLowerCase().includes(q) && !p.id?.toLowerCase().includes(q) && !p.city?.toLowerCase().includes(q)) return
-    }
-    const f = funding[p.id] ?? null
-    const m1 = getMsData(f, p, 'm1')
-    const m2 = getMsData(f, p, 'm2')
-    const m3 = getMsData(f, p, 'm3')
+  const rows = useMemo(() => {
+    const result: FundingRow[] = []
+    projects.forEach(p => {
+      if (financierFilter !== 'all' && p.financier !== financierFilter) return
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        if (!p.name?.toLowerCase().includes(q) && !p.id?.toLowerCase().includes(q) && !p.city?.toLowerCase().includes(q)) return
+      }
+      const f = funding[p.id] ?? null
+      const m1 = getMsData(f, p, 'm1')
+      const m2 = getMsData(f, p, 'm2')
+      const m3 = getMsData(f, p, 'm3')
 
-    // Filter by status across any milestone
-    if (statusFilter === 'eligible' && !m1.isEligible && !m2.isEligible && !m3.isEligible) return
-    if (statusFilter === 'funded' && !m1.isFunded && !m2.isFunded && !m3.isFunded) return
-    if (statusFilter === 'submitted' && m1.status !== 'Submitted' && m2.status !== 'Submitted' && m3.status !== 'Submitted') return
-    if (statusFilter === 'rejected' && m1.status !== 'Rejected' && m2.status !== 'Rejected' && m3.status !== 'Rejected') return
-    if (statusFilter === 'nonfunded' && !f?.nonfunded_code_1) return
+      // Filter by status across any milestone
+      if (statusFilter === 'eligible' && !m1.isEligible && !m2.isEligible && !m3.isEligible) return
+      if (statusFilter === 'funded' && !m1.isFunded && !m2.isFunded && !m3.isFunded) return
+      if (statusFilter === 'submitted' && m1.status !== 'Submitted' && m2.status !== 'Submitted' && m3.status !== 'Submitted') return
+      if (statusFilter === 'rejected' && m1.status !== 'Rejected' && m2.status !== 'Rejected' && m3.status !== 'Rejected') return
+      if (statusFilter === 'nonfunded' && !f?.nonfunded_code_1) return
 
-    rows.push({ project: p, funding: f, m1, m2, m3, nf1: f?.nonfunded_code_1 ?? null, nf2: f?.nonfunded_code_2 ?? null, nf3: f?.nonfunded_code_3 ?? null })
-  })
+      result.push({ project: p, funding: f, m1, m2, m3, nf1: f?.nonfunded_code_1 ?? null, nf2: f?.nonfunded_code_2 ?? null, nf3: f?.nonfunded_code_3 ?? null })
+    })
 
-  rows.sort((a, b) => (a.project.financier ?? '').localeCompare(b.project.financier ?? ''))
+    result.sort((a, b) => (a.project.financier ?? '').localeCompare(b.project.financier ?? ''))
+    return result
+  }, [projects, funding, financierFilter, search, statusFilter])
 
   // Stats
-  const allMs = rows.flatMap(r => [r.m1, r.m2, r.m3])
-  const totalEligible = allMs.filter(d => d.isEligible && !d.isFunded).length
-  const totalFunded = allMs.filter(d => d.isFunded).length
-  const totalAmount = allMs.filter(d => d.isFunded).reduce((s, d) => s + (Number(d.amount) || 0), 0)
-  const pendingAmount = allMs.filter(d => d.isEligible && !d.isFunded).reduce((s, d) => s + (Number(d.amount) || 0), 0)
-  const totalSubmitted = allMs.filter(d => d.status === 'Submitted').length
-  const totalRejected = allMs.filter(d => d.status === 'Rejected').length
+  const { totalEligible, totalFunded, totalAmount, pendingAmount, totalSubmitted, totalRejected } = useMemo(() => {
+    const allMs = rows.flatMap(r => [r.m1, r.m2, r.m3])
+    return {
+      totalEligible: allMs.filter(d => d.isEligible && !d.isFunded).length,
+      totalFunded: allMs.filter(d => d.isFunded).length,
+      totalAmount: allMs.filter(d => d.isFunded).reduce((s, d) => s + (Number(d.amount) || 0), 0),
+      pendingAmount: allMs.filter(d => d.isEligible && !d.isFunded).reduce((s, d) => s + (Number(d.amount) || 0), 0),
+      totalSubmitted: allMs.filter(d => d.status === 'Submitted').length,
+      totalRejected: allMs.filter(d => d.status === 'Rejected').length,
+    }
+  }, [rows])
 
   if (loading) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">

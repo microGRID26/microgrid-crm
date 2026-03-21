@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/Nav'
 import { daysAgo, fmt$, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS } from '@/lib/utils'
@@ -48,14 +48,16 @@ export default function PipelinePage() {
   useEffect(() => { loadData() }, [loadData])
 
   // Unique filter values
-  const pmMap = new Map<string, string>()
-  projects.forEach(p => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
-  const pms = [...pmMap.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-  const financiers = [...new Set(projects.map(p => p.financier).filter(Boolean))].sort() as string[]
-  const ahjs = [...new Set(projects.map(p => p.ahj).filter(Boolean))].sort() as string[]
+  const pms = useMemo(() => {
+    const pmMap = new Map<string, string>()
+    projects.forEach(p => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
+    return [...pmMap.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [projects])
+  const financiers = useMemo(() => [...new Set(projects.map(p => p.financier).filter(Boolean))].sort() as string[], [projects])
+  const ahjs = useMemo(() => [...new Set(projects.map(p => p.ahj).filter(Boolean))].sort() as string[], [projects])
 
   // Apply filters — exclude In Service, Loyalty, and Cancelled from active pipeline view
-  const filtered = projects.filter(p => {
+  const filtered = useMemo(() => projects.filter(p => {
     if (p.disposition === 'In Service' || p.disposition === 'Loyalty' || p.disposition === 'Cancelled') return false
     if (pmFilter !== 'all' && p.pm_id !== pmFilter) return false
     if (financierFilter !== 'all' && p.financier !== financierFilter) return false
@@ -65,7 +67,7 @@ export default function PipelinePage() {
       if (!p.name?.toLowerCase().includes(q) && !p.id?.toLowerCase().includes(q) && !p.city?.toLowerCase().includes(q)) return false
     }
     return true
-  })
+  }), [projects, pmFilter, financierFilter, ahjFilter, search])
 
   // Sort within each column
   function sortedCards(cards: Project[]) {
@@ -77,7 +79,7 @@ export default function PipelinePage() {
     })
   }
 
-  const totalContract = filtered.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+  const totalContract = useMemo(() => filtered.reduce((s, p) => s + (Number(p.contract) || 0), 0), [filtered])
 
   if (loading) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
