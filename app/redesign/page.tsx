@@ -151,16 +151,16 @@ const DEFAULT_TARGET: TargetSystem = {
 function SingleLineDiagram({ existing, target, results }: {
   existing: ExistingSystem; target: TargetSystem; results: Results
 }) {
-  // Group strings by inverter
-  const stringsByInverter: StringConfig[][] = []
-  for (const sc of results.stringConfigs) {
-    const invIdx = Math.ceil(sc.mppt / target.mpptsPerInverter) - 1
-    if (!stringsByInverter[invIdx]) stringsByInverter[invIdx] = []
-    stringsByInverter[invIdx].push(sc)
+  // Group strings by inverter — split evenly across inverters
+  const stringsByInverter: StringConfig[][] = Array.from({ length: target.inverterCount }, () => [])
+  const stringsPerInverter = target.mpptsPerInverter * target.stringsPerMppt
+  for (let i = 0; i < results.stringConfigs.length; i++) {
+    const invIdx = Math.min(Math.floor(i / stringsPerInverter), target.inverterCount - 1)
+    stringsByInverter[invIdx].push(results.stringConfigs[i])
   }
   const battsPerStack = target.batteriesPerStack
-  const W = 1200
-  const H = 900
+  const W = 1400
+  const H = 950
 
   // Wire annotation helper
   const WireLabel = ({ x, y, text, rotate }: { x: number; y: number; text: string; rotate?: number }) => (
@@ -227,7 +227,7 @@ function SingleLineDiagram({ existing, target, results }: {
       {/* ── PV ARRAYS (top, y=80-200) ── */}
       {Array.from({ length: target.inverterCount }, (_, inv) => {
         const strings = stringsByInverter[inv] ?? []
-        const baseX = inv === 0 ? 40 : 620
+        const baseX = inv === 0 ? 40 : 720
         const moduleW = 8
         const moduleH = 14
 
@@ -300,11 +300,11 @@ function SingleLineDiagram({ existing, target, results }: {
 
       {/* ── INVERTERS (center, y=350-440) ── */}
       {Array.from({ length: target.inverterCount }, (_, inv) => {
-        const cx = inv === 0 ? 200 : 820
+        const cx = inv === 0 ? 250 : 950
         const strings = stringsByInverter[inv] ?? []
         const invY = 370
-        const invW = 180
-        const invH = 70
+        const invW = 200
+        const invH = 75
 
         return (
           <g key={`inv-${inv}`}>
@@ -403,11 +403,11 @@ function SingleLineDiagram({ existing, target, results }: {
       })}
 
       {/* ── SMART PANEL BUS BAR (y=560) ── */}
-      <line x1="80" y1={565} x2={W - 200} y2={565} stroke="#111" strokeWidth="3" />
-      <text x={(W - 120) / 2} y={558} textAnchor="middle" fontSize="7" fontWeight="bold">
+      <line x1="80" y1={565} x2={W - 250} y2={565} stroke="#111" strokeWidth="3" />
+      <text x={(W - 250) / 2 + 40} y={558} textAnchor="middle" fontSize="7" fontWeight="bold">
         (N) SMART ELECTRICAL PANEL, BUSBAR RATING: 260A
       </text>
-      <text x={(W - 120) / 2} y={578} textAnchor="middle" fontSize="6" fill="#666">
+      <text x={(W - 250) / 2 + 40} y={578} textAnchor="middle" fontSize="6" fill="#666">
         260A RATED, 240V, NEMA 3R (EXTERIOR MOUNTED)
       </text>
 
@@ -423,41 +423,41 @@ function SingleLineDiagram({ existing, target, results }: {
       <text x="500" y={638} textAnchor="middle" fontSize="5" fill="#666">IQ7PLUS SYSTEM</text>
 
       {/* ── GENERATION DISCONNECT → METER → GRID (right side) ── */}
-      <line x1={W - 200} y1={565} x2={W - 150} y2={565} stroke="#111" strokeWidth="1.5" />
+      <line x1={W - 250} y1={565} x2={W - 200} y2={565} stroke="#111" strokeWidth="1.5" />
 
       {/* Generation Disconnect */}
-      <rect x={W - 160} y={550} width={60} height={28} fill="none" stroke="#111" strokeWidth="1" />
-      <text x={W - 130} y={562} textAnchor="middle" fontSize="5.5">(N) GENERATION</text>
-      <text x={W - 130} y={570} textAnchor="middle" fontSize="5.5">DISCONNECT</text>
+      <rect x={W - 210} y={550} width={70} height={28} fill="none" stroke="#111" strokeWidth="1" />
+      <text x={W - 175} y={562} textAnchor="middle" fontSize="5.5">(N) GENERATION</text>
+      <text x={W - 175} y={570} textAnchor="middle" fontSize="5.5">DISCONNECT</text>
 
       {/* Wire to utility meter */}
-      <line x1={W - 100} y1={565} x2={W - 60} y2={565} stroke="#111" strokeWidth="1.5" />
+      <line x1={W - 140} y1={565} x2={W - 100} y2={565} stroke="#111" strokeWidth="1.5" />
 
       {/* Utility Meter circle */}
-      <circle cx={W - 45} cy={565} r="18" fill="none" stroke="#111" strokeWidth="1.5" />
-      <text x={W - 45} y={562} textAnchor="middle" fontSize="6" fontWeight="bold">M</text>
-      <text x={W - 45} y={570} textAnchor="middle" fontSize="5">kWh</text>
+      <circle cx={W - 80} cy={565} r="20" fill="none" stroke="#111" strokeWidth="1.5" />
+      <text x={W - 80} y={562} textAnchor="middle" fontSize="7" fontWeight="bold">M</text>
+      <text x={W - 80} y={572} textAnchor="middle" fontSize="5.5">kWh</text>
 
       {/* Labels for meter */}
-      <text x={W - 45} y={545} textAnchor="middle" fontSize="5.5" fill="#666">
+      <text x={W - 80} y={540} textAnchor="middle" fontSize="5.5" fill="#666">
         (E) BIDIRECTIONAL
       </text>
-      <text x={W - 45} y={538} textAnchor="middle" fontSize="5.5" fill="#666">
+      <text x={W - 80} y={533} textAnchor="middle" fontSize="5.5" fill="#666">
         UTILITY METER
       </text>
 
       {/* Wire to grid */}
-      <line x1={W - 27} y1={565} x2={W - 15} y2={565} stroke="#111" strokeWidth="1.5" />
-      <text x={W - 12} y={562} fontSize="6" fill="#666">TO UTILITY</text>
-      <text x={W - 12} y={570} fontSize="6" fill="#666">GRID</text>
-      <text x={W - 12} y={580} fontSize="5" fill="#999">CENTERPOINT</text>
-      <text x={W - 12} y={588} fontSize="5" fill="#999">ENERGY</text>
+      <line x1={W - 60} y1={565} x2={W - 30} y2={565} stroke="#111" strokeWidth="1.5" />
+      <text x={W - 25} y={558} fontSize="6" fill="#666">TO UTILITY</text>
+      <text x={W - 25} y={567} fontSize="6" fill="#666">GRID</text>
+      <text x={W - 25} y={578} fontSize="5" fill="#999">CENTERPOINT</text>
+      <text x={W - 25} y={586} fontSize="5" fill="#999">ENERGY</text>
 
       {/* 10 FT MAX notation */}
-      <line x1={W - 180} y1={530} x2={W - 30} y2={530} stroke="#111" strokeWidth="0.5" />
-      <text x={W - 105} y={527} textAnchor="middle" fontSize="6" fontWeight="bold">10&apos; MAX</text>
-      <line x1={W - 180} y1={528} x2={W - 180} y2={535} stroke="#111" strokeWidth="0.5" />
-      <line x1={W - 30} y1={528} x2={W - 30} y2={535} stroke="#111" strokeWidth="0.5" />
+      <line x1={W - 230} y1={525} x2={W - 50} y2={525} stroke="#111" strokeWidth="0.5" />
+      <text x={W - 140} y={522} textAnchor="middle" fontSize="6" fontWeight="bold">10&apos; MAX</text>
+      <line x1={W - 230} y1={523} x2={W - 230} y2={530} stroke="#111" strokeWidth="0.5" />
+      <line x1={W - 50} y1={523} x2={W - 50} y2={530} stroke="#111" strokeWidth="0.5" />
 
       {/* ── GROUND SYSTEM ── */}
       <line x1="120" y1={565} x2="120" y2={640} stroke="#111" strokeWidth="1" />
