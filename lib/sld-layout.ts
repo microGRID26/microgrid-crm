@@ -141,7 +141,9 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
   // Total width: need room for 2 inverter columns + batteries + gateway on each side
   const invColWidth = battStackSize.w + 60 + invSize.w + 30 + gwSize.w
   const totalInvWidth = invColWidth * config.inverterCount + COL_GAP
-  const sheetWidth = Math.max(totalInvWidth + 100, 1400)
+  // Sheet width must accommodate inverter columns + utility chain (350px for bus-to-grid)
+  const utilChainWidth = 400 // gen disconnect + RGM + meter + grid text
+  const sheetWidth = Math.max(totalInvWidth + 100, totalColumnsWidth + utilChainWidth + 150, 1500)
 
   // String arrays section
   const stringRowH = 40 // height per string row
@@ -154,10 +156,10 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
   const jbH = 25
 
   // DC disconnect section
-  const dcDiscY = jbY + jbH + SECTION_GAP + 20
+  const dcDiscY = jbY + jbH + 40
 
   // Inverter section
-  const invTopY = dcDiscY + 30
+  const invTopY = dcDiscY + 25
 
   // AC disconnect section
   const acDiscY = invTopY + invSize.h + SECTION_GAP
@@ -249,11 +251,11 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
     elements.push({ type: 'text', x: stringsBaseX, y: afterStringsY, text: 'ROOF ARRAY WIRING', fontSize: 5.5, fill: '#444', italic: true })
     elements.push({ type: 'text', x: stringsBaseX + 10, y: afterStringsY + 10, text: '#10 AWG CU PV WIRE, 3/4" EMT TYPE CONDUIT', fontSize: 5, fill: '#444', italic: true })
 
-    // Junction box
-    const jbW = 60, jbBoxH = 22
-    elements.push({ type: 'rect', x: invCenterX - jbW / 2 + 80, y: jbY, w: jbW, h: jbBoxH })
-    elements.push({ type: 'text', x: invCenterX + 80, y: jbY + 10, text: '(N) JUNCTION BOX', fontSize: 5.5, anchor: 'middle' })
-    elements.push({ type: 'text', x: invCenterX + 80, y: jbY + 18, text: '600V, NEMA 3', fontSize: 5, anchor: 'middle', fill: '#666' })
+    // Junction box — centered under string arrays
+    const jbW = 65, jbBoxH = 24
+    elements.push({ type: 'rect', x: invCenterX - jbW / 2, y: jbY, w: jbW, h: jbBoxH })
+    elements.push({ type: 'text', x: invCenterX, y: jbY + 10, text: '(N) JUNCTION BOX', fontSize: 5.5, anchor: 'middle' })
+    elements.push({ type: 'text', x: invCenterX, y: jbY + 19, text: '600V, NEMA 3', fontSize: 5, anchor: 'middle', fill: '#666' })
 
     // Wire from JB to DC disconnect
     elements.push({ type: 'line', x1: invCenterX, y1: jbY + jbH + 5, x2: invCenterX, y2: dcDiscY - 15, strokeWidth: 1.5 })
@@ -292,9 +294,11 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
     // Battery stack (left of inverter)
     const battX = invX - 60 - battStackSize.w
     const battY = invTopY + (invSize.h - battStackSize.h) / 2
-    elements.push({ type: 'line', x1: invX, y1: invTopY + invSize.h / 2, x2: invX - 30, y2: invTopY + invSize.h / 2, strokeWidth: 1.5 })
-    elements.push({ type: 'text', x: invX - 28, y: invTopY + invSize.h / 2 - 6, text: '(2) #4/0 AWG CU THWN-2', fontSize: 5, fill: '#444', italic: true })
-    elements.push({ type: 'text', x: invX - 28, y: invTopY + invSize.h / 2 + 10, text: '2" EMT TYPE CONDUIT', fontSize: 5, fill: '#444', italic: true })
+    elements.push({ type: 'line', x1: invX, y1: invTopY + invSize.h / 2, x2: battX + battStackSize.w, y2: invTopY + invSize.h / 2, strokeWidth: 1.5 })
+    // Wire labels centered between battery box and inverter
+    const battWireMidX = battX + battStackSize.w + (invX - battX - battStackSize.w) / 2
+    elements.push({ type: 'text', x: battWireMidX, y: invTopY + invSize.h / 2 - 8, text: '(2) #4/0 AWG', fontSize: 4.5, anchor: 'middle', fill: '#444', italic: true })
+    elements.push({ type: 'text', x: battWireMidX, y: invTopY + invSize.h / 2 + 12, text: '2" EMT', fontSize: 4.5, anchor: 'middle', fill: '#444', italic: true })
     elements.push({ type: 'rect', x: battX, y: battY, w: battStackSize.w, h: battStackSize.h, strokeWidth: 1.5 })
     battStackLines.forEach((line, i) => {
       elements.push({
