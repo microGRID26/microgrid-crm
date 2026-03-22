@@ -246,7 +246,7 @@ function AHJManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const save = async () => {
     if (!editing) return
     setSaving(true)
-    await (supabase as any).from('ahjs').update({
+    const { error } = await (supabase as any).from('ahjs').update({
       name: draft.name,
       permit_phone: draft.permit_phone,
       permit_website: draft.permit_website,
@@ -257,6 +257,7 @@ function AHJManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       password: draft.password,
     }).eq('id', editing.id)
     setSaving(false)
+    if (error) { console.error('AHJ save failed:', error); return }
     setEditing(null)
     setToast('AHJ saved')
     setTimeout(() => setToast(''), 2500)
@@ -395,7 +396,8 @@ function AHJManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               <button
                 onClick={async () => {
                   if (!confirm(`DELETE AHJ "${editing.name}"? Projects referencing it will keep the name as text.`)) return
-                  await (supabase as any).from('ahjs').delete().eq('id', editing.id)
+                  const { error } = await (supabase as any).from('ahjs').delete().eq('id', editing.id)
+                  if (error) { console.error('AHJ delete failed:', error); return }
                   setEditing(null)
                   setToast('AHJ deleted')
                   setTimeout(() => setToast(''), 2500)
@@ -443,12 +445,13 @@ function UtilityManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const save = async () => {
     if (!editing) return
     setSaving(true)
-    await (supabase as any).from('utilities').update({
+    const { error } = await (supabase as any).from('utilities').update({
       name: draft.name,
       phone: draft.phone,
       website: draft.website,
       notes: draft.notes,
     }).eq('id', editing.id)
+    if (error) { console.error('Utility save failed:', error); setSaving(false); return }
     setSaving(false)
     setEditing(null)
     setToast('Utility saved')
@@ -527,7 +530,8 @@ function UtilityManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               <button
                 onClick={async () => {
                   if (!confirm(`DELETE Utility "${editing.name}"? Projects referencing it will keep the name as text.`)) return
-                  await (supabase as any).from('utilities').delete().eq('id', editing.id)
+                  const { error } = await (supabase as any).from('utilities').delete().eq('id', editing.id)
+                  if (error) { console.error('Utility delete failed:', error); return }
                   setEditing(null)
                   setToast('Utility deleted')
                   setTimeout(() => setToast(''), 2500)
@@ -581,7 +585,7 @@ function UsersManager({ currentUserRole }: { currentUserRole: UserRole }) {
   const save = async () => {
     setSaving(true)
     if (creating) {
-      await (supabase as any).from('users').insert({
+      const { error } = await (supabase as any).from('users').insert({
         name: draft.name,
         email: draft.email,
         department: draft.department,
@@ -591,8 +595,9 @@ function UsersManager({ currentUserRole }: { currentUserRole: UserRole }) {
         active: draft.active ?? true,
         color: draft.color,
       })
+      if (error) { console.error('User insert failed:', error); setSaving(false); return }
     } else if (editing) {
-      await (supabase as any).from('users').update({
+      const { error } = await (supabase as any).from('users').update({
         name: draft.name,
         email: draft.email,
         department: draft.department,
@@ -602,6 +607,7 @@ function UsersManager({ currentUserRole }: { currentUserRole: UserRole }) {
         active: draft.active,
         color: draft.color,
       }).eq('id', editing.id)
+      if (error) { console.error('User update failed:', error); setSaving(false); return }
     }
     setSaving(false)
     setEditing(null)

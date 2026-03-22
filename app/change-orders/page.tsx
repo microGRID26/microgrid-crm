@@ -94,10 +94,11 @@ function ChangeOrdersContent() {
 
   // ── DATA LOADING ─────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
-    const { data } = await (supabase as any)
+    const { data, error } = await (supabase as any)
       .from('change_orders')
       .select('*, project:projects(name, city, pm, pm_id)')
       .order('created_at', { ascending: false })
+    if (error) console.error('change_orders load failed:', error)
     if (data) setOrders(data as ChangeOrder[])
     setLoading(false)
   }, [])
