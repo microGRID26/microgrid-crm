@@ -77,7 +77,10 @@ export default function QueuePage() {
   const [availablePms, setAvailablePms] = useState<{ id: string; name: string }[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => ({
+    followups: false, cityPermitReady: true, cityPermitSub: true, utilPermitSub: true,
+    utilInsp: true, utilInspSub: true, blocked: true, active: true, complete: true,
+  }))
   const toggleBucket = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
 
   const loadData = useCallback(async () => {
@@ -162,27 +165,30 @@ export default function QueuePage() {
       .sort((a, b) => (a._followUpDate ?? '').localeCompare(b._followUpDate ?? ''))
   }, [sorted, taskStates])
 
-  // Task-based queue sections
-  const SUBMITTED_STATUSES = new Set(['In Progress', 'Scheduled', 'Pending Resolution', 'Revision Required'])
+  // Task-based queue sections (don't exclude blocked — a project can be in both)
+  const ACTIVE_STATUSES = new Set(['In Progress', 'Scheduled', 'Pending Resolution', 'Revision Required'])
 
-  const cityPermitReady = useMemo(() => sorted.filter(p => {
-    const s = taskMap[p.id]?.city_permit?.status
-    return s === 'Ready To Start' && !p.blocker
-  }), [sorted, taskMap])
+  const cityPermitReady = useMemo(() => sorted.filter(p =>
+    taskMap[p.id]?.city_permit?.status === 'Ready To Start' && p.stage !== 'complete'
+  ), [sorted, taskMap])
 
   const cityPermitSubmitted = useMemo(() => sorted.filter(p => {
     const s = taskMap[p.id]?.city_permit?.status
-    return s && SUBMITTED_STATUSES.has(s) && !p.blocker
+    return s && ACTIVE_STATUSES.has(s) && p.stage !== 'complete'
   }), [sorted, taskMap])
 
   const utilPermitSubmitted = useMemo(() => sorted.filter(p => {
     const s = taskMap[p.id]?.util_permit?.status
-    return s && SUBMITTED_STATUSES.has(s) && !p.blocker
+    return s && ACTIVE_STATUSES.has(s) && p.stage !== 'complete'
   }), [sorted, taskMap])
 
-  const utilInspReady = useMemo(() => sorted.filter(p => {
+  const utilInspReady = useMemo(() => sorted.filter(p =>
+    taskMap[p.id]?.util_insp?.status === 'Ready To Start' && p.stage !== 'complete'
+  ), [sorted, taskMap])
+
+  const utilInspSubmitted = useMemo(() => sorted.filter(p => {
     const s = taskMap[p.id]?.util_insp?.status
-    return s === 'Ready To Start' && !p.blocker
+    return s && ACTIVE_STATUSES.has(s) && p.stage !== 'complete'
   }), [sorted, taskMap])
 
   // Active = everything not in a special section
@@ -192,11 +198,12 @@ export default function QueuePage() {
       ...cityPermitSubmitted.map(p => p.id),
       ...utilPermitSubmitted.map(p => p.id),
       ...utilInspReady.map(p => p.id),
+      ...utilInspSubmitted.map(p => p.id),
       ...blocked.map(p => p.id),
       ...complete.map(p => p.id),
     ])
     return sorted.filter(p => !specialPids.has(p.id) && p.stage !== 'complete')
-  }, [sorted, cityPermitReady, cityPermitSubmitted, utilPermitSubmitted, utilInspReady, blocked, complete])
+  }, [sorted, cityPermitReady, cityPermitSubmitted, utilPermitSubmitted, utilInspReady, utilInspSubmitted, blocked, complete])
 
   if (loading) {
     return (
@@ -331,6 +338,16 @@ export default function QueuePage() {
               ⚡ Utility Inspection — Ready to Start ({utilInspReady.length})
             </button>
             {!collapsed.utilInsp && utilInspReady.map(p => <QueueCard key={p.id} p={p} taskMap={taskMap[p.id] ?? {}} onOpen={setSelectedProject} />)}
+          </div>
+        )}
+
+        {utilInspSubmitted.length > 0 && (
+          <div className="mb-6">
+            <button onClick={() => toggleBucket('utilInspSub')} className="text-xs font-bold text-cyan-400 uppercase tracking-wider mb-2 flex items-center gap-2 w-full text-left hover:text-cyan-300 transition-colors">
+              <span className="text-[10px]">{collapsed.utilInspSub ? '▸' : '▾'}</span>
+              ⚡ Utility Inspection — Submitted, Pending Approval ({utilInspSubmitted.length})
+            </button>
+            {!collapsed.utilInspSub && utilInspSubmitted.map(p => <QueueCard key={p.id} p={p} taskMap={taskMap[p.id] ?? {}} onOpen={setSelectedProject} />)}
           </div>
         )}
 
