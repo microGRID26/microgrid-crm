@@ -371,8 +371,8 @@ export default function FundingPage() {
         default: av = a.project.financier; bv = b.project.financier
       }
       if (av == null && bv == null) return 0
-      if (av == null) return 1 * dir
-      if (bv == null) return -1 * dir
+      if (av == null) return 1
+      if (bv == null) return -1
       if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
       return String(av).localeCompare(String(bv)) * dir
     })
