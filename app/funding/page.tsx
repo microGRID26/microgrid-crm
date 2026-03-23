@@ -401,7 +401,13 @@ export default function FundingPage() {
     const pnd = allMs.filter(d => d.status === 'Pending Resolution')
     const rev = allMs.filter(d => d.status === 'Revision Required')
     const fun = allMs.filter(d => d.status === 'Funded')
+    const totalContract = rows.reduce((s, r) => s + (Number(r.project.contract) || 0), 0)
+    const m2Eligible = rows.filter(r => r.m2.isEligible && r.m2.status !== 'Funded').length
+    const m3Eligible = rows.filter(r => r.m3.isEligible && r.m3.status !== 'Funded').length
+    const withNf = rows.filter(r => r.nf1).length
     return {
+      totalProjects: rows.length,
+      totalContract,
       readyToStart: rts.length,
       readyAmount: rts.reduce((s, d) => s + (Number(d.amount) || 0), 0),
       submitted: sub.length,
@@ -412,6 +418,9 @@ export default function FundingPage() {
       funded: fun.length,
       fundedAmount: fun.reduce((s, d) => s + (Number(d.amount) || 0), 0),
       outstanding: rts.reduce((s, d) => s + (Number(d.amount) || 0), 0) + sub.reduce((s, d) => s + (Number(d.amount) || 0), 0),
+      m2Eligible,
+      m3Eligible,
+      withNf,
     }
   }, [rows])
 
@@ -426,8 +435,21 @@ export default function FundingPage() {
       <Nav active="Funding" />
 
       {/* Stats bar */}
-      <div className="bg-gray-900 border-b border-gray-800 flex items-center gap-6 px-6 py-3 flex-shrink-0 flex-wrap">
+      <div className="bg-gray-900 border-b border-gray-800 flex items-center gap-5 px-6 py-3 flex-shrink-0 flex-wrap">
         <div>
+          <div className="text-xs text-gray-500">Projects</div>
+          <div className="text-xl font-bold text-white font-mono">{stats.totalProjects}</div>
+          <div className="text-[10px] text-gray-600 font-mono">{fmt$(stats.totalContract)}</div>
+        </div>
+        <div className="border-l border-gray-700 pl-5">
+          <div className="text-xs text-gray-500">M2 Eligible</div>
+          <div className="text-xl font-bold text-amber-400 font-mono">{stats.m2Eligible}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500">M3 Eligible</div>
+          <div className="text-xl font-bold text-amber-400 font-mono">{stats.m3Eligible}</div>
+        </div>
+        <div className="border-l border-gray-700 pl-5">
           <div className="text-xs text-gray-500">Ready to Submit</div>
           <div className="text-xl font-bold text-amber-400 font-mono">{stats.readyToStart}</div>
           {stats.readyAmount > 0 && <div className="text-[10px] text-gray-500 font-mono">{fmt$(stats.readyAmount)}</div>}
@@ -441,7 +463,7 @@ export default function FundingPage() {
           <div className="text-xs text-gray-500">Needs Attention</div>
           <div className="text-xl font-bold text-red-400 font-mono">{stats.needsAttention}</div>
         </div>}
-        <div className="border-l border-gray-700 pl-6">
+        <div className="border-l border-gray-700 pl-5">
           <div className="text-xs text-gray-500">Funded</div>
           <div className="text-xl font-bold text-green-400 font-mono">{stats.funded}</div>
           <div className="text-[10px] text-gray-500 font-mono">{fmt$(stats.fundedAmount)}</div>
@@ -450,7 +472,10 @@ export default function FundingPage() {
           <div className="text-xs text-gray-500">Outstanding</div>
           <div className="text-xl font-bold text-white font-mono">{fmt$(stats.outstanding)}</div>
         </div>}
-        <span className="ml-auto text-xs text-gray-500">{rows.length} projects</span>
+        {stats.withNf > 0 && <div>
+          <div className="text-xs text-gray-500">NF Codes</div>
+          <div className="text-xl font-bold text-red-400 font-mono">{stats.withNf}</div>
+        </div>}
       </div>
 
       {/* Guide */}
