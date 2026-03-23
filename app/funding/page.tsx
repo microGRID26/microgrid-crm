@@ -10,9 +10,9 @@ import type { Project, ProjectFunding, NonfundedCode } from '@/types/database'
 
 type MilestoneKey = 'm1' | 'm2' | 'm3'
 type FundingFilter = 'all' | 'eligible' | 'funded' | 'nonfunded' | 'submitted' | 'rejected'
-type FundingStatus = 'Not Submitted' | 'Submitted' | 'Funded' | 'Rejected' | 'Complete'
+type FundingStatus = 'Submitted' | 'Funded' | 'Rejected'
 
-const FUNDING_STATUSES: FundingStatus[] = ['Not Submitted', 'Submitted', 'Funded', 'Rejected', 'Complete']
+const FUNDING_STATUSES: FundingStatus[] = ['Submitted', 'Funded', 'Rejected']
 
 interface MsData {
   amount: number | null
