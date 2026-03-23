@@ -82,30 +82,23 @@ export default function QueuePage() {
 
   const loadData = useCallback(async () => {
     const pm = userPm
-    // Step 1: Load projects
-    const projRes = pm
-      ? await supabase.from('projects').select('id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date').eq('pm_id', pm).limit(2000)
-      : await supabase.from('projects').select('id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date').limit(2000)
+    const [projRes, taskRes] = await Promise.all([
+      pm
+        ? supabase.from('projects').select('id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date').eq('pm_id', pm).limit(2000)
+        : supabase.from('projects').select('id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date').limit(2000),
+      supabase.from('task_state').select('project_id, task_id, status, reason, follow_up_date').limit(50000),
+    ])
 
     if (projRes.error) console.error('projects load failed:', projRes.error)
+    if (taskRes.error) console.error('task_state load failed:', taskRes.error)
 
     if (projRes.data) {
       setProjects(projRes.data as Project[])
       const pmMap = new Map<string, string>()
       ;(projRes.data as any[]).forEach((p: any) => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
       setAvailablePms([...pmMap.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)))
-
-      // Step 2: Load task_state only for loaded projects (avoids 25K+ row fetch)
-      const pids = projRes.data.map((p: any) => p.id)
-      const allTasks: TaskStateRow[] = []
-      // Supabase IN filter has a URL length limit, batch in chunks of 100
-      for (let i = 0; i < pids.length; i += 100) {
-        const chunk = pids.slice(i, i + 100)
-        const { data: taskData } = await supabase.from('task_state').select('project_id, task_id, status, reason, follow_up_date').in('project_id', chunk)
-        if (taskData) allTasks.push(...(taskData as TaskStateRow[]))
-      }
-      setTaskStates(allTasks)
     }
+    if (taskRes.data) setTaskStates(taskRes.data as TaskStateRow[])
     setLoading(false)
   }, [userPm])
 
@@ -170,39 +163,40 @@ export default function QueuePage() {
   }, [sorted, taskStates])
 
   // Task-based queue sections
+  const SUBMITTED_STATUSES = new Set(['In Progress', 'Scheduled', 'Pending Resolution', 'Revision Required'])
+
   const cityPermitReady = useMemo(() => sorted.filter(p => {
     const s = taskMap[p.id]?.city_permit?.status
-    return s === 'Ready To Start'
+    return s === 'Ready To Start' && !p.blocker
   }), [sorted, taskMap])
 
-  const permitsSubmitted = useMemo(() => sorted.filter(p => {
-    const city = taskMap[p.id]?.city_permit?.status
-    const util = taskMap[p.id]?.util_permit?.status
-    return (city && city !== 'Complete' && city !== 'Not Ready' && city !== 'Ready To Start') ||
-           (util && util !== 'Complete' && util !== 'Not Ready' && util !== 'Ready To Start')
+  const cityPermitSubmitted = useMemo(() => sorted.filter(p => {
+    const s = taskMap[p.id]?.city_permit?.status
+    return s && SUBMITTED_STATUSES.has(s) && !p.blocker
   }), [sorted, taskMap])
 
   const utilPermitSubmitted = useMemo(() => sorted.filter(p => {
     const s = taskMap[p.id]?.util_permit?.status
-    return s && s !== 'Complete' && s !== 'Not Ready' && s !== 'Ready To Start'
+    return s && SUBMITTED_STATUSES.has(s) && !p.blocker
   }), [sorted, taskMap])
 
   const utilInspReady = useMemo(() => sorted.filter(p => {
     const s = taskMap[p.id]?.util_insp?.status
-    return s === 'Ready To Start'
+    return s === 'Ready To Start' && !p.blocker
   }), [sorted, taskMap])
 
-  // Active = everything not blocked, not complete, not in a special section
+  // Active = everything not in a special section
   const active = useMemo(() => {
     const specialPids = new Set([
       ...cityPermitReady.map(p => p.id),
-      ...permitsSubmitted.map(p => p.id),
+      ...cityPermitSubmitted.map(p => p.id),
+      ...utilPermitSubmitted.map(p => p.id),
       ...utilInspReady.map(p => p.id),
       ...blocked.map(p => p.id),
       ...complete.map(p => p.id),
     ])
     return sorted.filter(p => !specialPids.has(p.id) && p.stage !== 'complete')
-  }, [sorted, cityPermitReady, permitsSubmitted, utilInspReady, blocked, complete])
+  }, [sorted, cityPermitReady, cityPermitSubmitted, utilPermitSubmitted, utilInspReady, blocked, complete])
 
   if (loading) {
     return (
@@ -302,21 +296,31 @@ export default function QueuePage() {
 
         {cityPermitReady.length > 0 && (
           <div className="mb-6">
-            <button onClick={() => toggleBucket('cityPermit')} className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-2 w-full text-left hover:text-blue-300 transition-colors">
-              <span className="text-[10px]">{collapsed.cityPermit ? '▸' : '▾'}</span>
+            <button onClick={() => toggleBucket('cityPermitReady')} className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-2 w-full text-left hover:text-blue-300 transition-colors">
+              <span className="text-[10px]">{collapsed.cityPermitReady ? '▸' : '▾'}</span>
               📋 City Permit Approval — Ready to Start ({cityPermitReady.length})
             </button>
-            {!collapsed.cityPermit && cityPermitReady.map(p => <QueueCard key={p.id} p={p} taskMap={taskMap[p.id] ?? {}} onOpen={setSelectedProject} />)}
+            {!collapsed.cityPermitReady && cityPermitReady.map(p => <QueueCard key={p.id} p={p} taskMap={taskMap[p.id] ?? {}} onOpen={setSelectedProject} />)}
           </div>
         )}
 
-        {permitsSubmitted.length > 0 && (
+        {cityPermitSubmitted.length > 0 && (
           <div className="mb-6">
-            <button onClick={() => toggleBucket('permitsSubmitted')} className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-2 w-full text-left hover:text-indigo-300 transition-colors">
-              <span className="text-[10px]">{collapsed.permitsSubmitted ? '▸' : '▾'}</span>
-              📄 Permits Submitted — Pending Approval ({permitsSubmitted.length})
+            <button onClick={() => toggleBucket('cityPermitSub')} className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-2 w-full text-left hover:text-indigo-300 transition-colors">
+              <span className="text-[10px]">{collapsed.cityPermitSub ? '▸' : '▾'}</span>
+              📄 City Permit — Submitted, Pending Approval ({cityPermitSubmitted.length})
             </button>
-            {!collapsed.permitsSubmitted && permitsSubmitted.map(p => <QueueCard key={p.id} p={p} taskMap={taskMap[p.id] ?? {}} onOpen={setSelectedProject} />)}
+            {!collapsed.cityPermitSub && cityPermitSubmitted.map(p => <QueueCard key={p.id} p={p} taskMap={taskMap[p.id] ?? {}} onOpen={setSelectedProject} />)}
+          </div>
+        )}
+
+        {utilPermitSubmitted.length > 0 && (
+          <div className="mb-6">
+            <button onClick={() => toggleBucket('utilPermitSub')} className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-2 w-full text-left hover:text-purple-300 transition-colors">
+              <span className="text-[10px]">{collapsed.utilPermitSub ? '▸' : '▾'}</span>
+              📄 Utility Permit — Submitted, Pending Approval ({utilPermitSubmitted.length})
+            </button>
+            {!collapsed.utilPermitSub && utilPermitSubmitted.map(p => <QueueCard key={p.id} p={p} taskMap={taskMap[p.id] ?? {}} onOpen={setSelectedProject} />)}
           </div>
         )}
 
