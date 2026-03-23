@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/Nav'
 import { daysAgo, fmt$, fmtDate, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS, STAGE_TASKS } from '@/lib/utils'
+import { ALL_TASKS_MAP } from '@/lib/tasks'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { NewProjectModal } from '@/components/project/NewProjectModal'
 import type { Project } from '@/types/database'
@@ -29,7 +30,7 @@ function priority(p: Project): number {
 
 // Now carries status + reason per task
 interface TaskEntry { status: string; reason?: string }
-interface TaskStateRow { project_id: string; task_id: string; status: string; reason?: string | null }
+interface TaskStateRow { project_id: string; task_id: string; status: string; reason?: string | null; follow_up_date?: string | null }
 
 function getNextTask(p: Project, taskMap: Record<string, TaskEntry>): string | null {
   const tasks = STAGE_TASKS[p.stage] ?? []
@@ -86,7 +87,7 @@ export default function QueuePage() {
       pm
         ? supabase.from('projects').select('id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date').eq('pm_id', pm).limit(2000)
         : supabase.from('projects').select('id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date').limit(2000),
-      supabase.from('task_state').select('project_id, task_id, status, reason').limit(10000),
+      supabase.from('task_state').select('project_id, task_id, status, reason, follow_up_date').limit(10000),
     ])
 
     if (projRes.error) console.error('projects load failed:', projRes.error)
@@ -141,12 +142,25 @@ export default function QueuePage() {
   const active = useMemo(() => sorted.filter(p => !p.blocker && p.stage !== 'complete'), [sorted])
   const complete = useMemo(() => sorted.filter(p => p.stage === 'complete'), [sorted])
 
-  // Follow-ups: projects with follow_up_date today or overdue
+  // Follow-ups: projects with task-level or project-level follow_up_date today or overdue
   const followUps = useMemo(() => {
     const today = new Date().toISOString().split('T')[0]
-    return sorted.filter(p => p.follow_up_date && p.follow_up_date <= today)
-      .sort((a, b) => (a.follow_up_date ?? '').localeCompare(b.follow_up_date ?? ''))
-  }, [sorted])
+    // Build map of project_id → earliest task follow-up date + task name
+    const taskFollowUpMap: Record<string, { date: string; taskName: string }> = {}
+    for (const t of taskStates) {
+      if (t.follow_up_date && t.follow_up_date <= today) {
+        const existing = taskFollowUpMap[t.project_id]
+        if (!existing || t.follow_up_date < existing.date) {
+          const taskDef = ALL_TASKS_MAP[t.task_id]
+          taskFollowUpMap[t.project_id] = { date: t.follow_up_date, taskName: taskDef?.name ?? t.task_id }
+        }
+      }
+    }
+    return sorted
+      .filter(p => (p.follow_up_date && p.follow_up_date <= today) || taskFollowUpMap[p.id])
+      .map(p => ({ ...p, _taskFollowUp: taskFollowUpMap[p.id] ?? null, _followUpDate: taskFollowUpMap[p.id]?.date ?? p.follow_up_date }))
+      .sort((a, b) => (a._followUpDate ?? '').localeCompare(b._followUpDate ?? ''))
+  }, [sorted, taskStates])
 
   if (loading) {
     return (
@@ -229,12 +243,15 @@ export default function QueuePage() {
                   {p.city && <div className="text-xs text-gray-400 mt-0.5">{p.city}</div>}
                 </div>
                 <div className="text-right flex-shrink-0">
+                  {(p as any)._taskFollowUp && (
+                    <div className="text-[10px] text-gray-400 mb-0.5">{(p as any)._taskFollowUp.taskName}</div>
+                  )}
                   <div className={`text-xs font-medium ${
-                    p.follow_up_date === new Date().toISOString().split('T')[0] ? 'text-amber-400' : 'text-red-400'
+                    (p as any)._followUpDate === new Date().toISOString().split('T')[0] ? 'text-amber-400' : 'text-red-400'
                   }`}>
-                    {p.follow_up_date === new Date().toISOString().split('T')[0]
+                    {(p as any)._followUpDate === new Date().toISOString().split('T')[0]
                       ? 'Today'
-                      : `${daysAgo(p.follow_up_date)}d overdue`}
+                      : `${daysAgo((p as any)._followUpDate)}d overdue`}
                   </div>
                 </div>
               </div>
