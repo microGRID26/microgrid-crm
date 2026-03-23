@@ -618,6 +618,34 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       showToast(`Reset ${cascadeResets.length} downstream task${cascadeResets.length > 1 ? 's' : ''}`)
     }
 
+    // ── Auto-set dependent tasks to Ready To Start ─────────────────────
+    if (status === 'Complete') {
+      const updatedStates = { ...taskStates, [taskId]: 'Complete' }
+      if (cascadeResets) cascadeResets.forEach(id => { updatedStates[id] = 'Not Ready' })
+      const autoReadyUpdates: { project_id: string; task_id: string; status: string }[] = []
+      for (const stageTasks of Object.values(TASKS)) {
+        for (const t of stageTasks) {
+          if (updatedStates[t.id] && updatedStates[t.id] !== 'Not Ready') continue
+          if (t.pre.length === 0) continue
+          const allPresMet = t.pre.every(preId => updatedStates[preId] === 'Complete')
+          if (allPresMet) {
+            autoReadyUpdates.push({ project_id: pid, task_id: t.id, status: 'Ready To Start' })
+            updatedStates[t.id] = 'Ready To Start'
+          }
+        }
+      }
+      if (autoReadyUpdates.length > 0) {
+        for (const u of autoReadyUpdates) {
+          await (supabase as any).from('task_state').upsert(u, { onConflict: 'project_id,task_id' })
+        }
+        setTaskStates(prev => {
+          const next = { ...prev }
+          autoReadyUpdates.forEach(u => { next[u.task_id] = 'Ready To Start' })
+          return next
+        })
+      }
+    }
+
     // Invalidate cache so History view reloads fresh on next open
     setTaskHistoryLoaded(false)
 
