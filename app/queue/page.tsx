@@ -82,24 +82,30 @@ export default function QueuePage() {
 
   const loadData = useCallback(async () => {
     const pm = userPm
-    const [projRes, taskRes] = await Promise.all([
-      // When no PM selected, load ALL projects so user can see everything
-      pm
-        ? supabase.from('projects').select('id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date').eq('pm_id', pm).limit(2000)
-        : supabase.from('projects').select('id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date').limit(2000),
-      supabase.from('task_state').select('project_id, task_id, status, reason, follow_up_date').limit(10000),
-    ])
+    // Step 1: Load projects
+    const projRes = pm
+      ? await supabase.from('projects').select('id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date').eq('pm_id', pm).limit(2000)
+      : await supabase.from('projects').select('id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date').limit(2000)
 
     if (projRes.error) console.error('projects load failed:', projRes.error)
-    if (taskRes.error) console.error('task_state load failed:', taskRes.error)
 
     if (projRes.data) {
       setProjects(projRes.data as Project[])
       const pmMap = new Map<string, string>()
       ;(projRes.data as any[]).forEach((p: any) => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
       setAvailablePms([...pmMap.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)))
+
+      // Step 2: Load task_state only for loaded projects (avoids 25K+ row fetch)
+      const pids = projRes.data.map((p: any) => p.id)
+      const allTasks: TaskStateRow[] = []
+      // Supabase IN filter has a URL length limit, batch in chunks of 100
+      for (let i = 0; i < pids.length; i += 100) {
+        const chunk = pids.slice(i, i + 100)
+        const { data: taskData } = await supabase.from('task_state').select('project_id, task_id, status, reason, follow_up_date').in('project_id', chunk)
+        if (taskData) allTasks.push(...(taskData as TaskStateRow[]))
+      }
+      setTaskStates(allTasks)
     }
-    if (taskRes.data) setTaskStates(taskRes.data as TaskStateRow[])
     setLoading(false)
   }, [userPm])
 
