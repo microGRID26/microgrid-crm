@@ -13,7 +13,7 @@ import { NotificationBell } from '@/components/NotificationBell'
 // right:  optional right-side content (search bars, filters, counts)
 
 const NAV_LINKS = [
-  { label: 'Dashboard', href: '/dashboard' },
+  // { label: 'Dashboard', href: '/dashboard' },
   { label: 'Command',  href: '/command'  },
   { label: 'Queue',    href: '/queue'    },
   { label: 'Pipeline', href: '/pipeline' },
