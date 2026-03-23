@@ -685,14 +685,16 @@ function ForFunding() {
         </div>
       </Card>
 
-      <Card title="Milestone statuses">
-        Each milestone has a status dropdown with three options:
+      <Card title="Funding workflow statuses">
+        Each M2/M3 milestone follows a workflow. The status dropdown options are:
         <div className="mt-2 space-y-1.5 text-xs">
+          <div className="flex items-center gap-2"><span className="bg-amber-900 text-amber-300 px-2 py-0.5 rounded">RTS</span><span className="text-gray-400">— Ready To Start — milestone triggered, ready for funding team to submit</span></div>
           <div className="flex items-center gap-2"><span className="bg-blue-900 text-blue-300 px-2 py-0.5 rounded">Sub</span><span className="text-gray-400">— Submitted to financier, awaiting payment</span></div>
+          <div className="flex items-center gap-2"><span className="bg-red-900 text-red-300 px-2 py-0.5 rounded">Pnd</span><span className="text-gray-400">— Pending Resolution — blocked by a nonfunded code issue</span></div>
+          <div className="flex items-center gap-2"><span className="bg-amber-900 text-amber-300 px-2 py-0.5 rounded">Rev</span><span className="text-gray-400">— Revision Required — needs someone to redo a task (e.g., retake a photo)</span></div>
           <div className="flex items-center gap-2"><span className="bg-green-900 text-green-300 px-2 py-0.5 rounded">Fun</span><span className="text-gray-400">— Funded, payment received</span></div>
-          <div className="flex items-center gap-2"><span className="bg-red-900 text-red-300 px-2 py-0.5 rounded">Rej</span><span className="text-gray-400">— Rejected by financier</span></div>
         </div>
-        <div className="mt-2 text-gray-500">The badge colors on the M1/M2/M3 labels indicate eligibility: amber = eligible, green = funded, gray = not yet eligible.</div>
+        <div className="mt-2 text-gray-500">M2 auto-triggers to &quot;Ready To Start&quot; when Installation Complete is done. M3 triggers when Permission to Operate is done.</div>
       </Card>
 
       <Card title="Sorting & filtering">

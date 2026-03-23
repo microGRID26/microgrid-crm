@@ -9,10 +9,18 @@ import { ProjectPanel } from '@/components/project/ProjectPanel'
 import type { Project, ProjectFunding, NonfundedCode } from '@/types/database'
 
 type MilestoneKey = 'm1' | 'm2' | 'm3'
-type FundingFilter = 'all' | 'eligible' | 'funded' | 'nonfunded' | 'submitted' | 'rejected'
-type FundingStatus = 'Submitted' | 'Funded' | 'Rejected'
+type FundingFilter = 'all' | 'ready' | 'submitted' | 'pending' | 'revision' | 'funded' | 'nonfunded'
+type FundingStatus = 'Ready To Start' | 'Submitted' | 'Pending Resolution' | 'Revision Required' | 'Funded'
 
-const FUNDING_STATUSES: FundingStatus[] = ['Submitted', 'Funded', 'Rejected']
+const FUNDING_STATUSES: FundingStatus[] = ['Ready To Start', 'Submitted', 'Pending Resolution', 'Revision Required', 'Funded']
+
+const FUNDING_STATUS_COMPACT: Record<string, string> = {
+  'Ready To Start': 'RTS',
+  'Submitted': 'Sub',
+  'Pending Resolution': 'Pnd',
+  'Revision Required': 'Rev',
+  'Funded': 'Fun',
+}
 
 interface MsData {
   amount: number | null
@@ -137,9 +145,11 @@ function StatusSelect({ value, onSave, compact, disabled = false }: { value: str
     setSaving(false)
   }
 
-  const color = value === 'Funded' || value === 'Complete' ? 'text-green-400'
+  const color = value === 'Funded' ? 'text-green-400'
     : value === 'Submitted' ? 'text-blue-400'
-    : value === 'Rejected' ? 'text-red-400'
+    : value === 'Ready To Start' ? 'text-amber-400'
+    : value === 'Pending Resolution' ? 'text-red-400'
+    : value === 'Revision Required' ? 'text-amber-400'
     : 'text-gray-500'
 
   return (
@@ -151,7 +161,7 @@ function StatusSelect({ value, onSave, compact, disabled = false }: { value: str
       className={`bg-transparent border-0 text-[10px] focus:outline-none w-full ${color} ${saving ? 'opacity-50' : ''} ${disabled ? 'cursor-default' : 'cursor-pointer'}`}
     >
       <option value="">—</option>
-      {FUNDING_STATUSES.map(s => <option key={s} value={s}>{compact ? s.slice(0, 3) : s}</option>)}
+      {FUNDING_STATUSES.map(s => <option key={s} value={s}>{compact ? FUNDING_STATUS_COMPACT[s] : s}</option>)}
     </select>
   )
 }
@@ -348,10 +358,12 @@ export default function FundingPage() {
       const m3 = getMsData(f, p, 'm3')
 
       // Filter by status across any milestone
-      if (statusFilter === 'eligible' && !m1.isEligible && !m2.isEligible && !m3.isEligible) return
+      const anyStatus = (s: string) => m1.status === s || m2.status === s || m3.status === s
+      if (statusFilter === 'ready' && !anyStatus('Ready To Start')) return
+      if (statusFilter === 'submitted' && !anyStatus('Submitted')) return
+      if (statusFilter === 'pending' && !anyStatus('Pending Resolution')) return
+      if (statusFilter === 'revision' && !anyStatus('Revision Required')) return
       if (statusFilter === 'funded' && !m1.isFunded && !m2.isFunded && !m3.isFunded) return
-      if (statusFilter === 'submitted' && m1.status !== 'Submitted' && m2.status !== 'Submitted' && m3.status !== 'Submitted') return
-      if (statusFilter === 'rejected' && m1.status !== 'Rejected' && m2.status !== 'Rejected' && m3.status !== 'Rejected') return
       if (statusFilter === 'nonfunded' && !f?.nonfunded_code_1) return
 
       result.push({ project: p, funding: f, m1, m2, m3, nf1: f?.nonfunded_code_1 ?? null, nf2: f?.nonfunded_code_2 ?? null, nf3: f?.nonfunded_code_3 ?? null })
@@ -382,15 +394,15 @@ export default function FundingPage() {
   }, [projects, funding, financierFilter, search, statusFilter, sortCol, sortDir])
 
   // Stats
-  const { totalEligible, totalFunded, totalAmount, pendingAmount, totalSubmitted, totalRejected } = useMemo(() => {
-    const allMs = rows.flatMap(r => [r.m1, r.m2, r.m3])
+  const stats = useMemo(() => {
+    const allMs = rows.flatMap(r => [r.m2, r.m3])
     return {
-      totalEligible: allMs.filter(d => d.isEligible && !d.isFunded).length,
-      totalFunded: allMs.filter(d => d.isFunded).length,
-      totalAmount: allMs.filter(d => d.isFunded).reduce((s, d) => s + (Number(d.amount) || 0), 0),
-      pendingAmount: allMs.filter(d => d.isEligible && !d.isFunded).reduce((s, d) => s + (Number(d.amount) || 0), 0),
-      totalSubmitted: allMs.filter(d => d.status === 'Submitted').length,
-      totalRejected: allMs.filter(d => d.status === 'Rejected').length,
+      readyToStart: allMs.filter(d => d.status === 'Ready To Start').length,
+      submitted: allMs.filter(d => d.status === 'Submitted').length,
+      pendingResolution: allMs.filter(d => d.status === 'Pending Resolution').length,
+      revisionRequired: allMs.filter(d => d.status === 'Revision Required').length,
+      funded: allMs.filter(d => d.status === 'Funded').length,
+      fundedAmount: allMs.filter(d => d.status === 'Funded').reduce((s, d) => s + (Number(d.amount) || 0), 0),
     }
   }, [rows])
 
@@ -406,12 +418,12 @@ export default function FundingPage() {
 
       {/* Stats bar */}
       <div className="bg-gray-900 border-b border-gray-800 flex items-center gap-6 px-6 py-3 flex-shrink-0 flex-wrap">
-        <div><div className="text-xs text-gray-500">Eligible</div><div className="text-xl font-bold text-amber-400 font-mono">{totalEligible}</div></div>
-        {totalSubmitted > 0 && <div><div className="text-xs text-gray-500">Submitted</div><div className="text-xl font-bold text-blue-400 font-mono">{totalSubmitted}</div></div>}
-        <div><div className="text-xs text-gray-500">Funded</div><div className="text-xl font-bold text-green-400 font-mono">{totalFunded}</div></div>
-        {totalRejected > 0 && <div><div className="text-xs text-gray-500">Rejected</div><div className="text-xl font-bold text-red-400 font-mono">{totalRejected}</div></div>}
-        <div><div className="text-xs text-gray-500">Total Funded</div><div className="text-xl font-bold text-white font-mono">{fmt$(totalAmount)}</div></div>
-        {pendingAmount > 0 && <div><div className="text-xs text-gray-500">Pending</div><div className="text-xl font-bold text-amber-400 font-mono">{fmt$(pendingAmount)}</div></div>}
+        {stats.readyToStart > 0 && <div><div className="text-xs text-gray-500">Ready to Submit</div><div className="text-xl font-bold text-amber-400 font-mono">{stats.readyToStart}</div></div>}
+        {stats.submitted > 0 && <div><div className="text-xs text-gray-500">Submitted</div><div className="text-xl font-bold text-blue-400 font-mono">{stats.submitted}</div></div>}
+        {stats.pendingResolution > 0 && <div><div className="text-xs text-gray-500">Pending</div><div className="text-xl font-bold text-red-400 font-mono">{stats.pendingResolution}</div></div>}
+        {stats.revisionRequired > 0 && <div><div className="text-xs text-gray-500">Revision Req</div><div className="text-xl font-bold text-amber-400 font-mono">{stats.revisionRequired}</div></div>}
+        <div><div className="text-xs text-gray-500">Funded</div><div className="text-xl font-bold text-green-400 font-mono">{stats.funded}</div></div>
+        <div><div className="text-xs text-gray-500">Total Funded</div><div className="text-xl font-bold text-white font-mono">{fmt$(stats.fundedAmount)}</div></div>
         <span className="ml-auto text-xs text-gray-500">{rows.length} projects</span>
       </div>
 
@@ -459,10 +471,11 @@ export default function FundingPage() {
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as FundingFilter)}
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
           <option value="all">All Statuses</option>
-          <option value="eligible">Has Eligible</option>
-          <option value="submitted">Has Submitted</option>
-          <option value="funded">Has Funded</option>
-          <option value="rejected">Has Rejected</option>
+          <option value="ready">Ready to Submit</option>
+          <option value="submitted">Submitted</option>
+          <option value="pending">Pending Resolution</option>
+          <option value="revision">Revision Required</option>
+          <option value="funded">Funded</option>
           <option value="nonfunded">Has NF Code</option>
         </select>
         <select value={financierFilter} onChange={e => setFinancierFilter(e.target.value)}
