@@ -204,13 +204,15 @@ export default function QueuePage() {
       {/* Queue list */}
       <div className="flex-1 overflow-y-auto max-w-4xl mx-auto w-full px-4 py-4">
 
-        {followUps.length > 0 && (
-          <div className="mb-6 bg-amber-950/30 border border-amber-900/50 rounded-xl p-4">
+        <div className="mb-6 bg-amber-950/30 border border-amber-900/50 rounded-xl p-4">
             <button onClick={() => toggleBucket('followups')} className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-2 w-full text-left hover:text-amber-300 transition-colors">
               <span className="text-[10px]">{collapsed.followups ? '▸' : '▾'}</span>
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-              Follow-ups Due ({followUps.length})
+              Follow-ups Today ({followUps.length})
             </button>
+            {!collapsed.followups && followUps.length === 0 && (
+              <div className="text-xs text-gray-600 italic pl-6">No follow-ups due today. Set follow-up dates on tasks in the project panel.</div>
+            )}
             {!collapsed.followups && followUps.map(p => (
               <div
                 key={p.id}
@@ -238,7 +240,6 @@ export default function QueuePage() {
               </div>
             ))}
           </div>
-        )}
 
         {blocked.length > 0 && (
           <div className="mb-6">
