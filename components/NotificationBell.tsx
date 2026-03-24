@@ -95,7 +95,11 @@ function NotificationRow({ notification: n, onRead, onClose }: { notification: N
       onClick={() => {
         onRead(n.id)
         onClose()
-        window.location.href = `/queue?search=${encodeURIComponent(n.projectId)}`
+        if (n.id.startsWith('mention-')) {
+          window.location.href = `/pipeline?search=${encodeURIComponent(n.projectId)}`
+        } else {
+          window.location.href = `/queue?search=${encodeURIComponent(n.projectId)}`
+        }
       }}
       className={`w-full text-left px-3 py-2.5 flex items-start gap-2.5 transition-colors hover:bg-gray-800 border-b border-gray-800 last:border-b-0 ${
         n.read ? 'opacity-60' : ''

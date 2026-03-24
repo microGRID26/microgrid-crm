@@ -74,7 +74,10 @@ function MentionTextarea({ value, onChange, onSubmit, placeholder }: {
   useEffect(() => {
     const supabase = createClient()
     ;(supabase as any).from('users').select('id, name').eq('active', true).like('email', '%@gomicrogridenergy.com').order('name')
-      .then(({ data }: any) => { if (data) setUsers(data) })
+      .then(({ data, error }: any) => {
+        if (error) console.error('[MENTION] user load error:', error)
+        if (data) { setUsers(data); console.log('[MENTION] loaded users:', data.length) }
+      })
   }, [])
 
   const filtered = mentionQuery
@@ -133,7 +136,7 @@ function MentionTextarea({ value, onChange, onSubmit, placeholder }: {
         className="w-full bg-gray-800 text-white text-sm rounded-lg p-3 border border-gray-700 focus:border-green-500 focus:outline-none resize-none placeholder-gray-500"
       />
       {showMentions && filtered.length > 0 && (
-        <div className="absolute bottom-full left-0 mb-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto w-56">
+        <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto w-56">
           {filtered.map((u, i) => (
             <button key={u.id}
               onClick={() => insertMention(u.name)}
