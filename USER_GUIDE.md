@@ -1272,3 +1272,21 @@ Complete --> Revision Required --> (reworked) --> In Progress --> Complete
 | UB | Utility Bill |
 | VPP | Virtual Power Plant |
 | WPI | Windstorm Product Installation -- Texas certification requirement |
+
+---
+
+## Technical Architecture
+
+### API Layer
+
+NOVA uses a centralized API layer for all data operations. When you interact with the system -- updating a task, adding a note, or saving project details -- those operations go through a set of dedicated functions that handle communication with the database. This means consistent behavior and error handling across every page.
+
+### Error Handling
+
+If something goes wrong while using NOVA, you will see a "Something went wrong" screen instead of a broken page. From this screen:
+
+- Click **Try Again** to reload the page and recover
+- If the issue persists, click **Report Issue** to submit a bug report through the feedback system -- your name, email, and the page you were on are captured automatically
+- The admin team is notified of all reported issues through the Admin portal's Feedback Manager
+
+Errors are isolated to individual pages -- if one page encounters a problem, the rest of the application continues working normally.

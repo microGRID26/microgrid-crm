@@ -1040,6 +1040,13 @@ function ForAdmins() {
         count. Also shows system info (stack, database, hosting, auth, repo).
       </Card>
 
+      <SectionHeader title="Error Handling" />
+      <Card title="Something went wrong screen">
+        If you see a &quot;Something went wrong&quot; screen, click &quot;Try Again&quot; to recover. If the issue persists,
+        click &quot;Report Issue&quot; to submit feedback. Your name, page, and error details are captured automatically
+        so the admin team can investigate through the Feedback Manager.
+      </Card>
+
       <SectionHeader title="Audit Trail" />
       <Card title="Session tracking">
         Every user login is tracked with login time, duration, and current page. The admin portal Audit Trail

@@ -49,11 +49,25 @@ All pages are in `app/*/page.tsx` as client components (`"use client"`). Each pa
 
 Key pages: `/command` (SLA dashboard), `/queue` (PM-filtered task-based worklist with collapsible sections), `/pipeline` (visual stage grid), `/analytics`, `/audit` (task compliance), `/schedule` (crew calendar), `/service`, `/funding` (M1/M2/M3 milestones with sortable columns), `/change-orders` (HCO/change order queue with 6-step workflow), `/admin`, `/help`.
 
+### API Layer
+
+Centralized data access functions live in `lib/api/`:
+
+- `lib/api/projects.ts` — `loadProjects`, `loadProjectFunding`, `updateProject`, `loadUsers`, `loadProjectAdders`, `addProjectAdder`, `deleteProjectAdder`
+- `lib/api/notes.ts` — `loadProjectNotes`, `loadTaskNotes`, `addNote`, `deleteNote`, `createMentionNotification`
+- `lib/api/tasks.ts` — `upsertTaskState`, `loadTaskStates`, `loadTaskHistory`, `insertTaskHistory`
+- `lib/api/index.ts` — barrel export for all of the above
+
+Pages should import from `@/lib/api` instead of querying Supabase directly. The API layer handles error logging, type casting, and consistent return shapes.
+
+### db() Helper
+
+`lib/db.ts` provides a clean escape hatch for Supabase write operations on untyped tables. Use `db()` instead of `(supabase as any)` for writes. Import: `import { db } from '@/lib/db'`.
+
 ### Data Layer
 
 - `lib/supabase/client.ts` — browser Supabase client (used by all pages)
 - `lib/supabase/server.ts` — server Supabase client (used by middleware)
-- No API routes for data — pages query Supabase directly
 - Realtime: `supabase.channel().on('postgres_changes', ...)` pattern in each page
 
 ### Shared Code
@@ -66,6 +80,14 @@ Key pages: `/command` (SLA dashboard), `/queue` (PM-filtered task-based worklist
 - `components/project/ProjectPanel.tsx` — large modal (overview/tasks/notes/files/BOM tabs) used across multiple pages
 - `components/FeedbackButton.tsx` — floating feedback button rendered on every page (bottom-right corner). Submits to `feedback` table with type, message, user info, and current page. Insert allowed for all authenticated users via permissive RLS policy.
 - `components/SessionTracker.tsx` — automatic session tracking component. Logs user sessions to `user_sessions` table with login time, current page, and 60-second heartbeat for duration. Auth fallback handles edge cases where session is not yet available.
+
+### Error Boundaries
+
+- `app/error.tsx` — page-level error boundary. Dark-themed with "Try Again" button to reset. Catches runtime errors within page components.
+- `app/global-error.tsx` — root-level error boundary. Catches errors in the layout itself. Dark-themed with reload button.
+- `components/ErrorBoundary.tsx` — reusable error boundary component. Can be wrapped around any component tree. Includes a "Report Issue" button that triggers the FeedbackButton for bug reporting.
+
+All error screens are styled consistently with the dark theme (`bg-gray-950`, green accents).
 
 ### Key Database Tables
 
@@ -214,7 +236,9 @@ The Info tab now includes `permit_fee` and `reinspection_fee` fields in the Perm
 
 ### TypeScript Pattern
 
-`types/database.ts` only covers core tables (`projects`, `task_state`, `notes`, `crews`, `schedule`, `stage_history`, `project_folders`). Several tables used in the app — `project_funding`, `service_calls`, `ahjs`, `utilities`, `users`, `sla_thresholds`, `project_adders` — are **not** in the generated types. Pages that query these tables use `as any` casts on the Supabase response. When adding or modifying queries for these tables, expect to cast. The `admin/page.tsx` file is especially cast-heavy due to managing all the untyped reference tables.
+`types/database.ts` covers core tables (`projects`, `task_state`, `notes`, `crews`, `schedule`, `stage_history`, `project_folders`) plus types added during refactoring: `ServiceCall`, `HOA`, `MentionNotification`, `ProjectAdder`, `ProjectBom`. The `Schedule` interface was expanded with 11 new fields. Several tables used in the app — `project_funding`, `service_calls`, `ahjs`, `utilities`, `users`, `sla_thresholds` — are **not** in the generated types but are accessed through the `lib/api/` layer or `db()` helper which handle casting internally.
+
+**Type safety improved**: `as any` casts reduced from ~198 to ~43 across the codebase. Remaining casts are justified (dynamic property access in admin, test mocks, Supabase RPC calls). New code should use the API layer (`@/lib/api`) or `db()` helper rather than adding new `as any` casts.
 
 Also note: the `Project` type defines a `loyalty: string | null` field, but it is **never read anywhere** in the codebase. All loyalty logic uses `p.disposition === 'Loyalty'` instead. The `loyalty` column appears to be legacy/dead.
 
