@@ -82,10 +82,10 @@ export function useNotifications() {
       })
     }
 
-    // @mention notifications
+    // @mention notifications — join with projects for name
     const { data: mentions } = await (supabase as any)
       .from('mention_notifications')
-      .select('id, project_id, mentioned_by, message, created_at, read')
+      .select('id, project_id, mentioned_by, message, created_at, read, project:projects(name)')
       .eq('mentioned_user_id', user.id)
       .eq('read', false)
       .order('created_at', { ascending: false })
@@ -93,13 +93,14 @@ export function useNotifications() {
 
     if (mentions) {
       mentions.forEach((m: any) => {
+        const projName = m.project?.name ?? m.project_id
         notifs.push({
           id: `mention-${m.id}`,
           type: 'milestone' as const,
           title: `@Mentioned by ${m.mentioned_by}`,
-          message: `${m.project_id}: ${m.message?.slice(0, 80) ?? ''}`,
+          message: `${projName} (${m.project_id}): ${m.message?.slice(0, 80) ?? ''}`,
           projectId: m.project_id,
-          projectName: m.project_id,
+          projectName: projName,
           timestamp: m.created_at,
           read: false,
         })
@@ -130,17 +131,33 @@ export function useNotifications() {
 
   const markRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
+    // Mark in localStorage for non-mention notifications
     const readIds = JSON.parse(localStorage.getItem('mg_notif_read') || '[]') as string[]
     if (!readIds.includes(id)) {
+      // Keep only last 200 to prevent unbounded growth
+      if (readIds.length > 200) readIds.splice(0, readIds.length - 200)
       readIds.push(id)
       localStorage.setItem('mg_notif_read', JSON.stringify(readIds))
+    }
+    // Mark in DB for mention notifications
+    if (id.startsWith('mention-')) {
+      const dbId = id.replace('mention-', '')
+      const supabase = createClient()
+      ;(supabase as any).from('mention_notifications').update({ read: true }).eq('id', dbId)
     }
   }
 
   const markAllRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-    const ids = notifications.map(n => n.id)
+    // localStorage — keep only current IDs, cap at 200
+    const ids = notifications.map(n => n.id).slice(0, 200)
     localStorage.setItem('mg_notif_read', JSON.stringify(ids))
+    // DB — mark all mention notifications as read
+    const mentionIds = notifications.filter(n => n.id.startsWith('mention-')).map(n => n.id.replace('mention-', ''))
+    if (mentionIds.length > 0) {
+      const supabase = createClient()
+      ;(supabase as any).from('mention_notifications').update({ read: true }).in('id', mentionIds)
+    }
   }
 
   const unreadCount = notifications.filter(n => !n.read).length

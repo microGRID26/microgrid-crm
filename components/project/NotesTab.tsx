@@ -171,12 +171,13 @@ export function NotesTab({ notes, newNote, setNewNote, addNote, deleteNote, savi
           const name = mention.slice(1).trim()
           const user = users.find((u: any) => u.name.toLowerCase() === name.toLowerCase())
           if (user) {
-            await (supabase as any).from('mention_notifications').insert({
+            const { error: mentionErr } = await (supabase as any).from('mention_notifications').insert({
               project_id: projectId,
               mentioned_user_id: user.id,
               mentioned_by: currentUserName || 'Unknown',
               message: newNote.slice(0, 200),
             })
+            if (mentionErr) console.error('mention notification failed:', mentionErr)
           }
         }
       }
