@@ -2,6 +2,7 @@
 
 import type { Note } from '@/types/database'
 import React, { useState, useEffect, useRef } from 'react'
+import { X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 // Detect file references in note text and make them clickable
@@ -24,7 +25,7 @@ function buildDriveSearchUrl(folderUrl: string, fileName: string): string {
   return `https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}`
 }
 
-const MENTION_PATTERN = /(@[\w\s]+?)(?=\s@|\s|$|[.,;!?])/g
+const MENTION_PATTERN = /(@[A-Z][a-z]+ [A-Z][a-z]+)/g
 
 function NoteText({ text, folderUrl }: { text: string; folderUrl: string | null }) {
   // First split by file references
@@ -87,11 +88,11 @@ function MentionTextarea({ value, onChange, onSubmit, placeholder }: {
     // Check if we're typing a @mention
     const cursor = e.target.selectionStart
     const textBefore = val.slice(0, cursor)
-    const atMatch = textBefore.match(/@(\w*)$/)
+    const atMatch = textBefore.match(/@([\w\s]*)$/)
 
-    if (atMatch) {
+    if (atMatch && !atMatch[1].includes('\n')) {
       setShowMentions(true)
-      setMentionQuery(atMatch[1])
+      setMentionQuery(atMatch[1].trim())
       setMentionIdx(0)
     } else {
       setShowMentions(false)
@@ -151,16 +152,17 @@ interface NotesTabProps {
   newNote: string
   setNewNote: (v: string) => void
   addNote: () => void
+  deleteNote?: (id: string) => void
   saving: boolean
   folderUrl?: string | null
   projectId?: string
   currentUserName?: string
 }
 
-export function NotesTab({ notes, newNote, setNewNote, addNote, saving, folderUrl, projectId, currentUserName }: NotesTabProps) {
+export function NotesTab({ notes, newNote, setNewNote, addNote, deleteNote, saving, folderUrl, projectId, currentUserName }: NotesTabProps) {
   const handleAddNote = async () => {
     // Extract @mentions and create notifications
-    const mentions = newNote.match(/@([\w\s]+?)(?=\s@|\s|$|[.,;!?])/g)
+    const mentions = newNote.match(/@[A-Z][a-z]+ [A-Z][a-z]+/g)
     if (mentions && projectId) {
       const supabase = createClient()
       const { data: users } = await (supabase as any).from('users').select('id, name').eq('active', true)
@@ -196,12 +198,20 @@ export function NotesTab({ notes, newNote, setNewNote, addNote, saving, folderUr
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {notes.map(n => (
-          <div key={n.id} className="bg-gray-800 rounded-xl p-3">
+          <div key={n.id} className="bg-gray-800 rounded-xl p-3 group">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium text-green-400">{n.pm}</span>
-              <span className="text-xs text-gray-500">
-                {n.time ? new Date(n.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">
+                  {n.time ? new Date(n.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
+                </span>
+                {deleteNote && (
+                  <button onClick={() => { if (confirm('Delete this note?')) deleteNote(n.id) }}
+                    className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all" title="Delete note">
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
             </div>
             <p className="text-xs text-gray-200 whitespace-pre-wrap"><NoteText text={n.text} folderUrl={folderUrl ?? null} /></p>
           </div>

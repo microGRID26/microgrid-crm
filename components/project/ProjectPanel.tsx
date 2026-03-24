@@ -915,6 +915,13 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     showToast('Note added')
   }
 
+  async function deleteNote(noteId: string) {
+    const { error } = await (supabase as any).from('notes').delete().eq('id', noteId)
+    if (error) { showToast('Failed to delete note'); return }
+    await loadNotes()
+    showToast('Note deleted')
+  }
+
   async function setBlocker() {
     const text = blockerInput.trim()
     const { error: blockerErr } = await (supabase as any).from('projects').update({ blocker: text || null }).eq('id', pid)
@@ -1281,7 +1288,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
 
           {/* NOTES */}
           {tab === 'notes' && (
-            <NotesTab notes={notes} newNote={newNote} setNewNote={setNewNote} addNote={addNote} saving={saving} folderUrl={folderUrl} projectId={pid} currentUserName={currentUser?.name} />
+            <NotesTab notes={notes} newNote={newNote} setNewNote={setNewNote} addNote={addNote} deleteNote={deleteNote} saving={saving} folderUrl={folderUrl} projectId={pid} currentUserName={currentUser?.name} />
           )}
 
           {/* INFO */}
