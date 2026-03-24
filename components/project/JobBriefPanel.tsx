@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import { cn, STAGE_LABELS, fmtDate, fmt$ } from '@/lib/utils'
 import type { Project, Schedule, Crew } from '@/types/database'
 
@@ -56,7 +56,7 @@ interface Props {
 }
 
 export function JobBriefPanel({ scheduleId, onClose, onEdit, onOpenProject }: Props) {
-  const supabase = createClient()
+  const supabase = db()
 
   // Lock background scroll when panel is open
   useEffect(() => {
@@ -73,7 +73,7 @@ export function JobBriefPanel({ scheduleId, onClose, onEdit, onOpenProject }: Pr
     async function load() {
       setLoading(true)
       // Fetch the full schedule record (including new install detail fields)
-      const { data: jobData } = await supabase
+      const { data: jobData } = await (supabase as any)
         .from('schedule')
         .select('*')
         .eq('id', scheduleId)
