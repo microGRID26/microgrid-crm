@@ -5,8 +5,12 @@ import React from 'react'
 
 // Detect file references in note text and make them clickable
 // Links to Google Drive search scoped to the project folder
-const FILE_REGEX = /(\S+\.(?:pdf|png|jpg|jpeg|gif|dwg|xlsx|xls|csv|doc|docx|zip|heic|mp4|mov))/gi
+const FILE_PATTERN = /(\S+\.(?:pdf|png|jpg|jpeg|gif|dwg|xlsx|xls|csv|doc|docx|zip|heic|mp4|mov))/gi
 const INLINE_IMAGE = /^image_\d{4}-\d{2}-\d{2}T/i
+
+function isFileRef(part: string): boolean {
+  return /\.\w{2,4}$/.test(part) && /\.(pdf|png|jpg|jpeg|gif|dwg|xlsx|xls|csv|doc|docx|zip|heic|mp4|mov)$/i.test(part)
+}
 
 function buildDriveSearchUrl(folderUrl: string, fileName: string): string {
   // Extract folder ID from Google Drive URL
@@ -22,13 +26,13 @@ function buildDriveSearchUrl(folderUrl: string, fileName: string): string {
 function NoteText({ text, folderUrl }: { text: string; folderUrl: string | null }) {
   if (!folderUrl) return <>{text}</>
 
-  const parts = text.split(FILE_REGEX)
+  const parts = text.split(FILE_PATTERN)
   if (parts.length === 1) return <>{text}</>
 
   return (
     <>
       {parts.map((part, i) =>
-        FILE_REGEX.test(part) && !INLINE_IMAGE.test(part) ? (
+        isFileRef(part) && !INLINE_IMAGE.test(part) ? (
           <a key={i} href={buildDriveSearchUrl(folderUrl, part)} target="_blank" rel="noopener noreferrer"
             className="text-blue-400 hover:text-blue-300 underline" title={`Search Google Drive for ${part}`}>
             {part}

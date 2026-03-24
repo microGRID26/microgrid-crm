@@ -7,8 +7,11 @@ import type { Project } from '@/types/database'
 import { MessageSquare } from 'lucide-react'
 import React from 'react'
 
-const FILE_REGEX = /(\S+\.(?:pdf|png|jpg|jpeg|gif|dwg|xlsx|xls|csv|doc|docx|zip|heic|mp4|mov))/gi
+const FILE_PATTERN = /(\S+\.(?:pdf|png|jpg|jpeg|gif|dwg|xlsx|xls|csv|doc|docx|zip|heic|mp4|mov))/gi
 const INLINE_IMAGE = /^image_\d{4}-\d{2}-\d{2}T/i
+function isFileRef(part: string): boolean {
+  return /\.(pdf|png|jpg|jpeg|gif|dwg|xlsx|xls|csv|doc|docx|zip|heic|mp4|mov)$/i.test(part)
+}
 function buildDriveSearchUrl(folderUrl: string, fileName: string): string {
   const match = folderUrl.match(/folders\/([a-zA-Z0-9_-]+)/)
   if (match) return `https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}+in:${match[1]}`
@@ -16,9 +19,9 @@ function buildDriveSearchUrl(folderUrl: string, fileName: string): string {
 }
 function LinkedText({ text, folderUrl }: { text: string; folderUrl: string | null }) {
   if (!folderUrl) return <>{text}</>
-  const parts = text.split(FILE_REGEX)
+  const parts = text.split(FILE_PATTERN)
   if (parts.length === 1) return <>{text}</>
-  return <>{parts.map((part, i) => FILE_REGEX.test(part) && !INLINE_IMAGE.test(part)
+  return <>{parts.map((part, i) => isFileRef(part) && !INLINE_IMAGE.test(part)
     ? <a key={i} href={buildDriveSearchUrl(folderUrl, part)} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline" title={`Search Drive: ${part}`}>{part}</a>
     : <React.Fragment key={i}>{part}</React.Fragment>
   )}</>
