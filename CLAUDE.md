@@ -330,6 +330,47 @@ The Analytics page (`/analytics`) has 6 sub-tabs:
 5. **Cycle Times** — avg days per stage, median sale-to-install and sale-to-PTO, cycle time buckets (0-60/61-90/91-120/120+ days), top 10 longest active projects, blocked count by stage
 6. **Dealers** — projects by dealer (count, value, avg kW), projects by consultant, projects by advisor
 
+### Admin-Configurable Features (Migrations 017-021)
+
+Five database tables allow admins to configure system behavior without code changes:
+
+1. **Financiers** (`financiers`, migration 017) — Reference table for financing companies. Admin CRUD in Admin portal, autocomplete in project Info tab. Seeded with 10 financiers (Cash, EDGE, Mosaic, Sungage, GoodLeap, Dividend, Sunrun, Tesla, Sunnova, Loanpal).
+2. **Task Reasons** (`task_reasons`, migration 018) — Pending Resolution and Revision Required reasons stored in DB per task. Replaces hardcoded `PENDING_REASONS` and `REVISION_REASONS`. Active/inactive toggle and sort order.
+3. **Notification Rules** (`notification_rules`, migration 019) — DB-driven rules that fire when a task reaches a specific status+reason combination. Replaces hardcoded Permit Drop Off auto-note. Admin can create rules: task + status + reason -> action (note/notify role).
+4. **Queue Sections** (`queue_sections`, migration 020) — Queue page sections are DB-driven instead of hardcoded. Admin can add/reorder/disable sections. Each section maps a task_id + match_status to a labeled collapsible section.
+5. **User Preferences** (`user_preferences`, migration 021) — Per-user settings: homepage, default PM filter, collapsed sections state, queue card display fields, CSV export presets. RLS scoped to own row only.
+
+**Note:** Migrations 017-021 have SQL files in `supabase/` but may need to be applied to production Supabase manually.
+
+### SQL Migrations
+
+All in `supabase/`:
+- `008-pm-id-migration.sql` — PM ID field on projects
+- `009-audit-log.sql` — audit_log table
+- `010-roles.sql` — user roles
+- `011-rls-roles.sql` — RLS with role-based policies
+- `012-new-fields.sql` — follow_up_date, reinspection_fee, task notes, funding defaults
+- `013-adders.sql` — project_adders table
+- `014-hoa.sql` — HOA reference table
+- `015-mentions.sql` — mention_notifications table
+- `016-scale-optimization.sql` — DB indexes, helper functions, funding_dashboard view
+- `017-financiers.sql` — Financier reference table
+- `018-configurable-reasons.sql` — Task reasons in DB (pending/revision per task)
+- `019-notification-rules.sql` — DB-driven notification rules
+- `020-queue-config.sql` — DB-driven queue sections
+- `021-user-preferences.sql` — Per-user UI preferences
+
+### File Consolidation Plan (In Progress)
+
+Large files that should be broken into smaller components:
+- `app/admin/page.tsx` — manages all admin sections; should split each section (users, crews, AHJs, utilities, HOAs, financiers, reasons, notifications, queue config) into separate components
+- `components/project/ProjectPanel.tsx` — multi-tab modal; should split each tab into its own component file
+- `app/command/page.tsx` — complex classification logic; should extract to `lib/`
+
+### Code Quality
+
+**Current rating: 8/10** (up from 7/10 after Session 15 refactoring). Key improvements: API layer, db() helper, error boundaries, `as any` reduced from ~198 to ~43, added 5 new TypeScript interfaces. Remaining debt: large page files (see File Consolidation Plan), some untyped tables still accessed via casts.
+
 ## Known Bugs
 
 - The `loyalty` field on `projects` is unused — all loyalty logic checks `disposition === 'Loyalty'` instead. The column should eventually be dropped or reconciled.
