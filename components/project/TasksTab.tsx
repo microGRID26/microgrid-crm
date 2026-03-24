@@ -8,12 +8,17 @@ import { MessageSquare } from 'lucide-react'
 import React from 'react'
 
 const FILE_REGEX = /(\S+\.(?:pdf|png|jpg|jpeg|gif|dwg|xlsx|xls|csv|doc|docx|zip|heic|mp4|mov))/gi
+function buildDriveSearchUrl(folderUrl: string, fileName: string): string {
+  const match = folderUrl.match(/folders\/([a-zA-Z0-9_-]+)/)
+  if (match) return `https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}+in:${match[1]}`
+  return `https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}`
+}
 function LinkedText({ text, folderUrl }: { text: string; folderUrl: string | null }) {
   if (!folderUrl) return <>{text}</>
   const parts = text.split(FILE_REGEX)
   if (parts.length === 1) return <>{text}</>
   return <>{parts.map((part, i) => FILE_REGEX.test(part)
-    ? <a key={i} href={folderUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline" title={`Open Drive: ${part}`}>{part}</a>
+    ? <a key={i} href={buildDriveSearchUrl(folderUrl, part)} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline" title={`Search Drive: ${part}`}>{part}</a>
     : <React.Fragment key={i}>{part}</React.Fragment>
   )}</>
 }

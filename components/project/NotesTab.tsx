@@ -4,7 +4,19 @@ import type { Note } from '@/types/database'
 import React from 'react'
 
 // Detect file references in note text and make them clickable
+// Links to Google Drive search scoped to the project folder
 const FILE_REGEX = /(\S+\.(?:pdf|png|jpg|jpeg|gif|dwg|xlsx|xls|csv|doc|docx|zip|heic|mp4|mov))/gi
+
+function buildDriveSearchUrl(folderUrl: string, fileName: string): string {
+  // Extract folder ID from Google Drive URL
+  const match = folderUrl.match(/folders\/([a-zA-Z0-9_-]+)/)
+  if (match) {
+    const folderId = match[1]
+    return `https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}+in:${folderId}`
+  }
+  // Fallback: general Drive search
+  return `https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}`
+}
 
 function NoteText({ text, folderUrl }: { text: string; folderUrl: string | null }) {
   if (!folderUrl) return <>{text}</>
@@ -16,8 +28,8 @@ function NoteText({ text, folderUrl }: { text: string; folderUrl: string | null 
     <>
       {parts.map((part, i) =>
         FILE_REGEX.test(part) ? (
-          <a key={i} href={folderUrl} target="_blank" rel="noopener noreferrer"
-            className="text-blue-400 hover:text-blue-300 underline" title={`Open Google Drive to find ${part}`}>
+          <a key={i} href={buildDriveSearchUrl(folderUrl, part)} target="_blank" rel="noopener noreferrer"
+            className="text-blue-400 hover:text-blue-300 underline" title={`Search Google Drive for ${part}`}>
             {part}
           </a>
         ) : (
