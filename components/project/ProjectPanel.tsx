@@ -1281,7 +1281,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
 
           {/* NOTES */}
           {tab === 'notes' && (
-            <NotesTab notes={notes} newNote={newNote} setNewNote={setNewNote} addNote={addNote} saving={saving} folderUrl={folderUrl} />
+            <NotesTab notes={notes} newNote={newNote} setNewNote={setNewNote} addNote={addNote} saving={saving} folderUrl={folderUrl} projectId={pid} currentUserName={currentUser?.name} />
           )}
 
           {/* INFO */}

@@ -82,6 +82,30 @@ export function useNotifications() {
       })
     }
 
+    // @mention notifications
+    const { data: mentions } = await (supabase as any)
+      .from('mention_notifications')
+      .select('id, project_id, mentioned_by, message, created_at, read')
+      .eq('mentioned_user_id', user.id)
+      .eq('read', false)
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    if (mentions) {
+      mentions.forEach((m: any) => {
+        notifs.push({
+          id: `mention-${m.id}`,
+          type: 'milestone' as const,
+          title: `@Mentioned by ${m.mentioned_by}`,
+          message: m.message?.slice(0, 100) ?? '',
+          projectId: m.project_id,
+          projectName: m.project_id,
+          timestamp: m.created_at,
+          read: false,
+        })
+      })
+    }
+
     // Read state from localStorage
     const readIds = JSON.parse(localStorage.getItem('mg_notif_read') || '[]') as string[]
     notifs.forEach(n => { if (readIds.includes(n.id)) n.read = true })
