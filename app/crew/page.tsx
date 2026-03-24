@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import { cn, fmtDate } from '@/lib/utils'
 import type { Crew, Project, Schedule } from '@/types/database'
 
@@ -292,7 +293,7 @@ function JobCard({ job, onStatusChange }: { job: JobWithProject; onStatusChange:
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CrewPage() {
-  const supabase = createClient()
+  const supabase = db()
   const [jobs, setJobs] = useState<JobWithProject[]>([])
   const [crews, setCrews] = useState<Crew[]>([])
   const [crewFilter, setCrewFilter] = useState('all')

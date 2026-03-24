@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import { escapeIlike } from '@/lib/utils'
 import type { Crew, Project, Schedule } from '@/types/database'
 
@@ -24,7 +25,7 @@ interface Props {
 }
 
 export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobType, crews, onClose, onSaved }: Props) {
-  const supabase = createClient()
+  const supabase = db()
 
   // Lock background scroll when modal is open
   useEffect(() => {
@@ -115,7 +116,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
   // Load pre-filled project
   useEffect(() => {
     if (!projectId) return
-    supabase.from('projects').select('id,name,city,pm').eq('id', projectId).single().then(({ data }) => {
+    supabase.from('projects').select('id,name,city,pm').eq('id', projectId).single().then(({ data }: any) => {
       if (data) setSelectedProject(data as Project)
     })
   }, [projectId])
@@ -128,7 +129,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
       .or(`name.ilike.%${escapeIlike(q)}%,id.ilike.%${escapeIlike(q)}%,city.ilike.%${escapeIlike(q)}%`)
       .neq('stage', 'complete')
       .limit(8)
-      .then(({ data }) => { if (data) setProjectResults(data as Project[]) })
+      .then(({ data }: any) => { if (data) setProjectResults(data as Project[]) })
   }, [projectSearch])
 
   // Check conflict

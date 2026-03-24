@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import type { Project } from '@/types/database'
 
 interface BomItem {
@@ -97,7 +98,7 @@ function exportBomCSV(items: BomItem[], projectId: string) {
 interface Props { project: Project }
 
 export function BomTab({ project }: Props) {
-  const supabase = createClient()
+  const supabase = db()
   const [inputs, setInputs] = useState<BomInputs>({ arrayCount: 1, rowCount: 1, attachmentCount: 0, overrides: {} })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)

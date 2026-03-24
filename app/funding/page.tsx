@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import { Nav } from '@/components/Nav'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { fmt$, fmtDate, STAGE_LABELS } from '@/lib/utils'
@@ -323,7 +324,7 @@ export default function FundingPage() {
   const saveFundingField = async (projectId: string, field: string, value: string | number | null) => {
     if (!canEditFunding) return
     const update: Record<string, any> = { [field]: value }
-    const { error } = await (supabase as any).from('project_funding').upsert(
+    const { error } = await db().from('project_funding').upsert(
       { project_id: projectId, ...update },
       { onConflict: 'project_id' }
     )

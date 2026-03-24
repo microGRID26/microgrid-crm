@@ -368,142 +368,140 @@ export type Database = {
         Row: Project
         Insert: Partial<Project> & { id: string }
         Update: Partial<Project>
-        Relationships: []
+
       }
       notes: {
         Row: Note
         Insert: Omit<Note, 'id'> & { id?: string }
         Update: Partial<Note>
-        Relationships: []
+
       }
       task_state: {
         Row: TaskState
         Insert: TaskState
         Update: Partial<TaskState>
-        Relationships: []
+
       }
       stage_history: {
         Row: StageHistory
         Insert: Omit<StageHistory, 'id'> & { id?: string }
         Update: Partial<StageHistory>
-        Relationships: []
+
       }
       task_history: {
         Row: TaskHistory
         Insert: Omit<TaskHistory, 'id'> & { id?: string }
         Update: Partial<TaskHistory>
-        Relationships: []
+
       }
       crews: {
         Row: Crew
         Insert: Omit<Crew, 'id'> & { id?: string }
         Update: Partial<Crew>
-        Relationships: []
+
       }
       schedule: {
         Row: Schedule
         Insert: Omit<Schedule, 'id'> & { id?: string }
         Update: Partial<Schedule>
-        Relationships: []
+
       }
       project_funding: {
         Row: ProjectFunding
         Insert: ProjectFunding
         Update: Partial<ProjectFunding>
-        Relationships: []
+
       }
       project_folders: {
         Row: ProjectFolder
         Insert: ProjectFolder
         Update: Partial<ProjectFolder>
-        Relationships: []
+
       }
       service_calls: {
         Row: ServiceCall
         Insert: Omit<ServiceCall, 'id'> & { id?: string }
         Update: Partial<ServiceCall>
-        Relationships: []
+
       }
       ahjs: {
         Row: AHJ
         Insert: Omit<AHJ, 'id'> & { id?: string }
         Update: Partial<AHJ>
-        Relationships: []
+
       }
       utilities: {
         Row: Utility
         Insert: Omit<Utility, 'id'> & { id?: string }
         Update: Partial<Utility>
-        Relationships: []
+
       }
       hoas: {
         Row: HOA
         Insert: Omit<HOA, 'id'> & { id?: string }
         Update: Partial<HOA>
-        Relationships: []
+
       }
       users: {
         Row: User
         Insert: Omit<User, 'id'> & { id?: string }
         Update: Partial<User>
-        Relationships: []
+
       }
       sla_thresholds: {
         Row: SLAThreshold
         Insert: SLAThreshold
         Update: Partial<SLAThreshold>
-        Relationships: []
+
       }
       nonfunded_codes: {
         Row: NonfundedCode
         Insert: NonfundedCode
         Update: Partial<NonfundedCode>
-        Relationships: []
+
       }
       audit_log: {
         Row: AuditLog
         Insert: Omit<AuditLog, 'id' | 'changed_at'> & { id?: number; changed_at?: string }
         Update: Partial<AuditLog>
-        Relationships: []
+
       }
       change_orders: {
         Row: ChangeOrder
         Insert: Omit<ChangeOrder, 'id'> & { id?: number }
         Update: Partial<ChangeOrder>
-        Relationships: []
+
       }
       feedback: {
         Row: Feedback
         Insert: Omit<Feedback, 'id' | 'status' | 'created_at'> & { id?: number; status?: string; created_at?: string }
         Update: Partial<Feedback>
-        Relationships: []
+
       }
       user_sessions: {
         Row: UserSession
         Insert: Omit<UserSession, 'id'> & { id?: string }
         Update: Partial<UserSession>
-        Relationships: []
+
       }
       mention_notifications: {
         Row: MentionNotification
         Insert: Omit<MentionNotification, 'id' | 'read' | 'created_at'> & { id?: string; read?: boolean; created_at?: string }
         Update: Partial<MentionNotification>
-        Relationships: []
+
       }
       project_adders: {
         Row: ProjectAdder
         Insert: Omit<ProjectAdder, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<ProjectAdder>
-        Relationships: []
+
       }
       project_boms: {
         Row: ProjectBom
         Insert: ProjectBom
         Update: Partial<ProjectBom>
-        Relationships: []
+
       }
     }
-    Views: {}
-    Functions: {}
   }
 }

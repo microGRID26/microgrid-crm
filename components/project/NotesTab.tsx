@@ -4,6 +4,7 @@ import type { Note } from '@/types/database'
 import React, { useState, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 
 // Detect file references in note text and make them clickable
 // Links to Google Drive search scoped to the project folder
@@ -72,8 +73,7 @@ function MentionTextarea({ value, onChange, onSubmit, placeholder }: {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    const supabase = createClient()
-    ;supabase.from('users').select('id, name').eq('active', true).like('email', '%@gomicrogridenergy.com').order('name')
+    db().from('users').select('id, name').eq('active', true).like('email', '%@gomicrogridenergy.com').order('name')
       .then(({ data }: any) => { if (data) setUsers(data) })
   }, [])
 
@@ -164,14 +164,14 @@ export function NotesTab({ notes, newNote, setNewNote, addNote, deleteNote, savi
     // Extract @mentions and create notifications
     const mentions = newNote.match(/@[A-Z][a-z]+ [A-Z][a-z]+/g)
     if (mentions && projectId) {
-      const supabase = createClient()
-      const { data: users } = await supabase.from('users').select('id, name').eq('active', true)
+      const write = db()
+      const { data: users } = await write.from('users').select('id, name').eq('active', true)
       if (users) {
         for (const mention of mentions) {
           const name = mention.slice(1).trim()
           const user = users.find((u: any) => u.name.toLowerCase() === name.toLowerCase())
           if (user) {
-            const { error: mentionErr } = await supabase.from('mention_notifications').insert({
+            const { error: mentionErr } = await write.from('mention_notifications').insert({
               project_id: projectId,
               mentioned_user_id: user.id,
               mentioned_by: currentUserName || 'Unknown',

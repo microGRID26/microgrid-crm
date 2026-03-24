@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import { escapeIlike } from '@/lib/utils'
 
 interface Props {
@@ -29,7 +30,7 @@ function AutocompleteInput({ value, onChange, table, placeholder, className }: {
   placeholder?: string
   className?: string
 }) {
-  const supabase = createClient()
+  const supabase = db()
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [open, setOpen] = useState(false)
   const [focused, setFocused] = useState(false)
@@ -83,7 +84,7 @@ function AutocompleteInput({ value, onChange, table, placeholder, className }: {
 // ── Main Modal ────────────────────────────────────────────────────────────────
 
 export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props) {
-  const supabase = createClient()
+  const supabase = db()
 
   // Lock background scroll when modal is open
   useEffect(() => {

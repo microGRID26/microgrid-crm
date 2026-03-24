@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import { useCurrentUser } from './useCurrentUser'
 
 export interface Notification {
@@ -142,8 +143,7 @@ export function useNotifications() {
     // Mark in DB for mention notifications
     if (id.startsWith('mention-')) {
       const dbId = id.replace('mention-', '')
-      const supabase = createClient()
-      ;supabase.from('mention_notifications').update({ read: true }).eq('id', dbId)
+      db().from('mention_notifications').update({ read: true }).eq('id', dbId)
     }
   }
 
@@ -155,8 +155,7 @@ export function useNotifications() {
     // DB — mark all mention notifications as read
     const mentionIds = notifications.filter(n => n.id.startsWith('mention-')).map(n => n.id.replace('mention-', ''))
     if (mentionIds.length > 0) {
-      const supabase = createClient()
-      ;supabase.from('mention_notifications').update({ read: true }).in('id', mentionIds)
+      db().from('mention_notifications').update({ read: true }).in('id', mentionIds)
     }
   }
 

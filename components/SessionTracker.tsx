@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 
 const SESSION_KEY = 'microgrid_session_id'
@@ -17,7 +18,7 @@ export function SessionTracker() {
     if (loading || initialized.current) return
 
     // Use user from hook, or fall back to auth session directly
-    const supabase = createClient()
+    const supabase = db()
 
     async function init() {
       let userId = user?.id
@@ -87,7 +88,7 @@ export function SessionTracker() {
       }
     }
 
-    function startHeartbeat(sb: ReturnType<typeof createClient>, sid: string) {
+    function startHeartbeat(sb: ReturnType<typeof db>, sid: string) {
       const path = typeof window !== 'undefined' ? window.location.pathname : '/'
       localStorage.setItem(SESSION_TS_KEY, String(Date.now()))
       sb.from('user_sessions').update({ last_active_at: new Date().toISOString(), page: path }).eq('id', sid)

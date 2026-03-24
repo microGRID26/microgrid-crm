@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import { fmt$, fmtDate, daysAgo, STAGE_LABELS, STAGE_ORDER, escapeIlike } from '@/lib/utils'
 import { TASKS, TASK_STATUSES, STATUS_STYLE, PENDING_REASONS, REVISION_REASONS, ALL_TASKS_MAP, ALL_TASKS_FLAT, TASK_TO_STAGE, TASK_DATE_FIELDS, getSameStageDownstream, isTaskRequired } from '@/lib/tasks'
 import { useCurrentUser } from '@/lib/useCurrentUser'
@@ -109,7 +110,7 @@ function AutocompleteRow({ label, field, value, draft, editing, onChange, table,
   searchCol?: string
   onClickValue?: () => void
 }) {
-  const supabase = createClient()
+  const supabase = db()
   const current = field in draft ? draft[field] : value
   const [query, setQuery] = useState(current ?? '')
   const [suggestions, setSuggestions] = useState<string[]>([])
@@ -277,7 +278,7 @@ interface ProjectPanelProps {
 }
 
 export function ProjectPanel({ project: initialProject, onClose, onProjectUpdated, initialTab }: ProjectPanelProps) {
-  const supabase = createClient()
+  const supabase = db()
   const { user: currentUser } = useCurrentUser()
   const [project, setProject] = useState<Project>(initialProject)
   const [tab, setTab] = useState<'tasks' | 'notes' | 'info' | 'bom' | 'files'>(initialTab ?? 'tasks')
@@ -504,14 +505,14 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
   }, [pid])
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? ''))
+    supabase.auth.getUser().then(({ data }: any) => setUserEmail(data.user?.email ?? ''))
   }, [])
 
   useEffect(() => {
     setProject(initialProject)
     setBlockerInput(initialProject.blocker ?? '')
     // Fetch full project data (parent pages may pass trimmed columns from optimized queries)
-    supabase.from('projects').select('*').eq('id', initialProject.id).single().then(({ data }) => {
+    supabase.from('projects').select('*').eq('id', initialProject.id).single().then(({ data }: any) => {
       if (data) {
         setProject(data as Project)
         setBlockerInput((data as Project).blocker ?? '')
@@ -655,7 +656,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       const dateClearUpdates: Record<string, null> = {}
       for (const id of cascadeResets) {
         const df = TASK_DATE_FIELDS[id]
-        if (df && (project as Record<string, unknown>)[df]) dateClearUpdates[df] = null
+        if (df && (project as unknown as Record<string, unknown>)[df]) dateClearUpdates[df] = null
       }
       if (Object.keys(dateClearUpdates).length > 0) {
         const { error: dateClearErr } = await supabase.from('projects').update(dateClearUpdates).eq('id', pid)
@@ -709,7 +710,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     // Only set if the field is currently empty — never overwrite manual entries
     if (status === 'Complete') {
       const dateField = TASK_DATE_FIELDS[taskId]
-      if (dateField && !(project as Record<string, unknown>)[dateField]) {
+      if (dateField && !(project as unknown as Record<string, unknown>)[dateField]) {
         const { error: dateSetErr } = await supabase.from('projects').update({ [dateField]: today }).eq('id', pid)
         if (dateSetErr) console.error('auto-populate date failed:', dateSetErr)
         setProject(p => ({ ...p, [dateField]: today }))
@@ -719,7 +720,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     // ── Auto-clear project date when task is un-completed ────────────────
     if (status !== 'Complete' && !cascadeResets) {
       const dateField = TASK_DATE_FIELDS[taskId]
-      if (dateField && (project as Record<string, unknown>)[dateField]) {
+      if (dateField && (project as unknown as Record<string, unknown>)[dateField]) {
         const { error: dateClearErr2 } = await supabase.from('projects').update({ [dateField]: null }).eq('id', pid)
         if (dateClearErr2) console.error('auto-clear date failed:', dateClearErr2)
         setProject(p => ({ ...p, [dateField]: null }))
@@ -973,11 +974,11 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
 
     // Audit log: record each changed field
     const auditEntries = Object.entries(editDraft)
-      .filter(([key, val]) => String(val ?? '') !== String((project as Record<string, unknown>)[key] ?? ''))
+      .filter(([key, val]) => String(val ?? '') !== String((project as unknown as Record<string, unknown>)[key] ?? ''))
       .map(([key, val]) => ({
         project_id: pid,
         field: key,
-        old_value: (project as Record<string, unknown>)[key] != null ? String((project as Record<string, unknown>)[key]) : null,
+        old_value: (project as unknown as Record<string, unknown>)[key] != null ? String((project as unknown as Record<string, unknown>)[key]) : null,
         new_value: val != null ? String(val) : null,
         changed_by: currentUser?.name ?? null,
         changed_by_id: currentUser?.id ?? null,

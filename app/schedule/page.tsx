@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import { Nav } from '@/components/Nav'
 import { ScheduleAssignModal } from '@/components/project/ScheduleAssignModal'
 import { JobBriefPanel } from '@/components/project/JobBriefPanel'
@@ -146,7 +147,7 @@ export default function SchedulePage() {
     return map
   }, [schedule])
 
-  function jobsFor(crewId: string, date: string): Schedule[] {
+  function jobsFor(crewId: string, date: string): ScheduleWithProject[] {
     const all = schedMap[`${crewId}|${date}`] ?? []
     let filtered = all
     // Hide cancelled jobs unless toggled on
@@ -219,19 +220,19 @@ export default function SchedulePage() {
 
     for (const job of dayJobs) {
       // Update schedule status
-      const { error: schedErr } = await supabase.from('schedule').update({ status: 'complete' }).eq('id', job.id)
+      const { error: schedErr } = await db().from('schedule').update({ status: 'complete' }).eq('id', job.id)
       if (schedErr) { console.error('batch schedule update failed:', schedErr); continue }
 
       // Task sync
       const taskId = JOB_TO_TASK[job.job_type]
       if (taskId && job.project_id) {
         try {
-          await supabase.from('task_state').upsert({
+          await db().from('task_state').upsert({
             project_id: job.project_id, task_id: taskId,
             status: 'Complete', completed_date: today, started_date: today,
           }, { onConflict: 'project_id,task_id' })
 
-          await supabase.from('task_history').insert({
+          await db().from('task_history').insert({
             project_id: job.project_id, task_id: taskId,
             status: 'Complete', changed_by: 'Crew (batch complete)',
           })
@@ -239,8 +240,8 @@ export default function SchedulePage() {
           const dateField = TASK_DATE[taskId]
           if (dateField) {
             const { data: proj } = await supabase.from('projects').select(dateField).eq('id', job.project_id).single()
-            if (proj && !(proj as any)[dateField]) {
-              await supabase.from('projects').update({ [dateField]: today }).eq('id', job.project_id)
+            if (proj && !(proj as Record<string, unknown>)[dateField]) {
+              await db().from('projects').update({ [dateField]: today }).eq('id', job.project_id)
             }
           }
         } catch (e) {
@@ -372,7 +373,7 @@ export default function SchedulePage() {
                         const statusInfo = STATUS_COLORS[job.status] ?? STATUS_COLORS.scheduled
                         const isCancelled = job.status === 'cancelled'
                         const projectData = job.project
-                        const pmName = projectData?.pm ?? job.pm
+                        const pmName = job.pm
                         return (
                           <div
                             key={job.id}

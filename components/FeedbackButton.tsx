@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { cn } from '@/lib/utils'
 import { MessageSquarePlus, X } from 'lucide-react'
@@ -37,8 +38,7 @@ export function FeedbackButton() {
   const submit = async () => {
     if (!message.trim()) return
     setSubmitting(true)
-    const supabase = createClient()
-    const { error } = await supabase.from('feedback').insert({
+    const { error } = await db().from('feedback').insert({
       user_name: user?.name ?? 'Unknown',
       user_email: user?.email ?? '',
       type,

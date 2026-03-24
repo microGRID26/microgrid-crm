@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import { cn, fmtDate, fmt$, escapeIlike } from '@/lib/utils'
 import { Nav } from '@/components/Nav'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
@@ -428,7 +429,7 @@ function ChangeOrderDetailPanel({ order, users, currentUser, onClose, onUpdated,
 
   async function updateField(field: string, value: any) {
     const updates = { [field]: value, updated_at: new Date().toISOString() }
-    const { error } = await (supabase as any).from('change_orders').update(updates).eq('id', co.id)
+    const { error } = await db().from('change_orders').update(updates).eq('id', co.id)
     if (error) {
       console.error('change_orders update failed:', error)
       showToast('Save failed')
@@ -460,7 +461,7 @@ function ChangeOrderDetailPanel({ order, users, currentUser, onClose, onUpdated,
       updates.status = 'Open'
     }
 
-    const { error } = await (supabase as any).from('change_orders').update(updates).eq('id', co.id)
+    const { error } = await db().from('change_orders').update(updates).eq('id', co.id)
     if (error) {
       console.error('Failed to update workflow step:', error)
       return
@@ -748,7 +749,7 @@ function NewChangeOrderModal({ users, currentUser, onClose, onCreated }: {
       original_panel_type: p.module ?? null,
       original_system_size: p.systemkw ?? null,
     }
-    const { data, error } = await (supabase as any).from('change_orders').insert(payload).select('*, project:projects(name, city, pm, pm_id)').single()
+    const { data, error } = await db().from('change_orders').insert(payload).select('*, project:projects(name, city, pm, pm_id)').single()
     setSaving(false)
     if (data) {
       onCreated(data as ChangeOrder)

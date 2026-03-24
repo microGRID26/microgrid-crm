@@ -46,7 +46,7 @@ export function useCurrentUser() {
     supabase.auth.getUser().then(async ({ data }) => {
       const email = data.user?.email
       if (!email) { setLoading(false); return }
-      const { data: u } = await supabase
+      const { data: u } = await (supabase as any)
         .from('users').select('id, name, email, role')
         .eq('email', email).single()
       const resolved: CurrentUser = u
