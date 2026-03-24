@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { db } from '@/lib/db'
 import { Nav } from '@/components/Nav'
 import { useCurrentUser } from '@/lib/useCurrentUser'
-import { fmt$, fmtDate, STAGE_LABELS } from '@/lib/utils'
+import { fmt$, fmtDate, daysAgo, STAGE_LABELS } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import type { Project, ProjectFunding, NonfundedCode } from '@/types/database'
 
@@ -296,6 +296,8 @@ export default function FundingPage() {
     if (typeof window === 'undefined') return true
     return localStorage.getItem('mg_funding_guide_v3') !== 'dismissed'
   })
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ readyToSubmit: true, awaitingPayment: true, needsAttention: true })
+  const toggleBucket = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
 
   const loadData = useCallback(async () => {
     const [projRes, fundRes, nfRes] = await Promise.all([
@@ -425,6 +427,34 @@ export default function FundingPage() {
     }
   }, [rows])
 
+  // Task-based sections computed from rows
+  const readyToSubmit = useMemo(() => {
+    const items: { row: FundingRow; milestone: 'm2' | 'm3'; data: MsData }[] = []
+    rows.forEach(r => {
+      if (r.m2.status === 'Ready To Start') items.push({ row: r, milestone: 'm2', data: r.m2 })
+      if (r.m3.status === 'Ready To Start') items.push({ row: r, milestone: 'm3', data: r.m3 })
+    })
+    return items
+  }, [rows])
+
+  const awaitingPayment = useMemo(() => {
+    const items: { row: FundingRow; milestone: 'm2' | 'm3'; data: MsData }[] = []
+    rows.forEach(r => {
+      if (r.m2.status === 'Submitted') items.push({ row: r, milestone: 'm2', data: r.m2 })
+      if (r.m3.status === 'Submitted') items.push({ row: r, milestone: 'm3', data: r.m3 })
+    })
+    return items
+  }, [rows])
+
+  const needsAttention = useMemo(() => {
+    const items: { row: FundingRow; milestone: 'm2' | 'm3'; data: MsData }[] = []
+    rows.forEach(r => {
+      if (r.m2.status === 'Pending Resolution' || r.m2.status === 'Revision Required') items.push({ row: r, milestone: 'm2', data: r.m2 })
+      if (r.m3.status === 'Pending Resolution' || r.m3.status === 'Revision Required') items.push({ row: r, milestone: 'm3', data: r.m3 })
+    })
+    return items
+  }, [rows])
+
   if (loading) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
       <div className="text-green-400 text-sm animate-pulse">Loading funding...</div>
@@ -538,6 +568,123 @@ export default function FundingPage() {
         <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search projects..."
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5 w-48" />
       </div>
+
+      {/* Task-based sections */}
+      {(readyToSubmit.length > 0 || awaitingPayment.length > 0 || needsAttention.length > 0) && (
+        <div className="px-4 py-3 space-y-3 flex-shrink-0 border-b border-gray-800">
+
+          {readyToSubmit.length > 0 && (
+            <div className="bg-amber-950/30 border border-amber-900/50 rounded-xl p-4">
+              <button onClick={() => toggleBucket('readyToSubmit')} className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2 w-full text-left hover:text-amber-300 transition-colors">
+                <span className="text-[10px]">{collapsed.readyToSubmit ? '▸' : '▾'}</span>
+                Ready to Submit ({readyToSubmit.length})
+              </button>
+              {!collapsed.readyToSubmit && (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                  {readyToSubmit.map(item => (
+                    <div
+                      key={`${item.row.project.id}-${item.milestone}`}
+                      onClick={() => setSelectedProject(item.row.project)}
+                      className="bg-gray-800/80 hover:bg-gray-700 border border-gray-700 rounded-lg p-3 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-white text-sm truncate">{item.row.project.name}</span>
+                        <span className="bg-amber-900 text-amber-300 text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0">{item.milestone.toUpperCase()}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                        <span>{item.row.project.id}</span>
+                        <span>·</span>
+                        <span>{item.row.project.financier ?? '—'}</span>
+                        {item.data.amount && <><span>·</span><span className="text-amber-300 font-mono">{fmt$(item.data.amount)}</span></>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {awaitingPayment.length > 0 && (
+            <div className="bg-blue-950/30 border border-blue-900/50 rounded-xl p-4">
+              <button onClick={() => toggleBucket('awaitingPayment')} className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2 w-full text-left hover:text-blue-300 transition-colors">
+                <span className="text-[10px]">{collapsed.awaitingPayment ? '▸' : '▾'}</span>
+                Submitted — Awaiting Payment ({awaitingPayment.length})
+              </button>
+              {!collapsed.awaitingPayment && (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                  {awaitingPayment.map(item => {
+                    // Use install_complete_date for M2, pto_date for M3 as proxy for submission timing
+                    const proxyDate = item.milestone === 'm2' ? item.row.project.install_complete_date : item.row.project.pto_date
+                    const daysSince = proxyDate ? daysAgo(proxyDate) : 0
+                    return (
+                      <div
+                        key={`${item.row.project.id}-${item.milestone}`}
+                        onClick={() => setSelectedProject(item.row.project)}
+                        className="bg-gray-800/80 hover:bg-gray-700 border border-gray-700 rounded-lg p-3 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-white text-sm truncate">{item.row.project.name}</span>
+                          <span className="bg-blue-900 text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0">{item.milestone.toUpperCase()}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <span>{item.row.project.id}</span>
+                          <span>·</span>
+                          <span>{item.row.project.financier ?? '—'}</span>
+                          {item.data.amount && <><span>·</span><span className="text-blue-300 font-mono">{fmt$(item.data.amount)}</span></>}
+                          {daysSince > 0 && <><span>·</span><span className="text-blue-300">{daysSince}d waiting</span></>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {needsAttention.length > 0 && (
+            <div className="bg-red-950/30 border border-red-900/50 rounded-xl p-4">
+              <button onClick={() => toggleBucket('needsAttention')} className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-2 w-full text-left hover:text-red-300 transition-colors">
+                <span className="text-[10px]">{collapsed.needsAttention ? '▸' : '▾'}</span>
+                Needs Attention ({needsAttention.length})
+              </button>
+              {!collapsed.needsAttention && (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                  {needsAttention.map(item => {
+                    const nfCodes_display = [item.row.nf1, item.row.nf2, item.row.nf3].filter(Boolean)
+                    return (
+                      <div
+                        key={`${item.row.project.id}-${item.milestone}`}
+                        onClick={() => setSelectedProject(item.row.project)}
+                        className="bg-gray-800/80 hover:bg-gray-700 border border-gray-700 rounded-lg p-3 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-white text-sm truncate">{item.row.project.name}</span>
+                          <span className="bg-red-900 text-red-300 text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0">{item.milestone.toUpperCase()}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <span>{item.row.project.id}</span>
+                          <span>·</span>
+                          <span>{item.row.project.financier ?? '—'}</span>
+                          <span>·</span>
+                          <span className={item.data.status === 'Pending Resolution' ? 'text-red-400' : 'text-amber-400'}>{item.data.status === 'Pending Resolution' ? 'Pending' : 'Revision'}</span>
+                        </div>
+                        {nfCodes_display.length > 0 && (
+                          <div className="flex items-center gap-1 mt-1.5">
+                            {nfCodes_display.map(code => (
+                              <span key={code} className="bg-red-900/50 text-red-300 text-[10px] px-1 py-0.5 rounded">{code}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+      )}
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
