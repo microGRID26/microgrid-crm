@@ -17,33 +17,42 @@ interface LegacyProject {
   city: string | null
   state: string | null
   zip: string | null
-  system_size: number | null
+  systemkw: number | null
   module: string | null
+  module_qty: number | null
   inverter: string | null
+  inverter_qty: number | null
   battery: string | null
-  voltage: number | null
-  msp: string | null
-  contract_value: number | null
+  battery_qty: number | null
+  voltage: string | null
+  msp_bus_rating: string | null
+  main_breaker: string | null
+  contract: number | null
   financier: string | null
   financing_type: string | null
   dealer: string | null
+  advisor: string | null
+  consultant: string | null
+  pm: string | null
   sale_date: string | null
   survey_date: string | null
   install_date: string | null
   pto_date: string | null
   in_service_date: string | null
+  disposition: string | null
   ahj: string | null
   utility: string | null
+  hoa: string | null
   permit_number: string | null
   utility_app_number: string | null
+  crew: string | null
   m2_amount: number | null
   m2_date: string | null
   m3_amount: number | null
   m3_date: string | null
-  status: string | null
 }
 
-type SortCol = 'id' | 'name' | 'city' | 'system_size' | 'financier' | 'install_date' | 'status'
+type SortCol = 'id' | 'name' | 'city' | 'systemkw' | 'financier' | 'install_date' | 'disposition'
 
 const PAGE_SIZE = 50
 
@@ -193,10 +202,10 @@ export default function LegacyPage() {
                   ['id', 'ID'],
                   ['name', 'Name'],
                   ['city', 'City'],
-                  ['system_size', 'System (kW)'],
+                  ['systemkw', 'System (kW)'],
                   ['financier', 'Financier'],
                   ['install_date', 'Install Date'],
-                  ['status', 'Status'],
+                  ['disposition', 'Status'],
                 ] as [SortCol, string][]).map(([col, label]) => (
                   <th
                     key={col}
@@ -235,17 +244,17 @@ export default function LegacyPage() {
                     <td className="px-4 py-3 text-green-400 font-mono text-xs">{p.id}</td>
                     <td className="px-4 py-3 text-white font-medium">{p.name ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-300">{p.city ?? '—'}</td>
-                    <td className="px-4 py-3 text-gray-300">{p.system_size ? `${p.system_size} kW` : '—'}</td>
+                    <td className="px-4 py-3 text-gray-300">{p.systemkw ? `${p.systemkw} kW` : '—'}</td>
                     <td className="px-4 py-3 text-gray-300">{p.financier ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-300">{fmtDate(p.install_date)}</td>
                     <td className="px-4 py-3">
                       <span className={cn(
                         'text-xs px-2 py-0.5 rounded-full',
-                        p.status === 'In Service' ? 'bg-green-900 text-green-300' :
-                        p.status === 'Complete' ? 'bg-blue-900 text-blue-300' :
+                        p.disposition === 'In Service' ? 'bg-green-900 text-green-300' :
+                        p.disposition === 'Complete' ? 'bg-blue-900 text-blue-300' :
                         'bg-gray-700 text-gray-300'
                       )}>
-                        {p.status ?? '—'}
+                        {p.disposition ?? '—'}
                       </span>
                     </td>
                   </tr>
@@ -299,14 +308,15 @@ function DetailPanel({ project: p, onClose }: { project: LegacyProject; onClose:
             <Field label="Module" value={p.module} />
             <Field label="Inverter" value={p.inverter} />
             <Field label="Battery" value={p.battery} />
-            <Field label="System Size" value={p.system_size ? `${p.system_size} kW` : null} />
+            <Field label="System Size" value={p.systemkw ? `${p.systemkw} kW` : null} />
             <Field label="Voltage" value={p.voltage ? `${p.voltage}V` : null} />
-            <Field label="MSP" value={p.msp} />
+            <Field label="MSP Bus Rating" value={p.msp_bus_rating} />
+            <Field label="Main Breaker" value={p.main_breaker} />
           </Section>
 
           {/* Financial */}
           <Section title="Financial">
-            <Field label="Contract Value" value={p.contract_value ? fmt$(p.contract_value) : null} />
+            <Field label="Contract Value" value={p.contract ? fmt$(p.contract) : null} />
             <Field label="Financier" value={p.financier} />
             <Field label="Financing Type" value={p.financing_type} />
             <Field label="Dealer" value={p.dealer} />
