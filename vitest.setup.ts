@@ -49,6 +49,7 @@ export function createMockSupabase() {
       signInWithOAuth: vi.fn(() => Promise.resolve({ data: {}, error: null })),
       signOut: vi.fn(() => Promise.resolve({ error: null })),
       exchangeCodeForSession: vi.fn(() => Promise.resolve({ data: {}, error: null })),
+      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
     },
     channel: vi.fn(() => ({
       on: vi.fn().mockReturnThis(),

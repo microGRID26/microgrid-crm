@@ -112,7 +112,10 @@ export function useNotifications() {
     notifs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
     // Read state from localStorage
-    const readIds = JSON.parse(localStorage.getItem('mg_notif_read') || '[]') as string[]
+    let readIds: string[] = []
+    try {
+      readIds = JSON.parse(localStorage.getItem('mg_notif_read') || '[]')
+    } catch { readIds = [] }
     notifs.forEach(n => { if (readIds.includes(n.id)) n.read = true })
 
     setNotifications(notifs)
@@ -133,7 +136,10 @@ export function useNotifications() {
   const markRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
     // Mark in localStorage — cap at 100 most recent IDs
-    const readIds = JSON.parse(localStorage.getItem('mg_notif_read') || '[]') as string[]
+    let readIds: string[] = []
+    try {
+      readIds = JSON.parse(localStorage.getItem('mg_notif_read') || '[]')
+    } catch { readIds = [] }
     if (!readIds.includes(id)) {
       readIds.push(id)
       localStorage.setItem('mg_notif_read', JSON.stringify(readIds.slice(-100)))
@@ -141,7 +147,7 @@ export function useNotifications() {
     // Fire-and-forget DB update for mention notifications
     if (id.startsWith('mention-')) {
       const dbId = id.replace('mention-', '')
-      db().from('mention_notifications').update({ read: true }).eq('id', dbId).then()
+      db().from('mention_notifications').update({ read: true }).eq('id', dbId).then(() => {}, (err: unknown) => console.error('Failed to mark notification read:', err))
     }
   }
 
@@ -155,7 +161,7 @@ export function useNotifications() {
       .filter(n => !n.read && n.id.startsWith('mention-'))
       .map(n => n.id.replace('mention-', ''))
     if (mentionIds.length > 0) {
-      db().from('mention_notifications').update({ read: true }).in('id', mentionIds).then()
+      db().from('mention_notifications').update({ read: true }).in('id', mentionIds).then(() => {}, (err: unknown) => console.error('Failed to mark notifications read:', err))
     }
   }
 

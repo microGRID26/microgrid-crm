@@ -41,8 +41,18 @@ export function useCurrentUser() {
   const [loading, setLoading] = useState(!cached)
 
   useEffect(() => {
-    if (cached) return
     const supabase = createClient()
+
+    // Clear cache on sign out
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        cached = null
+        setUser(null)
+      }
+    })
+
+    if (cached) return () => subscription.unsubscribe()
+
     supabase.auth.getUser().then(async ({ data }) => {
       const email = data.user?.email
       if (!email) { setLoading(false); return }
@@ -59,6 +69,8 @@ export function useCurrentUser() {
       console.error('useCurrentUser: failed to load user', err)
       setLoading(false)
     })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   return { user, loading }

@@ -88,9 +88,16 @@ export function useBulkSelect(allProjects: Project[]) {
 
 // ── Selection Checkbox ────────────────────────────────────────────────────────
 
-export function SelectCheckbox({ selected }: { selected: boolean }) {
+export function SelectCheckbox({ selected, onToggle }: { selected: boolean; onToggle?: () => void }) {
   return (
-    <div className="absolute top-1.5 right-1.5 z-10">
+    <div
+      role="checkbox"
+      aria-checked={selected}
+      aria-label="Select project"
+      tabIndex={0}
+      onKeyDown={onToggle ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle() } }) : undefined}
+      className="absolute top-1.5 right-1.5 z-10"
+    >
       {selected
         ? <CheckSquare className="w-4 h-4 text-green-400" />
         : <Square className="w-4 h-4 text-gray-600" />
@@ -103,14 +110,15 @@ export function SelectCheckbox({ selected }: { selected: boolean }) {
 
 async function logAudit(projectId: string, field: string, oldValue: string | null, newValue: string | null, currentUser: CurrentUser | null) {
   const supabase = createClient()
-  await (supabase as any).from('audit_log').insert({
+  const { error } = await (supabase as any).from('audit_log').insert({
     project_id: projectId,
     field,
     old_value: oldValue,
     new_value: newValue,
-    changed_by: currentUser?.name ?? null,
+    changed_by: currentUser?.name ?? currentUser?.email?.split('@')[0] ?? 'unknown',
     changed_by_id: currentUser?.id ?? null,
   })
+  if (error) console.error('Audit log failed:', error)
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -139,6 +147,7 @@ export function BulkActionBar({
   const [bulkAction, setBulkAction] = useState<BulkAction>(null)
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null)
+  const [executing, setExecuting] = useState(false)
 
   // Form state
   const [bulkPmId, setBulkPmId] = useState('')
@@ -169,14 +178,29 @@ export function BulkActionBar({
     if (!pm || selectedProjects.length === 0) return
 
     setBulkAction(null)
+    setExecuting(true)
     setBulkProgress({ current: 0, total: selectedProjects.length, action: 'Reassigning PM' })
 
-    for (let i = 0; i < selectedProjects.length; i++) {
-      const proj = selectedProjects[i]
-      setBulkProgress({ current: i + 1, total: selectedProjects.length, action: 'Reassigning PM' })
-      await updateProject(proj.id, { pm: pm.name, pm_id: pm.id })
-      await logAudit(proj.id, 'pm', proj.pm, pm.name, currentUser)
-      await logAudit(proj.id, 'pm_id', proj.pm_id, pm.id, currentUser)
+    const failures: string[] = []
+    try {
+      for (let i = 0; i < selectedProjects.length; i++) {
+        const proj = selectedProjects[i]
+        setBulkProgress({ current: i + 1, total: selectedProjects.length, action: 'Reassigning PM' })
+        try {
+          await logAudit(proj.id, 'pm', proj.pm, pm.name, currentUser)
+          await logAudit(proj.id, 'pm_id', proj.pm_id, pm.id, currentUser)
+          await updateProject(proj.id, { pm: pm.name, pm_id: pm.id })
+        } catch (err) {
+          console.error(`Failed to update ${proj.id}:`, err)
+          failures.push(proj.id)
+        }
+      }
+    } finally {
+      setExecuting(false)
+    }
+
+    if (failures.length > 0) {
+      alert(`${failures.length} projects failed to update: ${failures.join(', ')}`)
     }
 
     setBulkProgress(null)
@@ -190,14 +214,30 @@ export function BulkActionBar({
     if (selectedProjects.length === 0) return
 
     setBulkAction(null)
+    setExecuting(true)
     const blocker = bulkBlockerText.trim() || null
-    setBulkProgress({ current: 0, total: selectedProjects.length, action: blocker ? 'Setting blocker' : 'Clearing blockers' })
+    const actionLabel = blocker ? 'Setting blocker' : 'Clearing blockers'
+    setBulkProgress({ current: 0, total: selectedProjects.length, action: actionLabel })
 
-    for (let i = 0; i < selectedProjects.length; i++) {
-      const proj = selectedProjects[i]
-      setBulkProgress({ current: i + 1, total: selectedProjects.length, action: blocker ? 'Setting blocker' : 'Clearing blockers' })
-      await updateProject(proj.id, { blocker })
-      await logAudit(proj.id, 'blocker', proj.blocker, blocker, currentUser)
+    const failures: string[] = []
+    try {
+      for (let i = 0; i < selectedProjects.length; i++) {
+        const proj = selectedProjects[i]
+        setBulkProgress({ current: i + 1, total: selectedProjects.length, action: actionLabel })
+        try {
+          await logAudit(proj.id, 'blocker', proj.blocker, blocker, currentUser)
+          await updateProject(proj.id, { blocker })
+        } catch (err) {
+          console.error(`Failed to update ${proj.id}:`, err)
+          failures.push(proj.id)
+        }
+      }
+    } finally {
+      setExecuting(false)
+    }
+
+    if (failures.length > 0) {
+      alert(`${failures.length} projects failed to update: ${failures.join(', ')}`)
     }
 
     setBulkProgress(null)
@@ -216,13 +256,28 @@ export function BulkActionBar({
     if (!dispositionValid || selectedProjects.length === 0) return
 
     setBulkAction(null)
+    setExecuting(true)
     setBulkProgress({ current: 0, total: selectedProjects.length, action: 'Changing disposition' })
 
-    for (let i = 0; i < selectedProjects.length; i++) {
-      const proj = selectedProjects[i]
-      setBulkProgress({ current: i + 1, total: selectedProjects.length, action: 'Changing disposition' })
-      await updateProject(proj.id, { disposition: bulkDisposition })
-      await logAudit(proj.id, 'disposition', proj.disposition, bulkDisposition, currentUser)
+    const failures: string[] = []
+    try {
+      for (let i = 0; i < selectedProjects.length; i++) {
+        const proj = selectedProjects[i]
+        setBulkProgress({ current: i + 1, total: selectedProjects.length, action: 'Changing disposition' })
+        try {
+          await logAudit(proj.id, 'disposition', proj.disposition, bulkDisposition, currentUser)
+          await updateProject(proj.id, { disposition: bulkDisposition })
+        } catch (err) {
+          console.error(`Failed to update ${proj.id}:`, err)
+          failures.push(proj.id)
+        }
+      }
+    } finally {
+      setExecuting(false)
+    }
+
+    if (failures.length > 0) {
+      alert(`${failures.length} projects failed to update: ${failures.join(', ')}`)
     }
 
     setBulkProgress(null)
@@ -236,14 +291,29 @@ export function BulkActionBar({
     if (!bulkFollowUpDate || selectedProjects.length === 0) return
 
     setBulkAction(null)
+    setExecuting(true)
     const dateVal = bulkFollowUpDate || null
     setBulkProgress({ current: 0, total: selectedProjects.length, action: 'Setting follow-up date' })
 
-    for (let i = 0; i < selectedProjects.length; i++) {
-      const proj = selectedProjects[i]
-      setBulkProgress({ current: i + 1, total: selectedProjects.length, action: 'Setting follow-up date' })
-      await updateProject(proj.id, { follow_up_date: dateVal })
-      await logAudit(proj.id, 'follow_up_date', (proj as any).follow_up_date ?? null, dateVal, currentUser)
+    const failures: string[] = []
+    try {
+      for (let i = 0; i < selectedProjects.length; i++) {
+        const proj = selectedProjects[i]
+        setBulkProgress({ current: i + 1, total: selectedProjects.length, action: 'Setting follow-up date' })
+        try {
+          await logAudit(proj.id, 'follow_up_date', (proj as any).follow_up_date ?? null, dateVal, currentUser)
+          await updateProject(proj.id, { follow_up_date: dateVal })
+        } catch (err) {
+          console.error(`Failed to update ${proj.id}:`, err)
+          failures.push(proj.id)
+        }
+      }
+    } finally {
+      setExecuting(false)
+    }
+
+    if (failures.length > 0) {
+      alert(`${failures.length} projects failed to update: ${failures.join(', ')}`)
     }
 
     setBulkProgress(null)
@@ -285,7 +355,8 @@ export function BulkActionBar({
             <div className="relative">
               <button
                 onClick={() => setBulkAction(bulkAction === 'reassign' ? null : 'reassign')}
-                className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-md transition-colors ${
+                disabled={executing}
+                className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   bulkAction === 'reassign' ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-300 hover:text-white border border-gray-700'
                 }`}
               >
@@ -325,7 +396,8 @@ export function BulkActionBar({
             <div className="relative">
               <button
                 onClick={() => setBulkAction(bulkAction === 'blocker' ? null : 'blocker')}
-                className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-md transition-colors ${
+                disabled={executing}
+                className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   bulkAction === 'blocker' ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-300 hover:text-white border border-gray-700'
                 }`}
               >
@@ -374,7 +446,8 @@ export function BulkActionBar({
             <div className="relative">
               <button
                 onClick={() => setBulkAction(bulkAction === 'disposition' ? null : 'disposition')}
-                className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-md transition-colors ${
+                disabled={executing}
+                className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   bulkAction === 'disposition' ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-300 hover:text-white border border-gray-700'
                 }`}
               >
@@ -418,7 +491,8 @@ export function BulkActionBar({
             <div className="relative">
               <button
                 onClick={() => setBulkAction(bulkAction === 'followup' ? null : 'followup')}
-                className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-md transition-colors ${
+                disabled={executing}
+                className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   bulkAction === 'followup' ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-300 hover:text-white border border-gray-700'
                 }`}
               >
@@ -451,12 +525,26 @@ export function BulkActionBar({
                           `Clear follow-up dates on ${count} project${plural}?`,
                           async () => {
                             setBulkAction(null)
+                            setExecuting(true)
                             setBulkProgress({ current: 0, total: selectedProjects.length, action: 'Clearing follow-up dates' })
-                            for (let i = 0; i < selectedProjects.length; i++) {
-                              const proj = selectedProjects[i]
-                              setBulkProgress({ current: i + 1, total: selectedProjects.length, action: 'Clearing follow-up dates' })
-                              await updateProject(proj.id, { follow_up_date: null })
-                              await logAudit(proj.id, 'follow_up_date', (proj as any).follow_up_date ?? null, null, currentUser)
+                            const failures: string[] = []
+                            try {
+                              for (let i = 0; i < selectedProjects.length; i++) {
+                                const proj = selectedProjects[i]
+                                setBulkProgress({ current: i + 1, total: selectedProjects.length, action: 'Clearing follow-up dates' })
+                                try {
+                                  await logAudit(proj.id, 'follow_up_date', (proj as any).follow_up_date ?? null, null, currentUser)
+                                  await updateProject(proj.id, { follow_up_date: null })
+                                } catch (err) {
+                                  console.error(`Failed to update ${proj.id}:`, err)
+                                  failures.push(proj.id)
+                                }
+                              }
+                            } finally {
+                              setExecuting(false)
+                            }
+                            if (failures.length > 0) {
+                              alert(`${failures.length} projects failed to update: ${failures.join(', ')}`)
                             }
                             setBulkProgress(null)
                             clearQueryCache()

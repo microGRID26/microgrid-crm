@@ -6,7 +6,7 @@ import { Pagination } from '@/components/Pagination'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { useSupabaseQuery } from '@/lib/hooks'
 import { useCurrentUser } from '@/lib/useCurrentUser'
-import { cn, fmtDate } from '@/lib/utils'
+import { cn, fmtDate, escapeIlike } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import type { Project, AuditLog } from '@/types/database'
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
@@ -88,7 +88,7 @@ export default function AuditTrailPage() {
     const f: Record<string, any> = {}
 
     if (projectSearch.trim()) {
-      f.project_id = { ilike: `%${projectSearch.trim()}%` }
+      f.project_id = { ilike: `%${escapeIlike(projectSearch.trim())}%` }
     }
     if (fieldFilter) {
       f.field = fieldFilter

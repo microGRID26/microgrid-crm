@@ -108,8 +108,7 @@ const inflight = new Map<string, Promise<CacheEntry>>()
 const CACHE_TTL = 30_000
 
 function buildCacheKey(table: string, options: UseSupabaseQueryOptions): string {
-  return JSON.stringify({
-    table,
+  return table + '|' + JSON.stringify({
     select: options.select ?? '*',
     filters: options.filters,
     or: options.or,
@@ -151,6 +150,7 @@ export function useSupabaseQuery<T extends TableName>(
 
   const isPaginated = initialPage !== undefined
   const mountedRef = useRef(true)
+  const fetchIdRef = useRef(0)
 
   useEffect(() => {
     mountedRef.current = true
@@ -167,6 +167,7 @@ export function useSupabaseQuery<T extends TableName>(
     if (!enabled) return
 
     const cacheKey = optionsKey
+    const thisFetchId = ++fetchIdRef.current
 
     // Check cache — return immediately if fresh
     const cached = queryCache.get(cacheKey) as CacheEntry<Row> | undefined
@@ -178,25 +179,28 @@ export function useSupabaseQuery<T extends TableName>(
         setLoading(false)
         return
       }
-      // Stale — return cached data immediately, refetch in background
+      // Stale — return cached data immediately, trigger background refetch
       setData(cached.data)
       setTotalCount(cached.totalCount)
       setLoading(false)
+      setTimeout(() => fetchData(true), 0)
+      return
     }
 
     // Deduplicate: if same query is already in-flight, wait for it
+    // Don't overwrite the existing promise — reuse it
     const existing = inflight.get(cacheKey)
     if (existing) {
       try {
         const result = (await existing) as CacheEntry<Row>
-        if (mountedRef.current) {
+        if (mountedRef.current && fetchIdRef.current === thisFetchId) {
           setData(result.data)
           setTotalCount(result.totalCount)
           setLoading(false)
           setError(null)
         }
       } catch (e) {
-        if (mountedRef.current) {
+        if (mountedRef.current && fetchIdRef.current === thisFetchId) {
           setError(e instanceof Error ? e.message : 'Query failed')
           setLoading(false)
         }
@@ -232,7 +236,7 @@ export function useSupabaseQuery<T extends TableName>(
             query = query.in(field, value.in)
           } else if ('not_in' in value) {
             // Supabase doesn't have a direct not_in, use .not + .in
-            const vals = value.not_in.map(v => typeof v === 'string' ? `"${v}"` : v).join(',')
+            const vals = value.not_in.map(v => typeof v === 'string' ? `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : v).join(',')
             query = query.not(field, 'in', `(${vals})`)
           } else if ('ilike' in value) {
             query = query.ilike(field, value.ilike)
@@ -291,21 +295,21 @@ export function useSupabaseQuery<T extends TableName>(
 
     try {
       const result = await fetchPromise
-      if (mountedRef.current) {
+      if (mountedRef.current && fetchIdRef.current === thisFetchId) {
         setData(result.data)
         setTotalCount(result.totalCount)
         setError(null)
-        setLoading(false)
+        if (!background) setLoading(false)
       }
     } catch (e) {
-      if (mountedRef.current) {
+      if (mountedRef.current && fetchIdRef.current === thisFetchId) {
         setError(e instanceof Error ? e.message : 'Query failed')
-        setLoading(false)
+        if (!background) setLoading(false)
       }
     } finally {
       inflight.delete(cacheKey)
     }
-  }, [optionsKey, enabled, table, select, isPaginated, currentPage, pageSize, limit])
+  }, [optionsKey, enabled])
 
   // Initial fetch
   useEffect(() => {
@@ -316,7 +320,7 @@ export function useSupabaseQuery<T extends TableName>(
   const handleRealtimeChange = useCallback(() => {
     // Invalidate all cache entries for this table
     for (const key of queryCache.keys()) {
-      if (key.includes(`"table":"${table}"`)) {
+      if (key.startsWith(table + '|')) {
         queryCache.delete(key)
       }
     }

@@ -41,9 +41,10 @@ export async function loadTaskStates(projectIds?: string[]) {
     const allTasks: any[] = []
     for (let i = 0; i < projectIds.length; i += 100) {
       const chunk = projectIds.slice(i, i + 100)
-      const { data } = await supabase.from('task_state')
+      const { data, error } = await supabase.from('task_state')
         .select('project_id, task_id, status, reason, follow_up_date, completed_date')
         .in('project_id', chunk)
+      if (error) console.error('task_state batch failed:', error)
       if (data) allTasks.push(...data)
     }
     return { data: allTasks, error: null }

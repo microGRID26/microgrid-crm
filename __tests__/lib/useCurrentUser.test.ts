@@ -27,6 +27,7 @@ describe('useCurrentUser', () => {
             data: { user: { email: 'greg@gomicrogridenergy.com' } },
             error: null,
           })),
+          onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
         },
       }),
     }))
@@ -59,6 +60,7 @@ describe('useCurrentUser', () => {
             data: { user: { email: 'newuser@gomicrogridenergy.com' } },
             error: null,
           })),
+          onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
         },
       }),
     }))
@@ -84,6 +86,7 @@ describe('useCurrentUser', () => {
             data: { user: null },
             error: null,
           })),
+          onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
         },
       }),
     }))

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 
 type TableName = keyof Database['public']['Tables']
@@ -30,15 +31,28 @@ export function useRealtimeSubscription(table: TableName, options: RealtimeOptio
   const onChangeRef = useRef(onChange)
   useEffect(() => { onChangeRef.current = onChange }, [onChange])
 
+  const channelRef = useRef<RealtimeChannel | null>(null)
+
   const unsubscribe = useCallback(() => {
-    // Will be set by the effect cleanup
+    if (channelRef.current) {
+      const supabase = createClient()
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
   }, [])
 
   useEffect(() => {
     if (!enabled) return
 
     const supabase = createClient()
-    const channelName = `realtime-${table}-${Math.random().toString(36).slice(2, 8)}`
+    // Stable channel name based on table + event + filter to avoid duplicate subscriptions
+    const channelName = `realtime-${table}-${event}-${filter ?? 'all'}`
+
+    // Clean up any existing channel before creating a new one
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
 
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -66,8 +80,11 @@ export function useRealtimeSubscription(table: TableName, options: RealtimeOptio
       .on('postgres_changes', channelConfig, handleChange)
       .subscribe()
 
+    channelRef.current = channel
+
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer)
+      channelRef.current = null
       supabase.removeChannel(channel)
     }
   }, [table, event, filter, debounceMs, enabled])

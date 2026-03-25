@@ -47,8 +47,19 @@ export function usePreferences() {
   const [loaded, setLoaded] = useState(!!cachedPrefs)
 
   useEffect(() => {
-    if (cachedPrefs) return
     const supabase = createClient()
+
+    // Clear cache on sign out
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        cachedPrefs = null
+        cachedUserId = null
+        setPrefs({ ...DEFAULTS })
+      }
+    })
+
+    if (cachedPrefs) return () => subscription.unsubscribe()
+
     supabase.auth.getUser().then(async ({ data }) => {
       const uid = data.user?.id
       if (!uid) { setLoaded(true); return }
@@ -82,6 +93,8 @@ export function usePreferences() {
     }).catch(() => {
       setLoaded(true)
     })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   const updatePref = useCallback(async <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => {
