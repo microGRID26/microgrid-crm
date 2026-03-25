@@ -173,7 +173,7 @@ function ProjectDetail({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-950/95 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-gray-950/95 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
         <h2 className="text-lg font-bold text-white truncate mr-4">{project.name}</h2>
@@ -512,12 +512,19 @@ export default function FieldPage() {
 
   // Load today's schedule
   const loadJobs = useCallback(async () => {
-    const { data: schedData } = await (supabaseDb as any)
+    const { data: schedData, error: schedError } = await (supabaseDb as any)
       .from('schedule')
       .select('id, crew_id, date, job_type, time, project_id, notes, status')
       .eq('date', todayIso)
       .neq('status', 'cancelled')
       .order('time')
+
+    if (schedError) {
+      console.error('Schedule load failed:', schedError.message)
+      setToast({ message: 'Failed to load today\'s schedule', type: 'error' })
+      setJobsLoading(false)
+      return
+    }
 
     if (schedData) {
       const rawJobs = schedData as Schedule[]
@@ -671,7 +678,7 @@ export default function FieldPage() {
             // Auto-populate project date
             const dateField = TASK_DATE[taskId]
             if (dateField) {
-              const { data: proj } = await (supabase as any).from('projects').select(dateField).eq('id', job.project_id).single()
+              const { data: proj } = await (supabase as any).from('projects').select(dateField).eq('id', job.project_id).maybeSingle()
               if (proj && !(proj as any)[dateField]) {
                 await (supabaseDb as any).from('projects').update({ [dateField]: todayStr }).eq('id', job.project_id)
               }
@@ -721,7 +728,7 @@ export default function FieldPage() {
     const dateField = TASK_DATE[taskId]
     if (dateField) {
       try {
-        const { data: proj } = await (supabase as any).from('projects').select(dateField).eq('id', job.project_id).single()
+        const { data: proj } = await (supabase as any).from('projects').select(dateField).eq('id', job.project_id).maybeSingle()
         if (proj && !(proj as any)[dateField]) {
           await (supabaseDb as any).from('projects').update({ [dateField]: todayStr }).eq('id', job.project_id)
         }
