@@ -83,6 +83,8 @@ interface UseSupabaseQueryResult<T> {
   nextPage: () => void
   /** Go to previous page */
   prevPage: () => void
+  /** Jump to a specific page (1-based) */
+  setPage: (page: number) => void
   /** Current page number */
   currentPage: number
   /** Manually trigger a refetch */
@@ -346,6 +348,10 @@ export function useSupabaseQuery<T extends TableName>(
     setCurrentPage(p => Math.max(1, p - 1))
   }, [])
 
+  const setPage = useCallback((page: number) => {
+    setCurrentPage(Math.max(1, page))
+  }, [])
+
   return {
     data,
     loading,
@@ -354,6 +360,7 @@ export function useSupabaseQuery<T extends TableName>(
     hasMore,
     nextPage,
     prevPage,
+    setPage,
     currentPage,
     refresh,
   }

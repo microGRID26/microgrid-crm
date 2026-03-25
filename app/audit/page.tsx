@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { Nav } from '@/components/Nav'
+import { Pagination } from '@/components/Pagination'
 import { fmt$, daysAgo, STAGE_LABELS, SLA_THRESHOLDS, STAGE_TASKS } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { useSupabaseQuery } from '@/lib/hooks'
@@ -29,13 +30,24 @@ export default function AuditPage() {
   const [stageFilter, setStageFilter] = useState('')
   const [search, setSearch] = useState('')
 
-  const { data: rawProjects, loading: loadingProjects, refresh: refreshProjects } = useSupabaseQuery('projects', {
+  const {
+    data: rawProjects,
+    loading: loadingProjects,
+    refresh: refreshProjects,
+    totalCount: projectsTotalCount,
+    hasMore: projectsHasMore,
+    currentPage: projectsCurrentPage,
+    nextPage: projectsNextPage,
+    prevPage: projectsPrevPage,
+    setPage: projectsSetPage,
+  } = useSupabaseQuery('projects', {
     select: 'id, name, city, pm, pm_id, stage, contract, stage_date',
     filters: {
       stage: { neq: 'complete' },
       disposition: { not_in: ['Cancelled', 'In Service'] },
     },
-    limit: 2000,
+    page: 1,
+    pageSize: 200,
   })
 
   const { data: rawTaskStates, loading: loadingTasks, refresh: refreshTasks } = useSupabaseQuery('task_state', {
@@ -139,19 +151,19 @@ export default function AuditPage() {
 
       {/* Filters */}
       <div className="bg-gray-950 border-b border-gray-800 flex items-center gap-2 px-4 py-2 flex-shrink-0 flex-wrap">
-        <select value={filter} onChange={e => setFilter(e.target.value as AuditFilter)}
+        <select value={filter} onChange={e => { setFilter(e.target.value as AuditFilter); projectsSetPage(1) }}
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
           <option value="stuck">Stuck (Pending + Revision)</option>
           <option value="active">Active tasks</option>
           <option value="incomplete">All incomplete required</option>
           <option value="missing">Not started required</option>
         </select>
-        <select value={stageFilter} onChange={e => setStageFilter(e.target.value)}
+        <select value={stageFilter} onChange={e => { setStageFilter(e.target.value); projectsSetPage(1) }}
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
           <option value="">All Stages</option>
           {Object.keys(STAGE_TASKS).map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
         </select>
-        <select value={pmFilter} onChange={e => setPmFilter(e.target.value)}
+        <select value={pmFilter} onChange={e => { setPmFilter(e.target.value); projectsSetPage(1) }}
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
           <option value="all">All PMs</option>
           {pms.map(pm => <option key={pm.id} value={pm.id}>{pm.name}</option>)}
@@ -164,6 +176,19 @@ export default function AuditPage() {
           <option value="name">Name A–Z</option>
         </select>
         <span className="text-xs text-gray-500 ml-2">{rows.length} projects · {totalFlagged} flagged tasks</span>
+        {projectsTotalCount != null && (
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs text-gray-500">{projectsTotalCount} total</span>
+            <Pagination
+              currentPage={projectsCurrentPage}
+              totalCount={projectsTotalCount}
+              pageSize={200}
+              hasMore={projectsHasMore}
+              onPrevPage={projectsPrevPage}
+              onNextPage={projectsNextPage}
+            />
+          </div>
+        )}
       </div>
 
       {/* Table */}

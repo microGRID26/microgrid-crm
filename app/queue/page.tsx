@@ -8,6 +8,7 @@ import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { NewProjectModal } from '@/components/project/NewProjectModal'
 import { usePreferences } from '@/lib/usePreferences'
 import { useSupabaseQuery, useServerFilter } from '@/lib/hooks'
+import { Pagination } from '@/components/Pagination'
 import type { Project } from '@/types/database'
 
 const CARD_FIELD_OPTIONS: { key: string; label: string }[] = [
@@ -130,15 +131,22 @@ export default function QueuePage() {
     return [...new Set(['city_permit', 'util_permit', 'util_insp', 'welcome', 'ia', 'ub', 'sched_survey', 'ntp', ...sectionTaskIds])]
   }, [queueSections])
 
-  // ── Query 1: Projects with PM filter ───────────────────────────────────
+  // ── Query 1: Projects with PM filter (paginated) ─────────────────────
   const {
     data: projectsRaw,
     loading: projectsLoading,
     refresh: refreshProjects,
+    totalCount: projectsTotalCount,
+    hasMore: projectsHasMore,
+    nextPage: projectsNextPage,
+    prevPage: projectsPrevPage,
+    currentPage: projectsCurrentPage,
+    setPage: projectsSetPage,
   } = useSupabaseQuery('projects', {
     select: 'id, name, city, address, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date',
     filters: pmFilters,
-    limit: 2000,
+    page: 1,
+    pageSize: 200,
     subscribe: true,
   })
   const projects = projectsRaw as unknown as Project[]
@@ -201,7 +209,14 @@ export default function QueuePage() {
   function selectPm(pm: string) {
     setUserPm(pm)
     localStorage.setItem('mg_pm', pm)
+    projectsSetPage(1)
   }
+
+  // Reset pagination to page 1 when search changes
+  useEffect(() => {
+    projectsSetPage(1)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
 
   const loading = projectsLoading || tasksLoading
 
@@ -335,7 +350,15 @@ export default function QueuePage() {
             <option value="">All PMs</option>
             {availablePms.map(pm => <option key={pm.id} value={pm.id}>{pm.name}</option>)}
           </select>
-          <span className="text-xs text-gray-500">{live.length} projects</span>
+          <span className="text-xs text-gray-500">Showing {projects.length} of {projectsTotalCount ?? projects.length}</span>
+          <Pagination
+            currentPage={projectsCurrentPage}
+            totalCount={projectsTotalCount ?? 0}
+            pageSize={200}
+            hasMore={projectsHasMore}
+            onPrevPage={projectsPrevPage}
+            onNextPage={projectsNextPage}
+          />
           <button onClick={() => setShowCardConfig(true)} className="text-gray-400 hover:text-white transition-colors p-1" title="Card fields">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>

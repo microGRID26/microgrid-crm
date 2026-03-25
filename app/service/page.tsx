@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/Nav'
+import { Pagination } from '@/components/Pagination'
 import { fmtDate } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { useSupabaseQuery } from '@/lib/hooks'
@@ -24,10 +25,11 @@ export default function ServicePage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [search, setSearch] = useState('')
 
-  const { data: calls, loading, refresh } = useSupabaseQuery('service_calls', {
+  const { data: calls, loading, refresh, totalCount, hasMore, currentPage, nextPage, prevPage, setPage } = useSupabaseQuery('service_calls', {
     select: 'id, project_id, status, type, issue, created, date, resolution, pm, pm_id, priority, project:projects(name, city)',
     order: { column: 'created', ascending: false },
-    limit: 2000,
+    page: 1,
+    pageSize: 100,
   })
 
   const openProject = async (projectId: string) => {
@@ -75,14 +77,27 @@ export default function ServicePage() {
           { key: 'Escalated', label: `Escalated (${counts['Escalated'] ?? 0})` },
           { key: 'Closed', label: `Closed (${counts['Closed'] ?? 0})` },
         ].map(t => (
-          <button key={t.key} onClick={() => setStatusFilter(t.key)}
+          <button key={t.key} onClick={() => { setStatusFilter(t.key); setPage(1) }}
             className={`text-xs px-3 py-1.5 rounded-md transition-colors ${statusFilter === t.key ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-white'}`}>
             {t.label}
           </button>
         ))}
-        <input value={search} onChange={e => setSearch(e.target.value)}
+        <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
           placeholder="Search..."
           className="ml-auto text-xs bg-gray-800 text-gray-200 border border-gray-700 rounded-md px-3 py-1.5 w-36 focus:outline-none focus:border-green-500 placeholder-gray-500" />
+        {totalCount != null && (
+          <div className="flex items-center gap-2 ml-2">
+            <span className="text-xs text-gray-500">{totalCount} total</span>
+            <Pagination
+              currentPage={currentPage}
+              totalCount={totalCount}
+              pageSize={100}
+              hasMore={hasMore}
+              onPrevPage={prevPage}
+              onNextPage={nextPage}
+            />
+          </div>
+        )}
       </div>
 
       {/* List */}
