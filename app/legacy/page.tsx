@@ -333,8 +333,10 @@ function DetailPanel({ project: p, onClose }: { project: LegacyProject; onClose:
     setAdding(false)
   }
 
-  function formatTimeAgo(dateStr: string): string {
-    const date = new Date(dateStr)
+  function formatTimeAgo(dateStr: string | null): string {
+    if (!dateStr) return ''
+    const date = new Date(dateStr.replace(' ', 'T'))
+    if (isNaN(date.getTime())) return fmtDate(dateStr)
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
     const diffMin = Math.floor(diffMs / 60000)
