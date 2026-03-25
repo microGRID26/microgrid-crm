@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Nav } from '@/components/Nav'
 import { cn } from '@/lib/utils'
 import { Calculator, ArrowRight, AlertTriangle, Sun, Zap, Battery, ChevronDown, ChevronUp, FileDown } from 'lucide-react'
@@ -584,6 +584,10 @@ export default function RedesignPage() {
   const [results, setResults] = useState<Results | null>(null)
   const [showExisting, setShowExisting] = useState(true)
   const [showTarget, setShowTarget] = useState(true)
+  const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    return () => { if (scrollTimer.current) clearTimeout(scrollTimer.current) }
+  }, [])
 
   // ── Updaters ───────────────────────────────────────────────────────────────
   function updateExisting<K extends keyof ExistingSystem>(key: K, val: ExistingSystem[K]) {
@@ -613,6 +617,22 @@ export default function RedesignPage() {
 
   // ── Calculate ──────────────────────────────────────────────────────────────
   function calculate() {
+    // Validate required fields
+    const errors: string[] = []
+    if (!target.panelWattage || target.panelWattage <= 0) errors.push('Target panel wattage must be > 0')
+    if (!target.panelVoc || target.panelVoc <= 0) errors.push('Target panel Voc must be > 0')
+    if (!target.panelVmp || target.panelVmp <= 0) errors.push('Target panel Vmp must be > 0')
+    if (!target.maxVoc || target.maxVoc <= 0) errors.push('Target max Voc must be > 0')
+    if (!target.designTempLow && target.designTempLow !== 0) errors.push('Design temp low is required')
+    if (!target.vocTempCoeff && target.vocTempCoeff !== 0) errors.push('Voc temp coefficient is required')
+    if (!target.inverterCount || target.inverterCount <= 0) errors.push('Inverter count must be > 0')
+    if (!target.mpptsPerInverter || target.mpptsPerInverter <= 0) errors.push('MPPTs per inverter must be > 0')
+    if (!target.stringsPerMppt || target.stringsPerMppt <= 0) errors.push('Strings per MPPT must be > 0')
+    if (!existing.panelWattage || existing.panelWattage <= 0) errors.push('Existing panel wattage must be > 0')
+    if (errors.length > 0) {
+      alert('Validation errors:\n' + errors.join('\n'))
+      return
+    }
     try {
     const absCoeff = Math.abs(target.vocTempCoeff / 100)
 
@@ -631,6 +651,16 @@ export default function RedesignPage() {
       }
     }
 
+    if (recommendedStringSize <= 0) {
+      alert('Invalid string configuration — check panel/inverter specs')
+      return
+    }
+
+    if (target.panelWattage <= 0) {
+      alert('Target panel wattage must be greater than zero')
+      return
+    }
+
     const totalStringInputs = target.inverterCount * target.mpptsPerInverter * target.stringsPerMppt
 
     // Panel fit estimates per roof face
@@ -645,7 +675,9 @@ export default function RedesignPage() {
         newCount = Math.floor(rf.roofArea / panelAreaSqFt)
         method = 'area-based'
       } else {
-        newCount = Math.floor(rf.panelCount * (existing.panelWattage / target.panelWattage) * 1.05)
+        newCount = target.panelWattage > 0
+          ? Math.floor(rf.panelCount * (existing.panelWattage / target.panelWattage) * 1.05)
+          : 0
         method = 'ratio-based'
       }
       return { roofIndex: i, oldCount: rf.panelCount, newCount, method }
@@ -674,7 +706,6 @@ export default function RedesignPage() {
     // Step 2: assign strings to roof faces proportionally
     const roofFaceAssignments: number[] = [] // which roof face each string belongs to
     let stringIdx = 0
-    let assigned = 0
     for (let ri = 0; ri < panelFitEstimates.length && stringIdx < stringSizes.length; ri++) {
       let roofRemaining = panelFitEstimates[ri].newCount
       while (roofRemaining > 0 && stringIdx < stringSizes.length) {
@@ -685,7 +716,6 @@ export default function RedesignPage() {
         }
         roofFaceAssignments[stringIdx] = ri
         roofRemaining -= stringSizes[stringIdx]
-        assigned += stringSizes[stringIdx]
         stringIdx++
       }
     }
@@ -761,7 +791,8 @@ export default function RedesignPage() {
       existingTotalStorage,
     })
     // Scroll to results after render
-    setTimeout(() => {
+    if (scrollTimer.current) clearTimeout(scrollTimer.current)
+    scrollTimer.current = setTimeout(() => {
       document.getElementById('redesign-results')?.scrollIntoView({ behavior: 'smooth' })
     }, 100)
     } catch (err) {
@@ -1216,6 +1247,7 @@ export default function RedesignPage() {
                     a.href = URL.createObjectURL(blob)
                     a.download = `SLD-${existing.projectName.replace(/\s+/g, '-')}.svg`
                     a.click()
+                    URL.revokeObjectURL(a.href)
                   }}
                   className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded-md px-3 py-1.5 transition-colors"
                 >
@@ -1249,6 +1281,7 @@ export default function RedesignPage() {
                     a.href = URL.createObjectURL(blob)
                     a.download = `SLD-${existing.projectName.replace(/\s+/g, '-')}.dxf`
                     a.click()
+                    URL.revokeObjectURL(a.href)
                   }}
                   className="text-xs text-green-400 hover:text-green-300 border border-green-700 hover:border-green-500 rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
                 >

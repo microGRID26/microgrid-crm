@@ -225,6 +225,17 @@ function StatusBadge({ status }: { status: ProjectInput['status'] }) {
 
 // ── CALCULATION (duplicated from redesign page) ──────────────────────────────
 
+function emptyResults(): ProcessedResults {
+  return {
+    vocCorrected: 0, maxModulesPerString: 0, minModulesPerString: 0,
+    recommendedStringSize: 0, totalStringInputs: 0, vmpHot: 0,
+    panelFitEstimates: [], stringConfigs: [], engineeringNotes: [],
+    newTotalPanels: 0, newSystemDc: 0, oldSystemDc: 0,
+    newTotalAc: 0, oldTotalAc: 0, newTotalStorage: 0, oldTotalStorage: 0,
+    warnings: [],
+  }
+}
+
 function calculateRedesign(project: ProjectInput, target: TargetSystem): ProcessedResults {
   const absCoeff = Math.abs(target.vocTempCoeff / 100)
 
@@ -241,6 +252,14 @@ function calculateRedesign(project: ProjectInput, target: TargetSystem): Process
       recommendedStringSize = n
       break
     }
+  }
+
+  if (recommendedStringSize <= 0) {
+    return { ...emptyResults(), warnings: ['Invalid string configuration — check panel/inverter specs'] }
+  }
+
+  if (target.panelWattage <= 0) {
+    return { ...emptyResults(), warnings: ['Target panel wattage must be greater than zero'] }
   }
 
   const totalStringInputs = target.inverterCount * target.mpptsPerInverter * target.stringsPerMppt

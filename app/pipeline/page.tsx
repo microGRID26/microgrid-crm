@@ -98,12 +98,12 @@ export default function PipelinePage() {
   // Auto-open project from URL params (e.g., /pipeline?open=PROJ-28517&tab=notes)
   const [initialTab, setInitialTab] = useState<string | null>(null)
   useEffect(() => {
-    if (typeof window === 'undefined' || projects.length === 0) return
+    if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
     const openId = params.get('open')
     const searchQ = params.get('search')
     const tab = params.get('tab')
-    if (openId) {
+    if (openId && projects.length > 0) {
       const proj = (projects as unknown as Project[]).find(p => p.id === openId)
       if (proj) { setSelected(proj); if (tab) setInitialTab(tab) }
     }
@@ -113,15 +113,20 @@ export default function PipelinePage() {
   // Cast for rendering (hook returns Row type, we need Project)
   const filtered = projects as unknown as Project[]
 
-  // Sort within each column
-  function sortedCards(cards: Project[]) {
-    return [...cards].sort((a, b) => {
-      if (sort === 'sla') return getSLA(b).days - getSLA(a).days
-      if (sort === 'contract') return (Number(b.contract) || 0) - (Number(a.contract) || 0)
-      if (sort === 'cycle') return (daysAgo(b.sale_date) || 0) - (daysAgo(a.sale_date) || 0)
-      return (a.name ?? '').localeCompare(b.name ?? '')
-    })
-  }
+  // Sort within each column — memoized per stage
+  const sortedByStage = useMemo(() => {
+    const map: Record<string, Project[]> = {}
+    for (const stageId of STAGE_ORDER) {
+      const cards = filtered.filter(p => p.stage === stageId)
+      map[stageId] = [...cards].sort((a, b) => {
+        if (sort === 'sla') return getSLA(b).days - getSLA(a).days
+        if (sort === 'contract') return (Number(b.contract) || 0) - (Number(a.contract) || 0)
+        if (sort === 'cycle') return (daysAgo(b.sale_date) || 0) - (daysAgo(a.sale_date) || 0)
+        return (a.name ?? '').localeCompare(b.name ?? '')
+      })
+    }
+    return map
+  }, [filtered, sort])
 
   const totalContract = useMemo(() => filtered.reduce((s, p) => s + (Number(p.contract) || 0), 0), [filtered])
 
@@ -162,22 +167,32 @@ export default function PipelinePage() {
 
     const supabase = createClient()
 
+    const failures: string[] = []
+
     for (let i = 0; i < selectedProjects.length; i++) {
       const proj = selectedProjects[i]
       setAdvanceProgress({ current: i + 1, total: selectedProjects.length })
 
-      await updateProject(proj.id, { stage: nextStage, stage_date: today })
-      await (supabase as any).from('audit_log').insert({
-        project_id: proj.id, field: 'stage',
-        old_value: proj.stage, new_value: nextStage,
-        changed_by: currentUser?.name ?? null, changed_by_id: currentUser?.id ?? null,
-      })
-      await (supabase as any).from('stage_history').insert({
-        project_id: proj.id, stage: nextStage, entered: today,
-      })
+      try {
+        await updateProject(proj.id, { stage: nextStage, stage_date: today })
+        await (supabase as any).from('audit_log').insert({
+          project_id: proj.id, field: 'stage',
+          old_value: proj.stage, new_value: nextStage,
+          changed_by: currentUser?.name ?? null, changed_by_id: currentUser?.id ?? null,
+        })
+        await (supabase as any).from('stage_history').insert({
+          project_id: proj.id, stage: nextStage, entered: today,
+        })
+      } catch (err) {
+        console.error(`Bulk advance failed for ${proj.id}:`, err)
+        failures.push(proj.id)
+      }
     }
 
     setAdvanceProgress(null)
+    if (failures.length > 0) {
+      alert(`Stage advance failed for ${failures.length} project(s): ${failures.join(', ')}`)
+    }
     clearQueryCache()
     handleBulkComplete()
   }, [canAdvance, selectedProjects, currentUser, handleBulkComplete])
@@ -263,7 +278,7 @@ export default function PipelinePage() {
       <div className={`flex-1 overflow-x-auto ${selectedIds.size > 0 ? 'pb-20' : ''}`}>
         <div className="flex gap-0 h-full w-full">
           {STAGE_ORDER.map(stageId => {
-            const cards = sortedCards(filtered.filter(p => p.stage === stageId))
+            const cards = sortedByStage[stageId] ?? []
             const colContract = cards.reduce((s, p) => s + (Number(p.contract) || 0), 0)
             const blocked = cards.filter(p => p.blocker).length
             const crit = cards.filter(p => !p.blocker && getSLA(p).status === 'crit').length

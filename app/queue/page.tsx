@@ -172,10 +172,14 @@ export default function QueuePage() {
     subscribe: true,
   })
 
-  // ── Merge task data + follow-up data ───────────────────────────────────
+  // ── Merge task data + follow-up data (filtered to PM-filtered projects) ──
+  const projectIdSet = useMemo(() => new Set(projects.map(p => p.id)), [projects])
+
   const taskStates: TaskStateRow[] = useMemo(() => {
     const allTasks: TaskStateRow[] = [...(taskDataRaw as unknown as TaskStateRow[])]
+    // Only merge follow-up data for projects that match the current PM filter
     for (const fu of followUpDataRaw as any[]) {
+      if (!projectIdSet.has(fu.project_id)) continue
       const existing = allTasks.find(t => t.project_id === fu.project_id && t.task_id === fu.task_id)
       if (existing) {
         existing.follow_up_date = fu.follow_up_date
@@ -184,7 +188,7 @@ export default function QueuePage() {
       }
     }
     return allTasks
-  }, [taskDataRaw, followUpDataRaw])
+  }, [taskDataRaw, followUpDataRaw, projectIdSet])
 
   // ── Extract PM dropdown from loaded projects ───────────────────────────
   const availablePms = useMemo(() => {
@@ -269,9 +273,12 @@ export default function QueuePage() {
   const blocked = useMemo(() => sorted.filter(p => p.blocker), [sorted])
   const complete = useMemo(() => sorted.filter(p => p.stage === 'complete'), [sorted])
 
+  // Today's date string, stable across renders
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], [])
+
   // Follow-ups: projects with task-level or project-level follow_up_date today or overdue
   const followUps = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayStr
     const taskFollowUpMap: Record<string, { date: string; taskName: string }> = {}
     for (const t of taskStates) {
       if (t.follow_up_date && t.follow_up_date <= today) {
@@ -445,9 +452,9 @@ export default function QueuePage() {
                     <div className="text-[10px] text-gray-400 mb-0.5">{(p as any)._taskFollowUp.taskName}</div>
                   )}
                   <div className={`text-xs font-medium ${
-                    (p as any)._followUpDate === new Date().toISOString().split('T')[0] ? 'text-amber-400' : 'text-red-400'
+                    (p as any)._followUpDate === todayStr ? 'text-amber-400' : 'text-red-400'
                   }`}>
-                    {(p as any)._followUpDate === new Date().toISOString().split('T')[0]
+                    {(p as any)._followUpDate === todayStr
                       ? 'Today'
                       : `${daysAgo((p as any)._followUpDate)}d overdue`}
                   </div>

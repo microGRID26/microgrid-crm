@@ -345,7 +345,7 @@ function ChangeOrdersContent() {
         <ProjectPanel
           project={selectedProject}
           onClose={() => setSelectedProject(null)}
-          onProjectUpdated={() => {}}
+          onProjectUpdated={loadData}
         />
       )}
     </div>
@@ -366,10 +366,15 @@ function ComparisonRow({ field: f, co, updateField }: {
 
   const changed = localVal != null && localVal !== '' && String(origVal) !== String(localVal)
 
-  function handleBlur() {
+  async function handleBlur() {
     const parsed = f.format === 'text' ? (localVal || null) : (localVal !== '' ? Number(localVal) : null)
     if (String(parsed ?? '') !== String(newVal ?? '')) {
-      updateField(f.newKey, parsed)
+      try {
+        await updateField(f.newKey, parsed)
+      } catch {
+        // Revert local state on save failure
+        setLocalVal(String(newVal ?? ''))
+      }
     }
   }
 
@@ -692,6 +697,8 @@ function NewChangeOrderModal({ users, currentUser, onClose, onCreated }: {
   const [assignedTo, setAssignedTo] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mountedRef = useRef(true)
+  useEffect(() => { return () => { mountedRef.current = false } }, [])
 
   // Debounced project search
   useEffect(() => {
@@ -707,6 +714,7 @@ function NewChangeOrderModal({ users, currentUser, onClose, onCreated }: {
         .select('id, name, city, pm, pm_id, systemkw, module, module_qty, financier, financing_type, contract, tpo_escalator, financier_adv_pmt, down_payment')
         .or(`name.ilike.%${escapeIlike(q)}%,id.ilike.%${escapeIlike(q)}%`)
         .limit(10)
+      if (!mountedRef.current) return
       if (data) setProjectResults(data as Project[])
       setSearching(false)
     }, 250)
@@ -742,6 +750,10 @@ function NewChangeOrderModal({ users, currentUser, onClose, onCreated }: {
       original_panel_count: p.module_qty ?? null,
       original_panel_type: p.module ?? null,
       original_system_size: p.systemkw ?? null,
+      original_plan_type: (p as any).financing_type ?? null,
+      original_lease_ppa_escalator: (p as any).tpo_escalator ?? null,
+      original_adv_pmt_schedule: (p as any).financier_adv_pmt ?? null,
+      original_loan_amount: (p as any).down_payment ?? null,
     }
     const { data, error } = await db().from('change_orders').insert(payload).select('*, project:projects(name, city, pm, pm_id)').single()
     setSaving(false)

@@ -122,7 +122,7 @@ export default function SchedulePage() {
 
   // weekDates already memoized above — alias for template use
   const days = weekDates
-  const todayIso = isoDate(new Date())
+  const todayIso = useMemo(() => isoDate(new Date()), [])
   const weekLabel = `${days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${days[5].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
 
   // Memoize warehouses list

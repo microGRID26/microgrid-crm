@@ -371,6 +371,9 @@ export default function FundingPage() {
   const loading = dashLoading || nfLoading
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    return () => { if (toastTimer.current) clearTimeout(toastTimer.current) }
+  }, [])
   const showToast = (msg: string) => { setToast(msg); if (toastTimer.current) clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(null), 2000) }
 
   const saveFundingField = async (projectId: string, field: string, value: string | number | null) => {

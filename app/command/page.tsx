@@ -368,8 +368,10 @@ export default function CommandPage() {
 
   // ── Schedule (manual — requires enrichment with project/crew names) ──────
   const [todaySchedule, setTodaySchedule] = useState<ScheduleEntry[]>([])
+  const [scheduleIncomplete, setScheduleIncomplete] = useState(false)
 
   const loadSchedule = useCallback(async () => {
+    setScheduleIncomplete(false)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const schedRes = await (supabase as any).from('schedule')
       .select('id, project_id, job_type, time, status, crew_id')
@@ -381,13 +383,14 @@ export default function CommandPage() {
     if (!schedRes.data) return
 
     const rawJobs = schedRes.data as ScheduleEntry[]
+    let enrichmentFailed = false
     // Batch-fetch project names
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const schedPids = [...new Set(rawJobs.map((j: any) => j.project_id).filter(Boolean))]
     const projNameMap: Record<string, string> = {}
     if (schedPids.length > 0) {
       const { data: pData, error: pError } = await supabase.from('projects').select('id, name').in('id', schedPids)
-      if (pError) console.error('schedule project names load failed:', pError)
+      if (pError) { console.error('schedule project names load failed:', pError); enrichmentFailed = true }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (pData) pData.forEach((p: any) => { projNameMap[p.id] = p.name })
     }
@@ -397,10 +400,11 @@ export default function CommandPage() {
     const crewNameMap: Record<string, string> = {}
     if (schedCids.length > 0) {
       const { data: cData, error: cError } = await supabase.from('crews').select('id, name').in('id', schedCids)
-      if (cError) console.error('schedule crew names load failed:', cError)
+      if (cError) { console.error('schedule crew names load failed:', cError); enrichmentFailed = true }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (cData) cData.forEach((c: any) => { crewNameMap[c.id] = c.name })
     }
+    if (enrichmentFailed) setScheduleIncomplete(true)
     // Merge names onto schedule entries
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rawJobs.forEach((j: any) => {
@@ -494,19 +498,20 @@ export default function CommandPage() {
     return result
   }, [projects, pmFilter, search])
 
-  // Overdue: tasks with completed_date in the past that are not yet Complete
-  const overduePids = useMemo(() => new Set(
-    taskStates
-      .filter(t => t.status !== 'Complete' && t.completed_date && daysAgo(t.completed_date) > 0)
-      .map(t => t.project_id)
-  ), [taskStates])
-
-  // Pending Resolution: projects with any task in Pending Resolution status
-  const pendingPids = useMemo(() => new Set(
-    taskStates
-      .filter(t => t.status === 'Pending Resolution')
-      .map(t => t.project_id)
-  ), [taskStates])
+  // Overdue + Pending Resolution: single pass over taskStates
+  const { overduePids, pendingPids } = useMemo(() => {
+    const overdue = new Set<string>()
+    const pending = new Set<string>()
+    for (const t of taskStates) {
+      if (t.status !== 'Complete' && t.completed_date && daysAgo(t.completed_date) > 0) {
+        overdue.add(t.project_id)
+      }
+      if (t.status === 'Pending Resolution') {
+        pending.add(t.project_id)
+      }
+    }
+    return { overduePids: overdue, pendingPids: pending }
+  }, [taskStates])
 
   const sections = useMemo(() => classify(filtered, overduePids, pendingPids), [filtered, overduePids, pendingPids])
   const pms = useMemo(() => {
@@ -600,7 +605,10 @@ export default function CommandPage() {
       {/* ── TODAY'S SCHEDULE WIDGET ───────────────────────────────────────── */}
       {todaySchedule.length > 0 && (
         <div className="bg-gray-900 border-b border-gray-800 px-4 py-2">
-          <div className="text-xs text-green-400 font-bold uppercase tracking-wider mb-2">Today&apos;s Schedule ({todaySchedule.length})</div>
+          <div className="text-xs text-green-400 font-bold uppercase tracking-wider mb-2">
+            Today&apos;s Schedule ({todaySchedule.length})
+            {scheduleIncomplete && <span className="text-amber-400 font-normal ml-2">Schedule data incomplete</span>}
+          </div>
           <div className="flex gap-3 overflow-x-auto pb-1">
             {todaySchedule.map(job => {
               const j = job
