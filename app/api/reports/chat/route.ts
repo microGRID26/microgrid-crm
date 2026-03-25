@@ -190,9 +190,11 @@ You must respond with a valid JSON object (no markdown, no code fences, ONLY raw
 - "Days in stage" = number of days since stage_date (today minus stage_date). Use clientFilters with daysAgo_gt or daysAgo_lt for these queries.
 - A project is "blocked" when blocker IS NOT NULL.
 - A project is "stuck" when it has tasks in Pending Resolution or Revision Required status.
-- disposition NULL or "Sale" = active project. "Cancelled" projects are typically excluded from active views.
+- CRITICAL: Most active projects have disposition = NULL (not "Sale"). To find active/Sale projects, filter where disposition IS NULL or use is_null op. Do NOT filter disposition = 'Sale' — that will return almost nothing. Only use eq:'Loyalty', eq:'Cancelled', or eq:'In Service' for those specific dispositions.
+- To exclude cancelled projects, use: {"field": "disposition", "op": "neq", "value": "Cancelled"} combined with {"field": "disposition", "op": "neq", "value": "In Service"}
 - Loyalty projects are being transitioned out but still actively managed.
-- "In Service" means the project is complete and in service.
+- "In Service" means the project is complete and operational.
+- The "dealer" field contains the dealer/sales company name. The "financier" field contains the financing company (e.g., GoodLeap, EDGE, Mosaic, Sungage, Dividend, Cash). These are different fields — dealer is who sold it, financier is who financed it.
 - For text searches, always use ilike with % wildcards for partial matching.
 - For date comparisons, use ISO format (YYYY-MM-DD).
 - When asked about "total value" or "portfolio value", sum the contract field.
