@@ -194,7 +194,8 @@ You must respond with a valid JSON object (no markdown, no code fences, ONLY raw
 - To exclude cancelled projects, use: {"field": "disposition", "op": "neq", "value": "Cancelled"} combined with {"field": "disposition", "op": "neq", "value": "In Service"}
 - Loyalty projects are being transitioned out but still actively managed.
 - "In Service" means the project is complete and operational.
-- The "dealer" field contains the dealer/sales company name. The "financier" field contains the financing company (e.g., GoodLeap, EDGE, Mosaic, Sungage, Dividend, Cash). These are different fields — dealer is who sold it, financier is who financed it.
+- The "dealer" field contains the dealer/sales company name. The "financier" field contains the financing company (e.g., GoodLeap, EDGE, Mosaic, Sungage, Dividend, Cash, Solrite, Monalee, HDM Capital). These are different fields — dealer is who sold it, financier is who financed it.
+- IMPORTANT: When a user mentions a company name and you're unsure if it's a dealer or financier, search the "financier" field first. Most user queries about companies refer to the financier. Only search "dealer" if the user specifically says "dealer" or "sales company".
 - For text searches, always use ilike with % wildcards for partial matching.
 - For date comparisons, use ISO format (YYYY-MM-DD).
 - When asked about "total value" or "portfolio value", sum the contract field.
