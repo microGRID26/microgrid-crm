@@ -883,6 +883,404 @@ function ForLeadership() {
   )
 }
 
+// ── INVENTORY TRAINING ─────────────────────────────────────────────────────
+
+function StatusBadge({ status, tooltip }: { status: string; tooltip: string }) {
+  const [showTip, setShowTip] = useState(false)
+  const colors: Record<string, string> = {
+    needed: 'bg-gray-500/20 text-gray-400',
+    ordered: 'bg-blue-500/20 text-blue-400',
+    shipped: 'bg-amber-500/20 text-amber-400',
+    delivered: 'bg-green-500/20 text-green-400',
+    installed: 'bg-emerald-500/20 text-emerald-300',
+  }
+  const dots: Record<string, string> = {
+    needed: 'bg-gray-400',
+    ordered: 'bg-blue-400',
+    shipped: 'bg-amber-400',
+    delivered: 'bg-green-400',
+    installed: 'bg-emerald-300',
+  }
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={() => setShowTip(!showTip)}
+        className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer transition-all hover:ring-1 hover:ring-gray-600 ${colors[status] || colors.needed}`}
+      >
+        <span className={`w-1.5 h-1.5 rounded-full ${dots[status] || dots.needed}`} />
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </button>
+      {showTip && (
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 shadow-xl">
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+          {tooltip}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function POStatusStep({ label, done, active }: { label: string; done: boolean; active: boolean }) {
+  return (
+    <span className={`text-xs font-medium ${done ? 'text-green-400' : active ? 'text-blue-400' : 'text-gray-500'}`}>
+      {done ? '\u2713 ' : active ? '\u25CF ' : ''}{label}
+    </span>
+  )
+}
+
+function InventoryTraining() {
+  const MOCK_MATERIALS = [
+    { name: 'Q.PEAK DUO 405W', cat: 'module', catColor: 'bg-blue-500/20 text-blue-400', qty: 25, unit: 'each', source: 'dropship', status: 'needed' as const },
+    { name: 'IQ8PLUS-72-2-US', cat: 'inverter', catColor: 'bg-purple-500/20 text-purple-400', qty: 25, unit: 'each', source: 'dropship', status: 'ordered' as const },
+    { name: 'Powerwall 3', cat: 'battery', catColor: 'bg-emerald-500/20 text-emerald-400', qty: 2, unit: 'each', source: 'dropship', status: 'shipped' as const },
+    { name: '#10 AWG Wire', cat: 'electrical', catColor: 'bg-red-500/20 text-red-400', qty: 200, unit: 'ft', source: 'warehouse', status: 'delivered' as const },
+    { name: 'IronRidge XR100 Rail', cat: 'racking', catColor: 'bg-orange-500/20 text-orange-400', qty: 12, unit: 'each', source: 'tbd', status: 'needed' as const },
+  ]
+
+  const STATUS_TOOLTIPS: Record<string, string> = {
+    needed: 'Item identified but not yet ordered. Click to advance to "ordered" when you place the order.',
+    ordered: 'Purchase order submitted to vendor. Click to advance to "shipped" when tracking info arrives.',
+    shipped: 'In transit from vendor or warehouse. Click to advance to "delivered" when it arrives on site.',
+    delivered: 'Arrived on site and ready for installation. Click to advance to "installed" after crew confirms.',
+    installed: 'Physically installed on the project. Final status — no further action needed.',
+  }
+
+  const MOCK_WAREHOUSE = [
+    { name: '#10 AWG Wire (ft)', cat: 'electrical', catColor: 'bg-red-500/20 text-red-400', onHand: 150, reorder: 200, location: 'Shelf A', low: true },
+    { name: '30A Breaker', cat: 'electrical', catColor: 'bg-red-500/20 text-red-400', onHand: 8, reorder: 10, location: 'Bin B-3', low: true },
+    { name: 'IronRidge XR100', cat: 'racking', catColor: 'bg-orange-500/20 text-orange-400', onHand: 45, reorder: 20, location: 'Rack C', low: false },
+    { name: '1/2" EMT Conduit', cat: 'electrical', catColor: 'bg-red-500/20 text-red-400', onHand: 300, reorder: 100, location: 'Shelf D', low: false },
+  ]
+
+  return (
+    <>
+      {/* ── Section 1: Materials Tab ──────────────────────────────────────── */}
+      <Card title="Materials Tab — Your Project Shopping List">
+        <div className="text-gray-300 mb-3">
+          Every project has a Materials tab in its panel. This is where you track what equipment
+          and BOS (balance of system) items are needed, ordered, and delivered for each job.
+        </div>
+
+        {/* Status summary bar */}
+        <div className="flex items-center gap-3 mb-3 text-xs">
+          <span className="text-gray-500 font-medium">Status Summary:</span>
+          <span className="text-gray-400">2 needed</span>
+          <span className="text-gray-600">&middot;</span>
+          <span className="text-blue-400">1 ordered</span>
+          <span className="text-gray-600">&middot;</span>
+          <span className="text-amber-400">1 shipped</span>
+          <span className="text-gray-600">&middot;</span>
+          <span className="text-green-400">1 delivered</span>
+        </div>
+
+        {/* Mock materials table */}
+        <div className="rounded-lg border border-gray-700 overflow-hidden mb-4">
+          {/* Header */}
+          <div className="grid grid-cols-[1fr_80px_50px_80px_100px] gap-2 px-3 py-2 bg-gray-800/80 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-700">
+            <span>Item</span>
+            <span>Category</span>
+            <span className="text-right">Qty</span>
+            <span>Source</span>
+            <span>Status</span>
+          </div>
+          {/* Rows */}
+          {MOCK_MATERIALS.map((m, i) => (
+            <div key={i} className={`grid grid-cols-[1fr_80px_50px_80px_100px] gap-2 px-3 py-2 items-center text-xs border-b border-gray-800 last:border-b-0 ${i % 2 === 0 ? 'bg-gray-900' : 'bg-gray-900/60'}`}>
+              <span className="text-white font-medium truncate">{m.name}</span>
+              <span className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium w-fit ${m.catColor}`}>
+                {m.cat}
+              </span>
+              <span className="text-gray-300 text-right">{m.qty}</span>
+              <span className="text-gray-400">{m.source}</span>
+              <StatusBadge status={m.status} tooltip={STATUS_TOOLTIPS[m.status]} />
+            </div>
+          ))}
+        </div>
+
+        <div className="text-[10px] text-gray-600 mb-4 italic">Click any status badge above to see what it means</div>
+
+        {/* Step-by-step instructions */}
+        <div className="space-y-3">
+          <div className="bg-gray-800/50 rounded-lg px-4 py-3 border-l-2 border-green-500">
+            <div className="text-xs font-bold text-green-400 mb-1">Step 1: Auto-Generate</div>
+            <div className="text-xs text-gray-400">
+              Click <span className="inline-flex items-center gap-1 text-green-400 font-medium">Auto-generate</span> to
+              pull equipment from the project (module, inverter, battery, optimizer). Items are created
+              with status &quot;needed&quot; and quantities matching the project specs.
+            </div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg px-4 py-3 border-l-2 border-blue-500">
+            <div className="text-xs font-bold text-blue-400 mb-1">Step 2: Add Custom Items</div>
+            <div className="text-xs text-gray-400">
+              Click <span className="inline-flex items-center gap-1 text-blue-400 font-medium">Add Item</span> for
+              BOS items like wire, conduit, breakers, or racking. Pick the category and source
+              (dropship from vendor, warehouse stock, or TBD if undecided).
+            </div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg px-4 py-3 border-l-2 border-amber-500">
+            <div className="text-xs font-bold text-amber-400 mb-1">Step 3: Track Status</div>
+            <div className="text-xs text-gray-400">
+              Click any status badge to advance it through the lifecycle:
+              <span className="text-gray-500"> needed</span> &rarr;
+              <span className="text-blue-400"> ordered</span> &rarr;
+              <span className="text-amber-400"> shipped</span> &rarr;
+              <span className="text-green-400"> delivered</span> &rarr;
+              <span className="text-emerald-300"> installed</span>.
+              The badge color changes to show progress at a glance.
+            </div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg px-4 py-3 border-l-2 border-purple-500">
+            <div className="text-xs font-bold text-purple-400 mb-1">Step 4: Create Purchase Orders</div>
+            <div className="text-xs text-gray-400">
+              Check the boxes next to items you want to order together, then click
+              <span className="text-purple-400 font-medium"> Create PO</span>. Enter a vendor name.
+              The system generates a PO number (e.g., PO-20260325-001) and marks all selected items as &quot;ordered&quot;.
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Section 2: Purchase Orders ────────────────────────────────────── */}
+      <Card title="Purchase Orders — Track Your Orders">
+        <div className="text-gray-300 mb-3">
+          Purchase orders group materials by vendor and track them through a 5-step lifecycle.
+          When a PO reaches &quot;delivered&quot;, all linked materials update automatically.
+        </div>
+
+        {/* Mock PO card */}
+        <div className="rounded-lg border border-gray-700 bg-gray-800/40 px-4 py-4 mb-4">
+          {/* PO Header */}
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <div className="text-sm font-bold text-white">PO-20260325-001</div>
+              <div className="text-xs text-gray-400 mt-0.5">
+                Vendor: <span className="text-gray-300">Q Cells</span>
+                <span className="text-gray-600 mx-2">&middot;</span>
+                Project: <span className="text-green-400">PROJ-28490</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium bg-blue-500/20 text-blue-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                Confirmed
+              </span>
+              <div className="text-[10px] text-gray-500 mt-1">Expected: Mar 30, 2026</div>
+            </div>
+          </div>
+
+          {/* PO Timeline */}
+          <div className="flex items-center gap-1 mb-3 px-2 py-2 bg-gray-900/60 rounded-md">
+            <span className="text-[10px] text-gray-500 mr-2">Timeline:</span>
+            <POStatusStep label="Draft" done active={false} />
+            <span className="text-gray-600 text-xs mx-1">&rarr;</span>
+            <POStatusStep label="Submitted" done active={false} />
+            <span className="text-gray-600 text-xs mx-1">&rarr;</span>
+            <POStatusStep label="Confirmed" done={false} active />
+            <span className="text-gray-600 text-xs mx-1">&rarr;</span>
+            <POStatusStep label="Shipped" done={false} active={false} />
+            <span className="text-gray-600 text-xs mx-1">&rarr;</span>
+            <POStatusStep label="Delivered" done={false} active={false} />
+          </div>
+
+          {/* PO Items */}
+          <div className="text-[10px] text-gray-500 uppercase font-semibold tracking-wider mb-1.5">Items</div>
+          <div className="space-y-1 mb-3">
+            <div className="flex items-center gap-2 text-xs text-gray-300 px-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+              Q.PEAK DUO 405W <span className="text-gray-500">&times; 25</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-300 px-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+              IQ8PLUS-72-2-US <span className="text-gray-500">&times; 25</span>
+            </div>
+          </div>
+
+          {/* Mock button */}
+          <div className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-blue-600/20 text-blue-400 border border-blue-500/30 cursor-default">
+            Advance to Shipped
+          </div>
+        </div>
+
+        {/* PO instructions */}
+        <div className="space-y-2">
+          <div className="flex items-start gap-2 text-xs text-gray-400">
+            <span className="text-green-400 mt-0.5 font-bold shrink-0">&bull;</span>
+            <span>Click <span className="text-white font-medium">&quot;Advance to Shipped&quot;</span> (or the next status) to move the PO forward through its lifecycle.</span>
+          </div>
+          <div className="flex items-start gap-2 text-xs text-gray-400">
+            <span className="text-green-400 mt-0.5 font-bold shrink-0">&bull;</span>
+            <span>When a PO reaches <span className="text-green-400 font-medium">&quot;Delivered&quot;</span>, all linked materials automatically update to &quot;delivered&quot; status — no need to update each item individually.</span>
+          </div>
+          <div className="flex items-start gap-2 text-xs text-gray-400">
+            <span className="text-green-400 mt-0.5 font-bold shrink-0">&bull;</span>
+            <span>Add a <span className="text-white font-medium">tracking number</span> when the order ships so the team can monitor delivery.</span>
+          </div>
+          <div className="flex items-start gap-2 text-xs text-gray-400">
+            <span className="text-green-400 mt-0.5 font-bold shrink-0">&bull;</span>
+            <span>POs can be <span className="text-red-400 font-medium">cancelled</span> at any stage — cancelled POs revert linked materials back to &quot;needed&quot;.</span>
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Section 3: Warehouse ──────────────────────────────────────────── */}
+      <Card title="Warehouse — BOS Stock Management">
+        <div className="text-gray-300 mb-3">
+          The Warehouse tab on the Inventory page tracks your physical stock of BOS items.
+          Check out items for projects, check them back in, and get alerts when stock runs low.
+        </div>
+
+        {/* Low stock alert */}
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+          <span className="text-amber-400 text-sm">&#9888;</span>
+          <span className="text-xs text-amber-400 font-medium">2 items below reorder point</span>
+        </div>
+
+        {/* Mock warehouse table */}
+        <div className="rounded-lg border border-gray-700 overflow-hidden mb-4">
+          {/* Header */}
+          <div className="grid grid-cols-[1fr_80px_70px_70px_80px] gap-2 px-3 py-2 bg-gray-800/80 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-700">
+            <span>Item</span>
+            <span>Category</span>
+            <span className="text-right">On Hand</span>
+            <span className="text-right">Reorder</span>
+            <span>Location</span>
+          </div>
+          {/* Rows */}
+          {MOCK_WAREHOUSE.map((w, i) => (
+            <div key={i} className={`grid grid-cols-[1fr_80px_70px_70px_80px] gap-2 px-3 py-2 items-center text-xs border-b border-gray-800 last:border-b-0 ${i % 2 === 0 ? 'bg-gray-900' : 'bg-gray-900/60'}`}>
+              <span className="text-white font-medium truncate">{w.name}</span>
+              <span className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium w-fit ${w.catColor}`}>
+                {w.cat}
+              </span>
+              <span className={`text-right font-medium ${w.low ? 'text-red-400' : 'text-gray-300'}`}>
+                {w.onHand}
+              </span>
+              <span className="text-right text-gray-500">{w.reorder}</span>
+              <span className="text-gray-400">{w.location}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Warehouse action instructions */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-gray-800/50 rounded-lg px-3 py-2.5 border-l-2 border-green-500">
+            <div className="text-xs font-bold text-green-400 mb-1">Checkout</div>
+            <div className="text-[11px] text-gray-400">
+              Taking items for a project? Click &quot;Checkout&quot;, select the project, enter quantity. Stock decreases automatically.
+            </div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg px-3 py-2.5 border-l-2 border-blue-500">
+            <div className="text-xs font-bold text-blue-400 mb-1">Check-in</div>
+            <div className="text-[11px] text-gray-400">
+              Returning unused items? Click &quot;Check-in&quot;, enter quantity. Stock increases and a return record is logged.
+            </div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg px-3 py-2.5 border-l-2 border-amber-500">
+            <div className="text-xs font-bold text-amber-400 mb-1">Adjust</div>
+            <div className="text-[11px] text-gray-400">
+              Physical count doesn&apos;t match? Click &quot;Adjust&quot; and enter the actual count. The system logs the discrepancy.
+            </div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg px-3 py-2.5 border-l-2 border-purple-500">
+            <div className="text-xs font-bold text-purple-400 mb-1">History</div>
+            <div className="text-[11px] text-gray-400">
+              Click &quot;History&quot; on any item to see every checkout, check-in, and adjustment with timestamps and who did it.
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Section 4: Quick Reference ────────────────────────────────────── */}
+      <Card title="Quick Reference — Inventory Cheat Sheet">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Status Colors */}
+          <div>
+            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Status Colors</div>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-2 h-2 rounded-full bg-gray-400" />
+                <span className="text-gray-400">Gray</span>
+                <span className="text-gray-600">=</span>
+                <span className="text-gray-300">Needed</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-2 h-2 rounded-full bg-blue-400" />
+                <span className="text-blue-400">Blue</span>
+                <span className="text-gray-600">=</span>
+                <span className="text-gray-300">Ordered</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                <span className="text-amber-400">Amber</span>
+                <span className="text-gray-600">=</span>
+                <span className="text-gray-300">Shipped</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-2 h-2 rounded-full bg-green-400" />
+                <span className="text-green-400">Green</span>
+                <span className="text-gray-600">=</span>
+                <span className="text-gray-300">Delivered</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-300" />
+                <span className="text-emerald-300">Emerald</span>
+                <span className="text-gray-600">=</span>
+                <span className="text-gray-300">Installed</span>
+              </div>
+            </div>
+          </div>
+
+          {/* PO Flow */}
+          <div>
+            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">PO Lifecycle</div>
+            <div className="space-y-1.5 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="text-gray-400">Draft</span>
+                <span className="text-gray-600">&rarr;</span>
+                <span className="text-blue-400">Submitted</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-blue-400">Submitted</span>
+                <span className="text-gray-600">&rarr;</span>
+                <span className="text-purple-400">Confirmed</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-purple-400">Confirmed</span>
+                <span className="text-gray-600">&rarr;</span>
+                <span className="text-amber-400">Shipped</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-amber-400">Shipped</span>
+                <span className="text-gray-600">&rarr;</span>
+                <span className="text-green-400">Delivered</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Sources */}
+          <div>
+            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Material Sources</div>
+            <div className="space-y-2 text-xs">
+              <div>
+                <span className="text-white font-medium">Dropship</span>
+                <div className="text-gray-500 text-[11px]">Ordered from vendor, shipped directly to the job site</div>
+              </div>
+              <div>
+                <span className="text-white font-medium">Warehouse</span>
+                <div className="text-gray-500 text-[11px]">Taken from MicroGRID warehouse stock</div>
+              </div>
+              <div>
+                <span className="text-white font-medium">TBD</span>
+                <div className="text-gray-500 text-[11px]">Source not yet determined</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </>
+  )
+}
+
 function ForEveryone() {
   return (
     <div>
@@ -1036,24 +1434,7 @@ function ForEveryone() {
       </Card>
 
       <SectionHeader title="Inventory Management" />
-      <Card title="Inventory Management">
-        Track project materials from &quot;needed&quot; through &quot;installed&quot; and manage purchase orders.
-        The Materials tab in each project panel shows the per-project material list.
-        The dedicated Inventory page (/inventory) provides a cross-project view.
-        <Ul items={[
-          'Materials tab in Project Panel — view, add, and track materials per project',
-          'Auto-generate materials from project equipment (module, inverter, battery, optimizer)',
-          'Click status badges to cycle: needed → ordered → shipped → delivered → installed',
-          'Select materials and create purchase orders with auto-generated PO numbers',
-          'PO lifecycle: draft → submitted → confirmed → shipped → delivered (or cancelled)',
-          'Delivering a PO auto-updates all linked materials to "delivered" status',
-          '/inventory page — 3 tabs: Project Materials (cross-project view), Purchase Orders, Warehouse stock management',
-          'Warehouse: add stock items, check out for projects, check in returns, physical count adjustments',
-          'Low stock alerts when quantity falls to or below reorder point',
-          'Transaction history per item: checkout, checkin, adjustment records with timestamps',
-          'Filters, search, sortable columns, and pagination on all inventory views',
-        ]} />
-      </Card>
+      <InventoryTraining />
 
       <SectionHeader title="Document Management" />
       <Card title="Document Management">
