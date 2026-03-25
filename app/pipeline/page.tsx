@@ -73,13 +73,20 @@ export default function PipelinePage() {
 
   const searchOr = useMemo(() => buildSearchOr(), [buildSearchOr])
 
+  // Debounce search to avoid re-fetching on every keystroke
+  const [debouncedOr, setDebouncedOr] = useState(searchOr)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedOr(searchOr), 350)
+    return () => clearTimeout(t)
+  }, [searchOr])
+
   // Main query — load all projects (Pipeline needs full view for Kanban)
   const {
     data: projects, loading, refresh,
   } = useSupabaseQuery('projects', {
     select: PROJECT_COLUMNS,
     filters: queryFilters,
-    or: searchOr,
+    or: debouncedOr,
     limit: 5000,
   })
 
