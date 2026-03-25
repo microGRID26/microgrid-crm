@@ -7,6 +7,7 @@ import { Pagination } from '@/components/Pagination'
 import { fmtDate } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { useSupabaseQuery } from '@/lib/hooks'
+import { useCurrentUser } from '@/lib/useCurrentUser'
 import type { Project, ServiceCall } from '@/types/database'
 
 const STATUS_STYLE: Record<string, string> = {
@@ -19,6 +20,26 @@ const STATUS_STYLE: Record<string, string> = {
 }
 
 export default function ServicePage() {
+  const { user: serviceUser, loading: serviceUserLoading } = useCurrentUser()
+
+  // Role gate: Manager+ only
+  if (!serviceUserLoading && serviceUser && !serviceUser.isManager) {
+    return (
+      <>
+        <Nav active="Service" />
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg text-gray-400">Access Restricted</p>
+            <p className="text-sm text-gray-500 mt-2">Service is available to Managers and above.</p>
+            <a href="/command" className="inline-block mt-4 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+              ← Back to Command Center
+            </a>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   const [selected, setSelected] = useState<Project | null>(null)
   const [loadingProject, setLoadingProject] = useState(false)
 

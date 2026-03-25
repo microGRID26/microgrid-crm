@@ -19,6 +19,13 @@ const PRIMARY_LINKS = [
   { label: 'Analytics', href: '/analytics' },
 ]
 
+const SALES_LINKS = [
+  { label: 'Command',  href: '/command'  },
+  { label: 'Queue',    href: '/queue'    },
+  { label: 'Pipeline', href: '/pipeline' },
+  { label: 'Schedule', href: '/schedule' },
+]
+
 const MORE_LINKS = [
   { label: 'Service',       href: '/service'  },
   { label: 'Change Orders', href: '/change-orders' },
@@ -111,6 +118,8 @@ interface NavProps {
 export function Nav({ active, right, onNewProject }: NavProps) {
   const { user: currentUser, loading } = useCurrentUser()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const isSales = !loading && !!currentUser?.isSales
+  const navLinks = isSales ? SALES_LINKS : PRIMARY_LINKS
 
   async function signOut() {
     const supabase = createClient()
@@ -125,7 +134,7 @@ export function Nav({ active, right, onNewProject }: NavProps) {
 
         {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-2">
-          {PRIMARY_LINKS.map(v => (
+          {navLinks.map(v => (
             <a key={v.label} href={v.href}
               className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
                 v.label === active
@@ -136,10 +145,11 @@ export function Nav({ active, right, onNewProject }: NavProps) {
             </a>
           ))}
 
-          {/* More dropdown */}
-          <MoreDropdown active={active} isAdmin={!loading && !!currentUser?.isAdmin} />
+          {/* More dropdown — hidden for sales users */}
+          {!isSales && <MoreDropdown active={active} isAdmin={!loading && !!currentUser?.isAdmin} />}
 
-          {!loading && currentUser && <NotificationBell />}
+          {/* Notification bell — hidden for sales users */}
+          {!isSales && !loading && currentUser && <NotificationBell />}
 
           {(!loading && currentUser?.isAdmin) && (
             <a href="/admin"
@@ -162,7 +172,8 @@ export function Nav({ active, right, onNewProject }: NavProps) {
             {HELP_ICON}
           </a>
 
-          {onNewProject && currentUser && (
+          {/* New Project button — hidden for sales users */}
+          {!isSales && onNewProject && currentUser && (
             <button onClick={onNewProject}
               className="text-xs px-3 py-1.5 rounded-md transition-colors bg-green-700 hover:bg-green-600 text-white font-medium">
               + New Project
@@ -217,7 +228,7 @@ export function Nav({ active, right, onNewProject }: NavProps) {
 
             {/* Main nav links */}
             <div className="flex-1 py-2">
-              {onNewProject && currentUser && (
+              {!isSales && onNewProject && currentUser && (
                 <button
                   onClick={() => { setDrawerOpen(false); onNewProject() }}
                   className="w-full text-left py-3 px-4 text-base font-medium bg-green-700 text-white active:bg-green-600 transition-colors"
@@ -226,7 +237,7 @@ export function Nav({ active, right, onNewProject }: NavProps) {
                 </button>
               )}
 
-              {ALL_LINKS.map(v => (
+              {(isSales ? [...SALES_LINKS, { label: 'Help', href: '/help' }] : ALL_LINKS).map(v => (
                 <a key={v.label} href={v.href}
                   onClick={() => setDrawerOpen(false)}
                   className={`block py-3 px-4 text-base font-medium transition-colors ${
@@ -241,7 +252,7 @@ export function Nav({ active, right, onNewProject }: NavProps) {
               {/* Divider */}
               <div className="border-t border-gray-800 my-2" />
 
-              {!loading && currentUser && (
+              {!isSales && !loading && currentUser && (
                 <div className="px-4 py-2">
                   <NotificationBell />
                 </div>
@@ -272,16 +283,18 @@ export function Nav({ active, right, onNewProject }: NavProps) {
                 </a>
               )}
 
-              <a href="/help"
-                onClick={() => setDrawerOpen(false)}
-                className={`flex items-center gap-2 py-3 px-4 text-base font-medium transition-colors ${
-                  active === 'Help'
-                    ? 'text-green-400 bg-gray-900'
-                    : 'text-gray-300 active:bg-gray-800'
-                }`}>
-                {HELP_ICON}
-                Help
-              </a>
+              {!isSales && (
+                <a href="/help"
+                  onClick={() => setDrawerOpen(false)}
+                  className={`flex items-center gap-2 py-3 px-4 text-base font-medium transition-colors ${
+                    active === 'Help'
+                      ? 'text-green-400 bg-gray-900'
+                      : 'text-gray-300 active:bg-gray-800'
+                  }`}>
+                  {HELP_ICON}
+                  Help
+                </a>
+              )}
 
               <button onClick={() => { setDrawerOpen(false); signOut() }}
                 className="w-full text-left py-3 px-4 text-base font-medium text-gray-500 active:bg-gray-800 transition-colors">

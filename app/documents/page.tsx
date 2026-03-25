@@ -50,6 +50,25 @@ function getFileIcon(mimeType: string | null) {
 
 export default function DocumentsPage() {
   const { user, loading: userLoading } = useCurrentUser()
+
+  // Role gate: Manager+ only
+  if (!userLoading && user && !user.isManager) {
+    return (
+      <>
+        <Nav active="Documents" />
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg text-gray-400">Access Restricted</p>
+            <p className="text-sm text-gray-500 mt-2">Documents is available to Managers and above.</p>
+            <a href="/command" className="inline-block mt-4 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+              ← Back to Command Center
+            </a>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [files, setFiles] = useState<ProjectFile[]>([])

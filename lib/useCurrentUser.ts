@@ -13,6 +13,7 @@ interface CurrentUser {
   isSuperAdmin: boolean // role is super_admin
   isFinance: boolean    // role is finance+
   isManager: boolean    // role is manager+
+  isSales: boolean      // role is sales
 }
 
 const ROLE_LEVEL: Record<UserRole, number> = {
@@ -21,6 +22,7 @@ const ROLE_LEVEL: Record<UserRole, number> = {
   finance: 3,
   manager: 2,
   user: 1,
+  sales: 0,
 }
 
 function buildUser(id: string, email: string, name: string, role: UserRole): CurrentUser {
@@ -31,6 +33,7 @@ function buildUser(id: string, email: string, name: string, role: UserRole): Cur
     isSuperAdmin: role === 'super_admin',
     isFinance: level >= 3,
     isManager: level >= 2,
+    isSales: role === 'sales',
   }
 }
 

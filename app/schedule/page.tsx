@@ -10,6 +10,7 @@ import { JobBriefPanel } from '@/components/project/JobBriefPanel'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { cn } from '@/lib/utils'
 import { useSupabaseQuery, useRealtimeSubscription } from '@/lib/hooks'
+import { useCurrentUser } from '@/lib/useCurrentUser'
 import type { Schedule, Crew, Project } from '@/types/database'
 
 /** Schedule row with joined project data from Supabase */
@@ -63,6 +64,7 @@ function fmtTime(t: string | null): string {
 
 export default function SchedulePage() {
   const supabase = createClient()
+  const { user: currentUser } = useCurrentUser()
   const mountedRef = useRef(true)
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false } }, [])
   const [schedule, setSchedule] = useState<ScheduleWithProject[]>([])
@@ -93,6 +95,21 @@ export default function SchedulePage() {
     filters: { active: 'TRUE' },
     order: { column: 'name', ascending: true },
   })
+
+  // Sales role: load project IDs to filter schedule
+  const { data: salesProjectsRaw } = useSupabaseQuery('projects', {
+    select: 'id, consultant, advisor',
+    limit: 5000,
+  })
+  const salesProjectIds = useMemo(() => {
+    if (!currentUser?.isSales || !currentUser.name || !salesProjectsRaw) return null
+    const salesName = currentUser.name.toLowerCase()
+    return new Set(
+      (salesProjectsRaw as unknown as { id: string; consultant: string | null; advisor: string | null }[])
+        .filter(p => p.consultant?.toLowerCase() === salesName || p.advisor?.toLowerCase() === salesName)
+        .map(p => p.id)
+    )
+  }, [salesProjectsRaw, currentUser])
 
   // Schedule query with project join — kept manual since useSupabaseQuery can't handle joins
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset])
@@ -135,10 +152,16 @@ export default function SchedulePage() {
     [crews, warehouseFilter]
   )
 
+  // Filter schedule for sales users
+  const filteredSchedule = useMemo(() => {
+    if (!salesProjectIds) return schedule
+    return schedule.filter(s => salesProjectIds.has(s.project_id ?? ''))
+  }, [schedule, salesProjectIds])
+
   // Memoize schedule map: crewId|date -> jobs[]
   const schedMap = useMemo(() => {
     const map: Record<string, Schedule[]> = {}
-    schedule.forEach(s => {
+    filteredSchedule.forEach(s => {
       if (!s.crew_id || !s.date) return
       const key = `${s.crew_id}|${s.date}`
       if (!map[key]) map[key] = []
@@ -146,7 +169,7 @@ export default function SchedulePage() {
     })
     Object.keys(map).forEach(key => { map[key] = [...map[key]].sort((a, b) => (a.time ?? '99:99') > (b.time ?? '99:99') ? 1 : -1) })
     return map
-  }, [schedule])
+  }, [filteredSchedule])
 
   function jobsFor(crewId: string, date: string): ScheduleWithProject[] {
     const all = schedMap[`${crewId}|${date}`] ?? []

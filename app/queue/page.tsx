@@ -97,6 +97,7 @@ const HARDCODED_SECTIONS: QueueSectionConfig[] = [
 ]
 
 export default function QueuePage() {
+  const { user: currentUser } = useCurrentUser()
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [showNewProject, setShowNewProject] = useState(false)
   const [userPm, setUserPm] = useState<string>(() => {
@@ -147,12 +148,22 @@ export default function QueuePage() {
     loading: projectsLoading,
     refresh: refreshProjects,
   } = useSupabaseQuery('projects', {
-    select: 'id, name, city, address, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date',
+    select: 'id, name, city, address, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date, consultant, advisor',
     filters: pmFilters,
     limit: 5000,
     subscribe: true,
   })
-  const projects = projectsRaw as unknown as Project[]
+
+  // Apply sales filtering (consultant/advisor match)
+  const projects = useMemo(() => {
+    const raw = projectsRaw as unknown as Project[]
+    if (!currentUser?.isSales || !currentUser.name) return raw
+    const salesName = currentUser.name.toLowerCase()
+    return raw.filter(p =>
+      p.consultant?.toLowerCase() === salesName ||
+      p.advisor?.toLowerCase() === salesName
+    )
+  }, [projectsRaw, currentUser])
 
   // ── Query 2: Task states for queue-relevant tasks ──────────────────────
   const taskFilters = useMemo(() => ({
@@ -212,8 +223,6 @@ export default function QueuePage() {
     refreshTasks()
     refreshFollowUps()
   }, [refreshProjects, refreshTasks, refreshFollowUps])
-
-  const { user: currentUser } = useCurrentUser()
 
   // ── Bulk selection ────────────────────────────────────────────────────
   const {
@@ -367,18 +376,22 @@ export default function QueuePage() {
             {availablePms.map(pm => <option key={pm.id} value={pm.id}>{pm.name}</option>)}
           </select>
           <span className="text-xs text-gray-500">{projects.length} projects</span>
-          <button
-            onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
-            className={`text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
-              selectMode
-                ? 'bg-green-700 text-white hover:bg-green-600'
-                : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
-            }`}
-          >
-            {selectMode ? 'Exit Select' : 'Select'}
-          </button>
-          {selectMode && selectedIds.size > 0 && (
-            <span className="text-xs text-green-400 font-medium">{selectedIds.size} selected</span>
+          {!currentUser?.isSales && (
+            <>
+              <button
+                onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+                className={`text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
+                  selectMode
+                    ? 'bg-green-700 text-white hover:bg-green-600'
+                    : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+                }`}
+              >
+                {selectMode ? 'Exit Select' : 'Select'}
+              </button>
+              {selectMode && selectedIds.size > 0 && (
+                <span className="text-xs text-green-400 font-medium">{selectedIds.size} selected</span>
+              )}
+            </>
           )}
           <button onClick={() => setShowCardConfig(true)} className="text-gray-400 hover:text-white transition-colors p-1" title="Card fields">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>

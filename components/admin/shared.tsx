@@ -34,7 +34,7 @@ export interface HOA {
   notes: string | null
 }
 
-export type UserRole = 'super_admin' | 'admin' | 'finance' | 'manager' | 'user'
+export type UserRole = 'super_admin' | 'admin' | 'finance' | 'manager' | 'user' | 'sales'
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: 'Super Admin',
@@ -42,6 +42,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   finance: 'Finance',
   manager: 'Manager',
   user: 'User',
+  sales: 'Sales',
 }
 
 export const ROLE_COLORS: Record<UserRole, string> = {
@@ -50,6 +51,7 @@ export const ROLE_COLORS: Record<UserRole, string> = {
   finance: 'bg-blue-900/40 text-blue-400 border-blue-800',
   manager: 'bg-purple-900/40 text-purple-400 border-purple-800',
   user: 'bg-gray-800 text-gray-400 border-gray-700',
+  sales: 'bg-emerald-900/40 text-emerald-400 border-emerald-800',
 }
 
 export interface User {

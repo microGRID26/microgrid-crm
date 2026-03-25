@@ -79,7 +79,26 @@ export default function ChangeOrdersPage() {
 }
 
 function ChangeOrdersContent() {
-  const { user: currentUser } = useCurrentUser()
+  const { user: currentUser, loading: userLoading } = useCurrentUser()
+
+  // Role gate: Manager+ only
+  if (!userLoading && currentUser && !currentUser.isManager) {
+    return (
+      <>
+        <Nav active="Change Orders" />
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg text-gray-400">Access Restricted</p>
+            <p className="text-sm text-gray-500 mt-2">Change Orders is available to Managers and above.</p>
+            <a href="/command" className="inline-block mt-4 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+              ← Back to Command Center
+            </a>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   const [orders, setOrders] = useState<ChangeOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<ChangeOrder | null>(null)

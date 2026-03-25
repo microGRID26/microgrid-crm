@@ -68,6 +68,26 @@ const PAGE_SIZE = 50
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function LegacyPage() {
+  const { user: legacyUser, loading: legacyUserLoading } = useCurrentUser()
+
+  // Role gate: Manager+ only
+  if (!legacyUserLoading && legacyUser && !legacyUser.isManager) {
+    return (
+      <>
+        <Nav active="Legacy" />
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg text-gray-400">Access Restricted</p>
+            <p className="text-sm text-gray-500 mt-2">Legacy data is available to Managers and above.</p>
+            <a href="/command" className="inline-block mt-4 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+              ← Back to Command Center
+            </a>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [results, setResults] = useState<LegacyProject[]>([])

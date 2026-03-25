@@ -249,7 +249,7 @@ export interface TaskReason {
   sort_order: number
 }
 
-export type UserRole = 'super_admin' | 'admin' | 'finance' | 'manager' | 'user'
+export type UserRole = 'super_admin' | 'admin' | 'finance' | 'manager' | 'user' | 'sales'
 
 export interface User {
   id: string
@@ -376,6 +376,151 @@ export interface ProjectBom {
   attachment_count: number | null
   overrides: Record<string, number | undefined> | null
   version: number | null
+  created_at: string
+}
+
+export interface NotificationRule {
+  id: string
+  task_id: string
+  trigger_status: string
+  trigger_reason: string | null
+  action_type: string
+  action_message: string
+  notify_role: string | null
+  active: boolean
+  created_by: string | null
+  created_at: string
+}
+
+export interface QueueSection {
+  id: string
+  label: string
+  task_id: string
+  match_status: string
+  color: string
+  icon: string
+  sort_order: number
+  active: boolean
+  created_at: string
+}
+
+export interface UserPreference {
+  user_id: string
+  homepage: string
+  default_pm_filter: string | null
+  collapsed_sections: Record<string, boolean>
+  queue_card_fields: string[]
+  export_presets: Record<string, unknown>[]
+  created_at: string
+  updated_at: string
+}
+
+export interface Equipment {
+  id: string
+  name: string
+  manufacturer: string | null
+  model: string | null
+  category: string
+  watts: number | null
+  description: string | null
+  active: boolean
+  sort_order: number
+  created_at: string
+}
+
+export interface DocumentRequirement {
+  id: string
+  stage: string
+  task_id: string | null
+  document_type: string
+  folder_name: string | null
+  filename_pattern: string | null
+  required: boolean
+  description: string | null
+  sort_order: number
+  active: boolean
+  created_at: string
+}
+
+export interface ProjectDocument {
+  id: string
+  project_id: string
+  requirement_id: string
+  file_id: string | null
+  status: 'present' | 'missing' | 'pending' | 'verified'
+  verified_by: string | null
+  verified_at: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface ProjectFile {
+  id: string
+  project_id: string
+  folder_name: string | null
+  file_name: string
+  file_id: string
+  file_url: string | null
+  mime_type: string | null
+  file_size: number | null
+  created_at: string | null
+  updated_at: string | null
+  synced_at: string
+}
+
+export interface LegacyProject {
+  id: string
+  ns_internal_id: string | null
+  name: string
+  phone: string | null
+  email: string | null
+  address: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+  lat: number | null
+  lon: number | null
+  systemkw: number | null
+  module: string | null
+  module_qty: number | null
+  inverter: string | null
+  inverter_qty: number | null
+  battery: string | null
+  battery_qty: number | null
+  contract: number | null
+  financier: string | null
+  financing_type: string | null
+  dealer: string | null
+  advisor: string | null
+  consultant: string | null
+  pm: string | null
+  sale_date: string | null
+  survey_date: string | null
+  install_date: string | null
+  pto_date: string | null
+  in_service_date: string | null
+  disposition: string | null
+  ahj: string | null
+  utility: string | null
+  hoa: string | null
+  permit_number: string | null
+  utility_app_number: string | null
+  voltage: string | null
+  msp_bus_rating: string | null
+  main_breaker: string | null
+  stage: string
+  stage_date: string | null
+  m2_amount: number | null
+  m2_funded_date: string | null
+  m3_amount: number | null
+  m3_funded_date: string | null
+}
+
+export interface LegacyNote {
+  id: string
+  project_id: string
+  author: string | null
+  message: string | null
   created_at: string
 }
 
@@ -530,6 +675,60 @@ export type Database = {
         Row: ProjectBom
         Insert: ProjectBom
         Update: Partial<ProjectBom>
+
+      }
+      notification_rules: {
+        Row: NotificationRule
+        Insert: Omit<NotificationRule, 'id' | 'active' | 'created_at'> & { id?: string; active?: boolean; created_at?: string }
+        Update: Partial<NotificationRule>
+
+      }
+      queue_sections: {
+        Row: QueueSection
+        Insert: Omit<QueueSection, 'id' | 'color' | 'icon' | 'sort_order' | 'active' | 'created_at'> & { id?: string; color?: string; icon?: string; sort_order?: number; active?: boolean; created_at?: string }
+        Update: Partial<QueueSection>
+
+      }
+      user_preferences: {
+        Row: UserPreference
+        Insert: Pick<UserPreference, 'user_id'> & Partial<Omit<UserPreference, 'user_id'>>
+        Update: Partial<UserPreference>
+
+      }
+      equipment: {
+        Row: Equipment
+        Insert: Omit<Equipment, 'id' | 'active' | 'sort_order' | 'created_at'> & { id?: string; active?: boolean; sort_order?: number; created_at?: string }
+        Update: Partial<Equipment>
+
+      }
+      document_requirements: {
+        Row: DocumentRequirement
+        Insert: Omit<DocumentRequirement, 'id' | 'required' | 'sort_order' | 'active' | 'created_at'> & { id?: string; required?: boolean; sort_order?: number; active?: boolean; created_at?: string }
+        Update: Partial<DocumentRequirement>
+
+      }
+      project_documents: {
+        Row: ProjectDocument
+        Insert: Omit<ProjectDocument, 'id' | 'status' | 'created_at'> & { id?: string; status?: ProjectDocument['status']; created_at?: string }
+        Update: Partial<ProjectDocument>
+
+      }
+      project_files: {
+        Row: ProjectFile
+        Insert: Omit<ProjectFile, 'id' | 'synced_at'> & { id?: string; synced_at?: string }
+        Update: Partial<ProjectFile>
+
+      }
+      legacy_projects: {
+        Row: LegacyProject
+        Insert: LegacyProject
+        Update: Partial<LegacyProject>
+
+      }
+      legacy_notes: {
+        Row: LegacyNote
+        Insert: Omit<LegacyNote, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<LegacyNote>
 
       }
     }

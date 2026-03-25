@@ -11,6 +11,7 @@ import type { Section, TaskEntry, StuckTask } from '@/lib/classify'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { NewProjectModal } from '@/components/project/NewProjectModal'
 import { Nav } from '@/components/Nav'
+import { useCurrentUser } from '@/lib/useCurrentUser'
 import { usePreferences } from '@/lib/usePreferences'
 import type { ExportPreset } from '@/lib/usePreferences'
 import { useSupabaseQuery } from '@/lib/hooks'
@@ -349,10 +350,11 @@ function ExportModal({ projects, onClose }: { projects: Project[]; onClose: () =
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 export default function CommandPage() {
   const supabase = createClient()
+  const { user: currentUser } = useCurrentUser()
 
   // ── Data queries via useSupabaseQuery ────────────────────────────────────
   const projectsQuery = useSupabaseQuery('projects', {
-    select: 'id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, disposition, address, financier, follow_up_date',
+    select: 'id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, disposition, address, financier, follow_up_date, consultant, advisor',
     order: { column: 'stage_date', ascending: true },
     limit: 5000,
   })
@@ -487,7 +489,16 @@ export default function CommandPage() {
 
   // Filtered projects
   const filtered = useMemo(() => {
-    let result = pmFilter === 'all' ? projects : projects.filter(p => p.pm_id === pmFilter)
+    let result = projects
+    // Sales role: only show projects where consultant or advisor matches user name
+    if (currentUser?.isSales && currentUser.name) {
+      const salesName = currentUser.name.toLowerCase()
+      result = result.filter(p =>
+        p.consultant?.toLowerCase() === salesName ||
+        p.advisor?.toLowerCase() === salesName
+      )
+    }
+    result = pmFilter === 'all' ? result : result.filter(p => p.pm_id === pmFilter)
     if (search.trim()) {
       const q = search.toLowerCase().trim()
       result = result.filter(p =>
@@ -499,7 +510,7 @@ export default function CommandPage() {
       )
     }
     return result
-  }, [projects, pmFilter, search])
+  }, [projects, pmFilter, search, currentUser])
 
   // Overdue + Pending Resolution: single pass over taskStates
   const { overduePids, pendingPids } = useMemo(() => {

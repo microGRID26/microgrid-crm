@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { Nav } from '@/components/Nav'
 import { fmt$, daysAgo, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS } from '@/lib/utils'
 import { useSupabaseQuery } from '@/lib/hooks'
+import { useCurrentUser } from '@/lib/useCurrentUser'
 import type { ProjectFunding } from '@/types/database'
 
 type Period = 'wtd'|'mtd'|'qtd'|'ytd'|'last7'|'last30'|'last90'
@@ -66,8 +67,27 @@ function MiniBar({ label, count, value, max }: { label: string; count: number; v
 }
 
 export default function AnalyticsPage() {
+  const { user: currentUser, loading: userLoading } = useCurrentUser()
   const [period, setPeriod] = useState<Period>('mtd')
   const [tab, setTab] = useState<'leadership'|'pipeline'|'pm'|'funding_analytics'|'cycle'|'dealers'>('leadership')
+
+  // Role gate: Manager+ only
+  if (!userLoading && currentUser && !currentUser.isManager) {
+    return (
+      <>
+        <Nav active="Analytics" />
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg text-gray-400">Access Restricted</p>
+            <p className="text-sm text-gray-500 mt-2">Analytics is available to Managers and above.</p>
+            <a href="/command" className="inline-block mt-4 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+              ← Back to Command Center
+            </a>
+          </div>
+        </div>
+      </>
+    )
+  }
 
   // Projects via useSupabaseQuery — excludes In Service, Loyalty, Cancelled
   const { data: projects, loading: projLoading } = useSupabaseQuery('projects', {

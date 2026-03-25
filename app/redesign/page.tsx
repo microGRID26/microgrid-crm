@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Nav } from '@/components/Nav'
 import { cn } from '@/lib/utils'
+import { useCurrentUser } from '@/lib/useCurrentUser'
 import { Calculator, ArrowRight, AlertTriangle, Sun, Zap, Battery, ChevronDown, ChevronUp, FileDown } from 'lucide-react'
 import { generateSingleLineDxf } from '@/lib/sld-template'
 
@@ -579,6 +580,26 @@ function TextField({ label, value, onChange }: {
 // ── PAGE ─────────────────────────────────────────────────────────────────────
 
 export default function RedesignPage() {
+  const { user: redesignUser, loading: redesignUserLoading } = useCurrentUser()
+
+  // Role gate: Manager+ only
+  if (!redesignUserLoading && redesignUser && !redesignUser.isManager) {
+    return (
+      <>
+        <Nav active="Redesign" />
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg text-gray-400">Access Restricted</p>
+            <p className="text-sm text-gray-500 mt-2">Redesign is available to Managers and above.</p>
+            <a href="/command" className="inline-block mt-4 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+              ← Back to Command Center
+            </a>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   const [existing, setExisting] = useState<ExistingSystem>(DEFAULT_EXISTING)
   const [target, setTarget] = useState<TargetSystem>(DEFAULT_TARGET)
   const [results, setResults] = useState<Results | null>(null)

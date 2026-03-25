@@ -913,7 +913,14 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
           </div>
 
           <div className="flex items-center gap-3 mt-3 flex-wrap">
-            {!showBlockerForm ? (
+            {currentUser?.isSales ? (
+              /* Sales users see blocker status read-only */
+              project.blocker ? (
+                <span className="text-xs px-3 py-1.5 rounded-lg font-medium bg-red-900 text-red-300">
+                  🚫 {project.blocker}
+                </span>
+              ) : null
+            ) : !showBlockerForm ? (
               <button onClick={() => setShowBlockerForm(true)}
                 className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
                   project.blocker ? 'bg-red-900 text-red-300 hover:bg-red-800' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
@@ -935,7 +942,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
                 <button onClick={() => setShowBlockerForm(false)} className="text-xs text-gray-500 hover:text-white px-2">Cancel</button>
               </div>
             )}
-            {!showBlockerForm && !editMode && currentUser && (
+            {!showBlockerForm && !editMode && currentUser && !currentUser.isSales && (
               <button onClick={startEdit} className="text-xs px-3 py-1.5 rounded-lg font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
                 ✏ Edit
               </button>
@@ -952,7 +959,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
                 </button>
               </div>
             )}
-            {nextStage && !showBlockerForm && (
+            {nextStage && !showBlockerForm && !currentUser?.isSales && (
               <button onClick={advanceStage} disabled={advancing}
                 title={!advance.ok ? `Complete required tasks: ${advance.missing.join(', ')}` : ''}
                 className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
@@ -1106,6 +1113,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
               adders={adders}
               onAddAdder={addAdder}
               onDeleteAdder={deleteAdder}
+              isSales={currentUser?.isSales ?? false}
             />
           )}
 

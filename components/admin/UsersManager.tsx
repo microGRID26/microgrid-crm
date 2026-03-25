@@ -190,6 +190,7 @@ export function UsersManager({ currentUserRole }: { currentUserRole: UserRole })
                 onChange={e => setDraft(d => ({ ...d, role: e.target.value as UserRole }))}
                 className="bg-gray-800 border border-gray-700 rounded-md px-3 py-1.5 text-sm text-white
                            focus:outline-none focus:border-blue-500 transition-colors">
+                <option value="sales">Sales</option>
                 <option value="user">User</option>
                 <option value="manager">Manager</option>
                 <option value="finance">Finance</option>

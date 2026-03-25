@@ -13,7 +13,7 @@ import { BulkActionBar, useBulkSelect, SelectCheckbox } from '@/components/BulkA
 import { ArrowRight, Loader2 } from 'lucide-react'
 import type { Project } from '@/types/database'
 
-const PROJECT_COLUMNS = 'id, name, city, address, pm, pm_id, stage, stage_date, sale_date, contract, blocker, systemkw, financier, ahj, utility, disposition'
+const PROJECT_COLUMNS = 'id, name, city, address, pm, pm_id, stage, stage_date, sale_date, contract, blocker, systemkw, financier, ahj, utility, disposition, consultant, advisor'
 
 const SEARCH_FIELDS = ['name', 'id', 'city', 'address']
 
@@ -143,6 +143,15 @@ export default function PipelinePage() {
     let result = allProjects as unknown as Project[]
     if (!result) return []
 
+    // Sales role: only show projects where consultant or advisor matches user name
+    if (currentUser?.isSales && currentUser.name) {
+      const salesName = currentUser.name.toLowerCase()
+      result = result.filter(p =>
+        p.consultant?.toLowerCase() === salesName ||
+        p.advisor?.toLowerCase() === salesName
+      )
+    }
+
     // Search filter
     const q = search.trim().toLowerCase()
     if (q) {
@@ -166,7 +175,7 @@ export default function PipelinePage() {
     }
 
     return result
-  }, [allProjects, search, filterValues])
+  }, [allProjects, search, filterValues, currentUser])
 
   // Use extracted dropdowns (from data) for the select options
   const pms = extractedDropdowns.pm ?? []
@@ -315,31 +324,36 @@ export default function PipelinePage() {
           onChange={v => setFilter('utility', v)}
         />
 
-        {/* Select mode toggle */}
-        <button
-          onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
-          className={`text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
-            selectMode
-              ? 'bg-green-700 text-white hover:bg-green-600'
-              : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
-          }`}
-        >
-          {selectMode ? 'Exit Select' : 'Select'}
-        </button>
-
-        {/* Select all / deselect all (visible in select mode) */}
-        {selectMode && (
+        {/* Select mode toggle — hidden for sales users */}
+        {/* Select mode toggle — hidden for sales users */}
+        {!currentUser?.isSales && (
           <>
-            <button onClick={() => selectAll(projects.map(p => p.id))}
-              className="text-xs px-2 py-1.5 rounded-md text-gray-400 hover:text-white bg-gray-800 border border-gray-700">
-              Select All
+            <button
+              onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+              className={`text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
+                selectMode
+                  ? 'bg-green-700 text-white hover:bg-green-600'
+                  : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+              }`}
+            >
+              {selectMode ? 'Exit Select' : 'Select'}
             </button>
-            <button onClick={deselectAll}
-              className="text-xs px-2 py-1.5 rounded-md text-gray-400 hover:text-white bg-gray-800 border border-gray-700">
-              Deselect All
-            </button>
-            {selectedIds.size > 0 && (
-              <span className="text-xs text-green-400 font-medium">{selectedIds.size} selected</span>
+
+            {/* Select all / deselect all (visible in select mode) */}
+            {selectMode && (
+              <>
+                <button onClick={() => selectAll(projects.map(p => p.id))}
+                  className="text-xs px-2 py-1.5 rounded-md text-gray-400 hover:text-white bg-gray-800 border border-gray-700">
+                  Select All
+                </button>
+                <button onClick={deselectAll}
+                  className="text-xs px-2 py-1.5 rounded-md text-gray-400 hover:text-white bg-gray-800 border border-gray-700">
+                  Deselect All
+                </button>
+                {selectedIds.size > 0 && (
+                  <span className="text-xs text-green-400 font-medium">{selectedIds.size} selected</span>
+                )}
+              </>
             )}
           </>
         )}

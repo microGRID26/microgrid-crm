@@ -314,8 +314,27 @@ function MsCells({ ms, data, pid, saveFundingField, disabled = false }: {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function FundingPage() {
-  const { user: currentUser } = useCurrentUser()
+  const { user: currentUser, loading: userLoading } = useCurrentUser()
   const canEditFunding = currentUser?.isFinance ?? false
+
+  // Role gate: Finance+ only
+  if (!userLoading && currentUser && !currentUser.isFinance) {
+    return (
+      <>
+        <Nav active="Funding" />
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg text-gray-400">Access Restricted</p>
+            <p className="text-sm text-gray-500 mt-2">Funding is available to Finance and above.</p>
+            <a href="/command" className="inline-block mt-4 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+              ← Back to Command Center
+            </a>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   const [projects, setProjects] = useState<Project[]>([])
   const [funding, setFunding] = useState<Record<string, ProjectFunding>>({})
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
