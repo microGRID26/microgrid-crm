@@ -299,11 +299,11 @@ export default function ReportsPage() {
   if (!userLoading && currentUser && !currentUser.isManager) {
     return (
       <>
-        <Nav active="Reports" />
+        <Nav active="Atlas" />
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
             <p className="text-lg text-gray-400">Access Restricted</p>
-            <p className="text-sm text-gray-500 mt-2">AI Reports is available to Managers and above.</p>
+            <p className="text-sm text-gray-500 mt-2">Atlas is available to Managers and above.</p>
           </div>
         </div>
       </>
@@ -400,16 +400,16 @@ export default function ReportsPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
-      <Nav active="Reports" />
+      <Nav active="Atlas" />
 
       <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full px-4">
         {/* Header */}
         <div className="pt-6 pb-4">
           <div className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-green-400" />
-            <h1 className="text-xl font-semibold">Reports</h1>
+            <Sparkles className="w-5 h-5 text-green-400" />
+            <h1 className="text-xl font-semibold">Atlas</h1>
           </div>
-          <p className="text-gray-400 text-sm mt-1">Ask a question about your projects</p>
+          <p className="text-gray-400 text-sm mt-1">AI-powered project reports — ask me anything</p>
         </div>
 
         {/* Chat area */}
