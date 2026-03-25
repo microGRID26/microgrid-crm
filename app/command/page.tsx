@@ -11,6 +11,7 @@ import { NewProjectModal } from '@/components/project/NewProjectModal'
 import { Nav } from '@/components/Nav'
 import { usePreferences } from '@/lib/usePreferences'
 import type { ExportPreset } from '@/lib/usePreferences'
+import { useSupabaseQuery } from '@/lib/hooks'
 import type { Project, Schedule } from '@/types/database'
 
 /** Schedule entry enriched with project/crew names for today's schedule display */
@@ -345,10 +346,89 @@ function ExportModal({ projects, onClose }: { projects: Project[]; onClose: () =
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 export default function CommandPage() {
   const supabase = createClient()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [taskStates, setTaskStates] = useState<TaskStateRow[]>([])
+
+  // ── Data queries via useSupabaseQuery ────────────────────────────────────
+  const projectsQuery = useSupabaseQuery('projects', {
+    select: 'id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, disposition, address, financier, follow_up_date',
+    order: { column: 'stage_date', ascending: true },
+    limit: 2000,
+  })
+
+  // Optimized: only load stuck tasks (Pending Resolution / Revision Required / Complete)
+  // instead of all 25K+ task_state rows
+  const taskQuery = useSupabaseQuery('task_state', {
+    select: 'project_id, task_id, status, reason, completed_date',
+    filters: { status: { in: ['Pending Resolution', 'Revision Required', 'Complete'] } },
+    limit: 50000,
+  })
+
+  const projects = projectsQuery.data as unknown as Project[]
+  const taskStates = taskQuery.data as unknown as TaskStateRow[]
+  const loading = projectsQuery.loading || taskQuery.loading
+
+  // ── Schedule (manual — requires enrichment with project/crew names) ──────
   const [todaySchedule, setTodaySchedule] = useState<ScheduleEntry[]>([])
+
+  const loadSchedule = useCallback(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const schedRes = await (supabase as any).from('schedule')
+      .select('id, project_id, job_type, time, status, crew_id')
+      .eq('date', new Date().toISOString().slice(0, 10))
+      .neq('status', 'cancelled')
+      .order('time')
+
+    if (schedRes.error) { console.error('schedule load failed:', schedRes.error); return }
+    if (!schedRes.data) return
+
+    const rawJobs = schedRes.data as ScheduleEntry[]
+    // Batch-fetch project names
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const schedPids = [...new Set(rawJobs.map((j: any) => j.project_id).filter(Boolean))]
+    const projNameMap: Record<string, string> = {}
+    if (schedPids.length > 0) {
+      const { data: pData, error: pError } = await supabase.from('projects').select('id, name').in('id', schedPids)
+      if (pError) console.error('schedule project names load failed:', pError)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (pData) pData.forEach((p: any) => { projNameMap[p.id] = p.name })
+    }
+    // Batch-fetch crew names
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const schedCids = [...new Set(rawJobs.map((j: any) => j.crew_id).filter(Boolean))]
+    const crewNameMap: Record<string, string> = {}
+    if (schedCids.length > 0) {
+      const { data: cData, error: cError } = await supabase.from('crews').select('id, name').in('id', schedCids)
+      if (cError) console.error('schedule crew names load failed:', cError)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (cData) cData.forEach((c: any) => { crewNameMap[c.id] = c.name })
+    }
+    // Merge names onto schedule entries
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rawJobs.forEach((j: any) => {
+      j.project_name = projNameMap[j.project_id] ?? null
+      j.crew_name = crewNameMap[j.crew_id] ?? null
+    })
+    setTodaySchedule(rawJobs)
+  }, [supabase])
+
+  // Load schedule on mount
+  useEffect(() => { loadSchedule() }, [loadSchedule])
+
+  // Combined refresh for callbacks
+  const refresh = useCallback(() => {
+    projectsQuery.refresh()
+    taskQuery.refresh()
+    loadSchedule()
+  }, [projectsQuery.refresh, taskQuery.refresh, loadSchedule])
+
+  // ── Auth ─────────────────────────────────────────────────────────────────
   const [user, setUser] = useState<{ email: string } | null>(null)
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUser({ email: user.email ?? '' })
+    })
+  }, [supabase])
+
+  // ── UI state ─────────────────────────────────────────────────────────────
   const [pmFilter, setPmFilter] = useState<string>('all')
   const [search, setSearch] = useState<string>('')
   const [showNewProject, setShowNewProject] = useState(false)
@@ -361,88 +441,18 @@ export default function CommandPage() {
     overdue: true, blocked: true, pending: true, crit: true, risk: true,
     stall: true, aging: true, ok: true, loyalty: true, inService: true,
   })
-  const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState(0)
   const [minutesAgo, setMinutesAgo] = useState(0)
   const [showExport, setShowExport] = useState(false)
 
-
-  const loadData = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) setUser({ email: user.email ?? '' })
-
-    // Optimized: only load stuck tasks (Pending Resolution / Revision Required)
-    // instead of all 25K+ task_state rows
-    const [projRes, taskRes, schedRes] = await Promise.all([
-      supabase.from('projects').select('id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, disposition, address, financier, follow_up_date').order('stage_date', { ascending: true }).limit(2000),
-      supabase.from('task_state')
-        .select('project_id, task_id, status, reason, completed_date')
-        .in('status', ['Pending Resolution', 'Revision Required', 'Complete'])
-        .limit(50000),
-      (supabase as any).from('schedule')
-        .select('id, project_id, job_type, time, status, crew_id')
-        .eq('date', new Date().toISOString().slice(0, 10))
-        .neq('status', 'cancelled')
-        .order('time'),
-    ])
-
-    if (projRes.error) console.error('projects load failed:', projRes.error)
-    if (taskRes.error) console.error('task_state load failed:', taskRes.error)
-    if (schedRes.error) console.error('schedule load failed:', schedRes.error)
-
-    if (projRes.data) setProjects(projRes.data as Project[])
-    if (taskRes.data) setTaskStates(taskRes.data as TaskStateRow[])
-
-    // Enrich schedule entries with project names and crew names
-    if (schedRes.data) {
-      const rawJobs = schedRes.data as ScheduleEntry[]
-      // Batch-fetch project names
-      const schedPids = [...new Set(rawJobs.map((j: any) => j.project_id).filter(Boolean))]
-      const projNameMap: Record<string, string> = {}
-      if (schedPids.length > 0) {
-        const { data: pData, error: pError } = await supabase.from('projects').select('id, name').in('id', schedPids)
-        if (pError) console.error('schedule project names load failed:', pError)
-        if (pData) pData.forEach((p: any) => { projNameMap[p.id] = p.name })
-      }
-      // Batch-fetch crew names
-      const schedCids = [...new Set(rawJobs.map((j: any) => j.crew_id).filter(Boolean))]
-      const crewNameMap: Record<string, string> = {}
-      if (schedCids.length > 0) {
-        const { data: cData, error: cError } = await supabase.from('crews').select('id, name').in('id', schedCids)
-        if (cError) console.error('schedule crew names load failed:', cError)
-        if (cData) cData.forEach((c: any) => { crewNameMap[c.id] = c.name })
-      }
-      // Merge names onto schedule entries
-      rawJobs.forEach((j: any) => {
-        j.project_name = projNameMap[j.project_id] ?? null
-        j.crew_name = crewNameMap[j.crew_id] ?? null
-      })
-      setTodaySchedule(rawJobs)
-    }
-
-    setLastRefresh(Date.now())
-    setLoading(false)
-  }, [])
-
-  const loadDataRef = useRef(loadData)
-  useEffect(() => { loadDataRef.current = loadData }, [loadData])
-
-  useEffect(() => { loadData() }, [loadData])
-
-  // Realtime subscription — debounced to avoid hammering DB at 900+ projects
+  // Track last refresh timestamp when data finishes loading
+  const prevLoading = useRef(true)
   useEffect(() => {
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null
-    const debouncedLoad = () => {
-      if (debounceTimer) clearTimeout(debounceTimer)
-      debounceTimer = setTimeout(() => loadDataRef.current(), 2000)
+    if (prevLoading.current && !loading) {
+      setLastRefresh(Date.now())
     }
-    const channel = supabase
-      .channel('projects-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, debouncedLoad)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_state' }, debouncedLoad)
-      .subscribe()
-    return () => { if (debounceTimer) clearTimeout(debounceTimer); supabase.removeChannel(channel) }
-  }, [])
+    prevLoading.current = loading
+  }, [loading])
 
   // Update "minutes ago" display every 60 seconds
   useEffect(() => {
@@ -538,7 +548,7 @@ export default function CommandPage() {
             <option value="all">All PMs</option>
             {pms.map(pm => <option key={pm.id} value={pm.id}>{pm.name}</option>)}
           </select>
-          <button onClick={loadData} className="text-xs text-gray-500 hover:text-white transition-colors">
+          <button onClick={refresh} className="text-xs text-gray-500 hover:text-white transition-colors">
             ↻ {minutesAgo}m ago
           </button>
           <button onClick={() => setShowExport(true)}
@@ -672,7 +682,7 @@ export default function CommandPage() {
         <ProjectPanel
           project={selectedProject}
           onClose={() => setSelectedProject(null)}
-          onProjectUpdated={loadData}
+          onProjectUpdated={refresh}
         />
       )}
 
@@ -680,7 +690,7 @@ export default function CommandPage() {
       {showNewProject && (
         <NewProjectModal
           onClose={() => setShowNewProject(false)}
-          onCreated={() => { setShowNewProject(false); loadData() }}
+          onCreated={() => { setShowNewProject(false); refresh() }}
           existingIds={projects.map(p => p.id)}
           pms={pms}
         />

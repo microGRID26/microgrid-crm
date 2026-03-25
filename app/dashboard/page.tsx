@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/Nav'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { daysAgo, fmt$, fmtDate, cn, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS } from '@/lib/utils'
+import { useSupabaseQuery } from '@/lib/hooks'
 import type { Project, Schedule } from '@/types/database'
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -44,50 +45,62 @@ interface CrewRow {
 
 // ── PAGE ──────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const supabase = createClient()
   const { user: currentUser, loading: userLoading } = useCurrentUser()
 
-  const [projects, setProjects] = useState<Project[]>([])
-  const [taskStates, setTaskStates] = useState<TaskStateRow[]>([])
-  const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([])
-  const [crews, setCrews] = useState<CrewRow[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const loadData = useCallback(async () => {
-    if (!currentUser?.id) return
-
+  // Compute date range for schedule (today to +7 days)
+  const { todayStr, nextWeekStr } = useMemo(() => {
     const today = new Date()
     const nextWeek = new Date(today)
     nextWeek.setDate(today.getDate() + 7)
-    const todayStr = today.toISOString().slice(0, 10)
-    const nextWeekStr = nextWeek.toISOString().slice(0, 10)
+    return {
+      todayStr: today.toISOString().slice(0, 10),
+      nextWeekStr: nextWeek.toISOString().slice(0, 10),
+    }
+  }, [])
 
-    const [projRes, taskRes, schedRes, crewRes] = await Promise.all([
-      supabase.from('projects')
-        .select('id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, install_complete_date')
-        .eq('pm_id', currentUser.id),
-      supabase.from('task_state')
-        .select('project_id, task_id, status, reason, started_date'),
-      supabase.from('schedule')
-        .select('id, project_id, crew_id, job_type, date, time, status')
-        .gte('date', todayStr)
-        .lte('date', nextWeekStr)
-        .order('date', { ascending: true }),
-      supabase.from('crews')
-        .select('id, name')
-        .eq('active', 'TRUE'),
-    ])
+  const isReady = !userLoading && !!currentUser?.id
 
-    if (projRes.data) setProjects(projRes.data as Project[])
-    if (taskRes.data) setTaskStates(taskRes.data as TaskStateRow[])
-    if (schedRes.data) setScheduleRows(schedRes.data as ScheduleRow[])
-    if (crewRes.data) setCrews(crewRes.data as CrewRow[])
-    setLoading(false)
-  }, [currentUser?.id])
+  // Projects filtered by PM via useSupabaseQuery
+  const { data: projects, loading: projLoading } = useSupabaseQuery('projects', {
+    select: 'id, name, city, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, install_complete_date',
+    filters: currentUser?.id ? { pm_id: currentUser.id } : undefined,
+    enabled: isReady,
+  })
+
+  // Task states via useSupabaseQuery
+  const { data: taskStates, loading: taskLoading } = useSupabaseQuery('task_state', {
+    select: 'project_id, task_id, status, reason, started_date',
+    limit: 50000,
+    enabled: isReady,
+  })
+
+  // Schedule for next 7 days — manual query since we need gte+lte on same field
+  const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([])
+  const [schedLoading, setSchedLoading] = useState(true)
+  const supabase = createClient()
+
+  const loadSchedule = useCallback(async () => {
+    const { data } = await supabase.from('schedule')
+      .select('id, project_id, crew_id, job_type, date, time, status')
+      .gte('date', todayStr)
+      .lte('date', nextWeekStr)
+      .order('date', { ascending: true })
+    if (data) setScheduleRows(data as ScheduleRow[])
+    setSchedLoading(false)
+  }, [todayStr, nextWeekStr])
 
   useEffect(() => {
-    if (!userLoading && currentUser?.id) loadData()
-  }, [userLoading, currentUser?.id, loadData])
+    if (isReady) loadSchedule()
+  }, [isReady, loadSchedule])
+
+  // Crews via useSupabaseQuery
+  const { data: crews, loading: crewLoading } = useSupabaseQuery('crews', {
+    select: 'id, name',
+    filters: { active: 'TRUE' },
+    enabled: isReady,
+  })
+
+  const loading = projLoading || taskLoading || schedLoading || crewLoading
 
   // ── Derived data ────────────────────────────────────────────────────────────
 

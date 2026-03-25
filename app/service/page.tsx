@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/Nav'
 import { fmtDate } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
+import { useSupabaseQuery } from '@/lib/hooks'
 import type { Project, ServiceCall } from '@/types/database'
 
 const STATUS_STYLE: Record<string, string> = {
@@ -17,26 +18,21 @@ const STATUS_STYLE: Record<string, string> = {
 }
 
 export default function ServicePage() {
-  const supabase = createClient()
-  const [calls, setCalls] = useState<ServiceCall[]>([])
   const [selected, setSelected] = useState<Project | null>(null)
   const [loadingProject, setLoadingProject] = useState(false)
-  const [loading, setLoading] = useState(true)
 
   const [statusFilter, setStatusFilter] = useState('all')
   const [search, setSearch] = useState('')
 
-  const loadData = useCallback(async () => {
-    const { data, error } = await supabase.from('service_calls').select('id, project_id, status, type, issue, created, date, resolution, pm, pm_id, priority, project:projects(name, city)').order('created', { ascending: false }).limit(2000)
-    if (error) console.error('service_calls load failed:', error)
-    if (data) setCalls(data as ServiceCall[])
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { loadData() }, [loadData])
+  const { data: calls, loading, refresh } = useSupabaseQuery('service_calls', {
+    select: 'id, project_id, status, type, issue, created, date, resolution, pm, pm_id, priority, project:projects(name, city)',
+    order: { column: 'created', ascending: false },
+    limit: 2000,
+  })
 
   const openProject = async (projectId: string) => {
     setLoadingProject(true)
+    const supabase = createClient()
     const { data, error } = await supabase.from('projects').select('*').eq('id', projectId).single()
     if (error || !data) {
       console.error('Failed to load project:', error)
@@ -48,7 +44,7 @@ export default function ServicePage() {
     setLoadingProject(false)
   }
 
-  const filtered = calls.filter(c => {
+  const filtered = (calls as unknown as ServiceCall[]).filter(c => {
     if (statusFilter !== 'all' && c.status !== statusFilter) return false
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -58,7 +54,7 @@ export default function ServicePage() {
   })
 
   const counts: Record<string, number> = { all: calls.length }
-  calls.forEach(c => { counts[c.status] = (counts[c.status] || 0) + 1 })
+  ;(calls as unknown as ServiceCall[]).forEach(c => { counts[c.status] = (counts[c.status] || 0) + 1 })
 
   if (loading) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -144,7 +140,7 @@ export default function ServicePage() {
       </div>
 
       {selected && (
-        <ProjectPanel project={selected} onClose={() => setSelected(null)} onProjectUpdated={loadData} />
+        <ProjectPanel project={selected} onClose={() => setSelected(null)} onProjectUpdated={refresh} />
       )}
     </div>
   )

@@ -7,6 +7,7 @@ import { cn, fmtDate, fmt$, escapeIlike } from '@/lib/utils'
 import { Nav } from '@/components/Nav'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { useCurrentUser } from '@/lib/useCurrentUser'
+import { useSupabaseQuery, useRealtimeSubscription } from '@/lib/hooks'
 import type { Project, ChangeOrder } from '@/types/database'
 import { ClipboardList, Plus, X, Check } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
@@ -84,8 +85,6 @@ function ChangeOrdersContent() {
   const [selected, setSelected] = useState<ChangeOrder | null>(null)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [showNewModal, setShowNewModal] = useState(false)
-  const [users, setUsers] = useState<{ id: string; name: string }[]>([])
-
   // Filters
   const searchParams = useSearchParams()
   const projectParam = searchParams.get('project')
@@ -94,6 +93,14 @@ function ChangeOrdersContent() {
   const [search, setSearch] = useState(projectParam ?? '')
 
   // ── DATA LOADING ─────────────────────────────────────────────────────────
+  // Users via useSupabaseQuery
+  const { data: users } = useSupabaseQuery('users', {
+    select: 'id, name',
+    filters: { active: 'TRUE' },
+    order: { column: 'name', ascending: true },
+  })
+
+  // Change orders with project join — kept manual since useSupabaseQuery can't handle joins
   const loadData = useCallback(async () => {
     const { data, error } = await supabase
       .from('change_orders')
@@ -105,28 +112,15 @@ function ChangeOrdersContent() {
     setLoading(false)
   }, [])
 
-  const loadUsers = useCallback(async () => {
-    const { data } = await supabase
-      .from('users')
-      .select('id, name')
-      .eq('active', 'TRUE')
-      .order('name')
-    if (data) setUsers(data)
-  }, [])
-
   const loadDataRef = useRef(loadData)
   useEffect(() => { loadDataRef.current = loadData }, [loadData])
 
-  useEffect(() => { loadData(); loadUsers() }, [loadData, loadUsers])
+  useEffect(() => { loadData() }, [loadData])
 
-  // Realtime subscription
-  useEffect(() => {
-    const channel = supabase
-      .channel('change-orders-realtime')
-      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'change_orders' }, () => loadDataRef.current())
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [])
+  // Realtime subscription for change_orders via hook
+  useRealtimeSubscription('change_orders', {
+    onChange: useCallback(() => loadDataRef.current(), []),
+  })
 
   // ── FILTERING ──────────────────────────────────────────────────────────────
   const pmMap = new Map<string, string>()

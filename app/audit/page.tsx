@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState, useMemo } from 'react'
 import { Nav } from '@/components/Nav'
 import { fmt$, daysAgo, STAGE_LABELS, SLA_THRESHOLDS, STAGE_TASKS } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
+import { useSupabaseQuery } from '@/lib/hooks'
 import type { Project } from '@/types/database'
 
 const ALL_TASKS = Object.values(STAGE_TASKS).flat()
@@ -21,11 +21,7 @@ type AuditFilter = 'stuck' | 'active' | 'incomplete' | 'missing'
 type AuditSort = 'count' | 'contract' | 'sla' | 'name'
 
 export default function AuditPage() {
-  const supabase = createClient()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [taskStates, setTaskStates] = useState<Record<string, Record<string, string>>>({})
   const [selected, setSelected] = useState<Project | null>(null)
-  const [loading, setLoading] = useState(true)
 
   const [filter, setFilter] = useState<AuditFilter>('stuck')
   const [sort, setSort] = useState<AuditSort>('count')
@@ -33,28 +29,41 @@ export default function AuditPage() {
   const [stageFilter, setStageFilter] = useState('')
   const [search, setSearch] = useState('')
 
-  const loadData = useCallback(async () => {
-    const [projRes, taskRes] = await Promise.all([
-      supabase.from('projects').select('id, name, city, pm, pm_id, stage, contract, stage_date').neq('stage', 'complete').not('disposition', 'in', '("Cancelled","In Service")').limit(2000),
-      // Only load non-Complete tasks (audit cares about stuck/active/missing)
-      supabase.from('task_state').select('project_id, task_id, status')
-        .neq('status', 'Complete').limit(50000),
-    ])
-    if (projRes.error) console.error('projects load failed:', projRes.error)
-    if (taskRes.error) console.error('task_state load failed:', taskRes.error)
-    if (projRes.data) setProjects(projRes.data as Project[])
-    if (taskRes.data) {
-      const map: Record<string, Record<string, string>> = {}
-      taskRes.data.forEach((t: any) => {
-        if (!map[t.project_id]) map[t.project_id] = {}
-        map[t.project_id][t.task_id] = t.status
-      })
-      setTaskStates(map)
-    }
-    setLoading(false)
-  }, [])
+  const { data: rawProjects, loading: loadingProjects, refresh: refreshProjects } = useSupabaseQuery('projects', {
+    select: 'id, name, city, pm, pm_id, stage, contract, stage_date',
+    filters: {
+      stage: { neq: 'complete' },
+      disposition: { not_in: ['Cancelled', 'In Service'] },
+    },
+    limit: 2000,
+  })
 
-  useEffect(() => { loadData() }, [loadData])
+  const { data: rawTaskStates, loading: loadingTasks, refresh: refreshTasks } = useSupabaseQuery('task_state', {
+    select: 'project_id, task_id, status',
+    filters: {
+      status: { neq: 'Complete' },
+    },
+    limit: 50000,
+  })
+
+  const loading = loadingProjects || loadingTasks
+
+  const refresh = () => {
+    refreshProjects()
+    refreshTasks()
+  }
+
+  const projects = rawProjects as unknown as Project[]
+
+  const taskStates = useMemo(() => {
+    const map: Record<string, Record<string, string>> = {}
+    rawTaskStates.forEach((t) => {
+      const row = t as unknown as { project_id: string; task_id: string; status: string }
+      if (!map[row.project_id]) map[row.project_id] = {}
+      map[row.project_id][row.task_id] = row.status
+    })
+    return map
+  }, [rawTaskStates])
 
   const pmMap = new Map<string, string>()
   projects.forEach(p => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
@@ -209,7 +218,7 @@ export default function AuditPage() {
       </div>
 
       {selected && (
-        <ProjectPanel project={selected} onClose={() => setSelected(null)} onProjectUpdated={loadData} />
+        <ProjectPanel project={selected} onClose={() => setSelected(null)} onProjectUpdated={refresh} />
       )}
     </div>
   )

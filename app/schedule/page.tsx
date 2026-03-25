@@ -8,6 +8,7 @@ import { ScheduleAssignModal } from '@/components/project/ScheduleAssignModal'
 import { JobBriefPanel } from '@/components/project/JobBriefPanel'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { cn } from '@/lib/utils'
+import { useSupabaseQuery, useRealtimeSubscription } from '@/lib/hooks'
 import type { Schedule, Crew, Project } from '@/types/database'
 
 /** Schedule row with joined project data from Supabase */
@@ -61,14 +62,13 @@ function fmtTime(t: string | null): string {
 
 export default function SchedulePage() {
   const supabase = createClient()
-  const [crews, setCrews] = useState<Crew[]>([])
   const [schedule, setSchedule] = useState<ScheduleWithProject[]>([])
   const [weekOffset, setWeekOffset] = useState(0)
   const [warehouseFilter, setWarehouseFilter] = useState('all')
   const [jobFilter, setJobFilter] = useState('all')
   const [showCancelled, setShowCancelled] = useState(false)
   const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [schedLoading, setSchedLoading] = useState(true)
 
   const [assignModal, setAssignModal] = useState<{
     crewId: string | null
@@ -84,41 +84,44 @@ export default function SchedulePage() {
   // ProjectPanel state (opened from Job Brief)
   const [projectPanelProject, setProjectPanelProject] = useState<Project | null>(null)
 
-  const loadData = useCallback(async () => {
-    const weekDates = getWeekDates(weekOffset)
-    const weekStartDate = isoDate(weekDates[0])
-    const weekEndDate = isoDate(weekDates[5])
+  // Crews via useSupabaseQuery — active is STRING 'TRUE', see CLAUDE.md "Crews Table Quirk"
+  const { data: crews, loading: crewsLoading } = useSupabaseQuery('crews', {
+    select: 'id, name, warehouse',
+    filters: { active: 'TRUE' },
+    order: { column: 'name', ascending: true },
+  })
 
-    const [crewRes, schedRes] = await Promise.all([
-      // NB: crews.active is stored as STRING 'TRUE'/'FALSE', not a boolean — see CLAUDE.md "Crews Table Quirk"
-      supabase.from('crews').select('id, name, warehouse').eq('active', 'TRUE').order('name'),
-      supabase.from('schedule').select('id, crew_id, date, job_type, time, project_id, notes, status, pm, pm_id, arrival_window, arrays, pitch, stories, special_equipment, electrical_notes, wind_speed, risk_category, travel_adder, wifi_info, msp_upgrade, project:projects(name, city)').gte('date', weekStartDate).lte('date', weekEndDate),
-    ])
+  // Schedule query with project join — kept manual since useSupabaseQuery can't handle joins
+  const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset])
+  const weekStartDate = useMemo(() => isoDate(weekDates[0]), [weekDates])
+  const weekEndDate = useMemo(() => isoDate(weekDates[5]), [weekDates])
 
-    if (crewRes.data) setCrews(crewRes.data as Crew[])
-    if (schedRes.data) {
-      setSchedule(schedRes.data as ScheduleWithProject[])
-    }
-    setLoading(false)
-  }, [weekOffset])
+  const loadSchedule = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('schedule')
+      .select('id, crew_id, date, job_type, time, project_id, notes, status, pm, pm_id, arrival_window, arrays, pitch, stories, special_equipment, electrical_notes, wind_speed, risk_category, travel_adder, wifi_info, msp_upgrade, project:projects(name, city)')
+      .gte('date', weekStartDate)
+      .lte('date', weekEndDate)
+    if (error) console.error('schedule load failed:', error)
+    if (data) setSchedule(data as ScheduleWithProject[])
+    setSchedLoading(false)
+  }, [weekStartDate, weekEndDate])
 
   // Keep a stable ref for realtime callbacks
-  const loadDataRef = useRef(loadData)
-  useEffect(() => { loadDataRef.current = loadData }, [loadData])
+  const loadScheduleRef = useRef(loadSchedule)
+  useEffect(() => { loadScheduleRef.current = loadSchedule }, [loadSchedule])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { loadSchedule() }, [loadSchedule])
 
-  // Realtime subscription for schedule changes
-  useEffect(() => {
-    const channel = supabase
-      .channel('schedule-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, () => loadDataRef.current())
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [])
+  // Realtime subscription for schedule changes via hook
+  useRealtimeSubscription('schedule', {
+    onChange: useCallback(() => loadScheduleRef.current(), []),
+  })
 
-  // Memoize week dates so we don't recompute on every render
-  const days = useMemo(() => getWeekDates(weekOffset), [weekOffset])
+  const loading = crewsLoading || schedLoading
+
+  // weekDates already memoized above — alias for template use
+  const days = weekDates
   const todayIso = isoDate(new Date())
   const weekLabel = `${days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${days[5].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
 
@@ -251,7 +254,7 @@ export default function SchedulePage() {
     }
 
     setCompleting(null)
-    loadData()
+    loadSchedule()
   }
 
   return (
@@ -446,7 +449,7 @@ export default function SchedulePage() {
         <ProjectPanel
           project={projectPanelProject}
           onClose={() => setProjectPanelProject(null)}
-          onProjectUpdated={() => loadData()}
+          onProjectUpdated={() => loadSchedule()}
         />
       )}
 
@@ -459,7 +462,7 @@ export default function SchedulePage() {
           jobType={assignModal.jobType}
           crews={filteredCrews}
           onClose={() => setAssignModal(null)}
-          onSaved={() => { setAssignModal(null); loadData() }}
+          onSaved={() => { setAssignModal(null); loadSchedule() }}
         />
       )}
     </div>

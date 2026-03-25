@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState, useMemo } from 'react'
 import { Nav } from '@/components/Nav'
 import { fmt$, fmtDate, daysAgo, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS } from '@/lib/utils'
+import { useSupabaseQuery } from '@/lib/hooks'
 import type { Project, ProjectFunding } from '@/types/database'
 
 type Period = 'wtd'|'mtd'|'qtd'|'ytd'|'last7'|'last30'|'last90'
@@ -66,32 +66,28 @@ function MiniBar({ label, count, value, max }: { label: string; count: number; v
 }
 
 export default function AnalyticsPage() {
-  const supabase = createClient()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [funding, setFunding] = useState<Record<string, ProjectFunding>>({})
   const [period, setPeriod] = useState<Period>('mtd')
   const [tab, setTab] = useState<'leadership'|'pipeline'|'pm'|'funding_analytics'|'cycle'|'dealers'>('leadership')
-  const [loading, setLoading] = useState(true)
 
+  // Projects via useSupabaseQuery — excludes In Service, Loyalty, Cancelled
+  const { data: projects, loading: projLoading } = useSupabaseQuery('projects', {
+    select: 'id, name, stage, contract, install_complete_date, stage_date, sale_date, pm, pm_id, blocker, financier, disposition, pto_date, dealer, consultant, advisor, systemkw',
+    filters: { disposition: { not_in: ['In Service', 'Loyalty', 'Cancelled'] } },
+  })
 
+  // Project funding via useSupabaseQuery
+  const { data: fundingRows, loading: fundLoading } = useSupabaseQuery('project_funding', {
+    select: 'project_id, m2_funded_date, m3_funded_date, m2_amount, m3_amount, m2_status, m3_status, m1_amount, m1_status, nonfunded_code_1, nonfunded_code_2, nonfunded_code_3',
+  })
 
-  const loadData = useCallback(async () => {
-    const [projRes, fundRes] = await Promise.all([
-      supabase.from('projects').select('id, name, stage, contract, install_complete_date, stage_date, sale_date, pm, pm_id, blocker, financier, disposition, pto_date, dealer, consultant, advisor, systemkw').not('disposition', 'in', '("In Service","Loyalty","Cancelled")').limit(2000),
-      supabase.from('project_funding').select('project_id, m2_funded_date, m3_funded_date, m2_amount, m3_amount, m2_status, m3_status, m1_amount, m1_status, nonfunded_code_1, nonfunded_code_2, nonfunded_code_3').limit(2000),
-    ])
-    if (projRes.error) console.error('projects load failed:', projRes.error)
-    if (fundRes.error) console.error('funding load failed:', fundRes.error)
-    if (projRes.data) setProjects(projRes.data as Project[])
-    if (fundRes.data) {
-      const map: Record<string, ProjectFunding> = {}
-      fundRes.data.forEach((f: any) => { map[f.project_id] = f })
-      setFunding(map)
-    }
-    setLoading(false)
-  }, [])
+  // Build funding map from rows
+  const funding = useMemo(() => {
+    const map: Record<string, ProjectFunding> = {}
+    fundingRows.forEach((f) => { map[(f as any).project_id] = f as unknown as ProjectFunding })
+    return map
+  }, [fundingRows])
 
-  useEffect(() => { loadData() }, [loadData])
+  const loading = projLoading || fundLoading
 
   const active = useMemo(() => projects.filter(p => p.stage !== 'complete'), [projects])
   const complete = useMemo(() => projects.filter(p => p.stage === 'complete'), [projects])

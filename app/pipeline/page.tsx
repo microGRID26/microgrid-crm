@@ -1,12 +1,22 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState, useMemo } from 'react'
 import { Nav } from '@/components/Nav'
-import { daysAgo, fmt$, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS, escapeIlike } from '@/lib/utils'
+import { daysAgo, fmt$, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { NewProjectModal } from '@/components/project/NewProjectModal'
+import { useSupabaseQuery, useServerFilter } from '@/lib/hooks'
 import type { Project } from '@/types/database'
+
+const PROJECT_COLUMNS = 'id, name, city, address, pm, pm_id, stage, stage_date, sale_date, contract, blocker, systemkw, financier, ahj, disposition'
+
+const SEARCH_FIELDS = ['name', 'id', 'city', 'address']
+
+const DROPDOWN_CONFIG = {
+  pm: 'pm_id|pm',
+  financier: 'financier',
+  ahj: 'ahj',
+}
 
 function getSLA(p: Project) {
   const t = SLA_THRESHOLDS[p.stage] ?? { target: 3, risk: 5, crit: 7 }
@@ -26,40 +36,55 @@ const AGE_COLOR: Record<string, string> = {
 }
 
 export default function PipelinePage() {
-  const supabase = createClient()
-  const [projects, setProjects] = useState<Project[]>([])
   const [selected, setSelected] = useState<Project | null>(null)
   const [showNewProject, setShowNewProject] = useState(false)
-  const [loading, setLoading] = useState(true)
-
-  // Filters
-  const [pmFilter, setPmFilter] = useState('all')
-  const [financierFilter, setFinancierFilter] = useState('all')
-  const [ahjFilter, setAhjFilter] = useState('all')
-  const [search, setSearch] = useState('')
   const [sort, setSort] = useState<'name' | 'sla' | 'contract' | 'cycle'>('sla')
 
-  const loadData = useCallback(async () => {
-    // Server-side filtering: push disposition, PM, financier, AHJ, search to database
-    let query = supabase.from('projects')
-      .select('id, name, city, address, pm, pm_id, stage, stage_date, sale_date, contract, blocker, systemkw, financier, ahj, disposition')
-      .not('disposition', 'in', '("In Service","Loyalty","Cancelled")')
+  // Server filter hook — manages filter state, dropdowns, and query building
+  const {
+    filterValues,
+    setFilter,
+    search,
+    setSearch,
+    dropdowns,
+    buildQueryFilters,
+    buildSearchOr,
+  } = useServerFilter([] as Record<string, unknown>[], {
+    searchFields: SEARCH_FIELDS,
+    extractDropdowns: DROPDOWN_CONFIG,
+  })
 
-    if (pmFilter !== 'all') query = query.eq('pm_id', pmFilter)
-    if (financierFilter !== 'all') query = query.eq('financier', financierFilter)
-    if (ahjFilter !== 'all') query = query.eq('ahj', ahjFilter)
-    if (search.trim()) {
-      const q = escapeIlike(search.trim())
-      query = query.or(`name.ilike.%${q}%,id.ilike.%${q}%,city.ilike.%${q}%,address.ilike.%${q}%`)
-    }
+  // Merge disposition exclusion with dynamic filters
+  const queryFilters = useMemo(() => ({
+    disposition: { not_in: ['In Service', 'Loyalty', 'Cancelled'] as (string | number)[] },
+    ...buildQueryFilters(),
+  }), [buildQueryFilters])
 
-    const { data, error } = await query.limit(2000)
-    if (error) console.error('projects load failed:', error)
-    if (data) setProjects(data as Project[])
-    setLoading(false)
-  }, [pmFilter, financierFilter, ahjFilter, search])
+  const searchOr = useMemo(() => buildSearchOr(), [buildSearchOr])
 
-  useEffect(() => { loadData() }, [loadData])
+  // Main query using the hook
+  const { data: projects, loading, refresh } = useSupabaseQuery('projects', {
+    select: PROJECT_COLUMNS,
+    filters: queryFilters,
+    or: searchOr,
+    limit: 2000,
+    // Pagination wired but not active (no UI yet) — pass page: 1 to enable when ready
+  })
+
+  // Feed loaded data back into useServerFilter for dropdown extraction
+  // Note: useServerFilter was initialized with [] — we need to re-create with actual data
+  // Hook gap: useServerFilter takes data at init but we need it reactive.
+  // Workaround: use a second instance that receives the data for dropdown extraction only.
+  const {
+    dropdowns: extractedDropdowns,
+  } = useServerFilter(projects as unknown as Record<string, unknown>[], {
+    extractDropdowns: DROPDOWN_CONFIG,
+  })
+
+  // Use extracted dropdowns (from data) for the select options
+  const pms = extractedDropdowns.pm ?? []
+  const financiers = extractedDropdowns.financier ?? []
+  const ahjs = extractedDropdowns.ahj ?? []
 
   // Auto-open project from URL params (e.g., /pipeline?open=PROJ-28517&tab=notes)
   const [initialTab, setInitialTab] = useState<string | null>(null)
@@ -70,23 +95,14 @@ export default function PipelinePage() {
     const searchQ = params.get('search')
     const tab = params.get('tab')
     if (openId) {
-      const proj = projects.find(p => p.id === openId)
+      const proj = (projects as unknown as Project[]).find(p => p.id === openId)
       if (proj) { setSelected(proj); if (tab) setInitialTab(tab) }
     }
     if (searchQ && !search) setSearch(searchQ)
   }, [projects])
 
-  // Unique filter values
-  const pms = useMemo(() => {
-    const pmMap = new Map<string, string>()
-    projects.forEach(p => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
-    return [...pmMap.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-  }, [projects])
-  const financiers = useMemo(() => [...new Set(projects.map(p => p.financier).filter(Boolean))].sort() as string[], [projects])
-  const ahjs = useMemo(() => [...new Set(projects.map(p => p.ahj).filter(Boolean))].sort() as string[], [projects])
-
-  // Filtering now done server-side in loadData query
-  const filtered = projects
+  // Cast for rendering (hook returns Row type, we need Project)
+  const filtered = projects as unknown as Project[]
 
   // Sort within each column
   function sortedCards(cards: Project[]) {
@@ -119,20 +135,20 @@ export default function PipelinePage() {
 
       {/* Filter bar */}
       <div className="bg-gray-950 border-b border-gray-800 flex items-center gap-2 px-4 py-2 flex-shrink-0 flex-wrap">
-        <select value={pmFilter} onChange={e => setPmFilter(e.target.value)}
+        <select value={filterValues.pm ?? 'all'} onChange={e => setFilter('pm', e.target.value)}
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
           <option value="all">All PMs</option>
-          {pms.map(pm => <option key={pm.id} value={pm.id}>{pm.name}</option>)}
+          {pms.map(pm => <option key={pm.value} value={pm.value}>{pm.label}</option>)}
         </select>
-        <select value={financierFilter} onChange={e => setFinancierFilter(e.target.value)}
+        <select value={filterValues.financier ?? 'all'} onChange={e => setFilter('financier', e.target.value)}
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
           <option value="all">All Financiers</option>
-          {financiers.map(f => <option key={f} value={f}>{f}</option>)}
+          {financiers.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
         </select>
-        <select value={ahjFilter} onChange={e => setAhjFilter(e.target.value)}
+        <select value={filterValues.ahj ?? 'all'} onChange={e => setFilter('ahj', e.target.value)}
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
           <option value="all">All AHJs</option>
-          {ahjs.map(a => <option key={a} value={a}>{a}</option>)}
+          {ahjs.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
         </select>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-xs text-gray-500">Sort:</span>
@@ -236,16 +252,16 @@ export default function PipelinePage() {
         <ProjectPanel
           project={selected}
           onClose={() => { setSelected(null); setInitialTab(null) }}
-          onProjectUpdated={loadData}
+          onProjectUpdated={refresh}
           initialTab={initialTab as any}
         />
       )}
       {showNewProject && (
         <NewProjectModal
           onClose={() => setShowNewProject(false)}
-          onCreated={() => { setShowNewProject(false); loadData() }}
-          existingIds={projects.map(p => p.id)}
-          pms={pms}
+          onCreated={() => { setShowNewProject(false); refresh() }}
+          existingIds={filtered.map(p => p.id)}
+          pms={pms.map(pm => ({ id: pm.value, name: pm.label }))}
         />
       )}
     </div>

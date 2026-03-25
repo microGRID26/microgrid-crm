@@ -7,6 +7,7 @@ import { Nav } from '@/components/Nav'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { fmt$, fmtDate, daysAgo, STAGE_LABELS } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
+import { useSupabaseQuery } from '@/lib/hooks'
 import type { Project, ProjectFunding, NonfundedCode } from '@/types/database'
 
 type MilestoneKey = 'm1' | 'm2' | 'm3'
@@ -277,14 +278,12 @@ function MsCells({ ms, data, pid, saveFundingField, disabled = false }: {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function FundingPage() {
-  const supabase = createClient()
   const { user: currentUser } = useCurrentUser()
   const canEditFunding = currentUser?.isFinance ?? false
   const [projects, setProjects] = useState<Project[]>([])
   const [funding, setFunding] = useState<Record<string, ProjectFunding>>({})
-  const [nfCodes, setNfCodes] = useState<NonfundedCode[]>([])
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [dashLoading, setDashLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
 
   const [statusFilter, setStatusFilter] = useState<FundingFilter>('all')
@@ -299,18 +298,24 @@ export default function FundingPage() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ readyToSubmit: true, awaitingPayment: true, needsAttention: true })
   const toggleBucket = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
 
-  const loadData = useCallback(async () => {
-    // Single query to funding_dashboard view (joins projects + project_funding server-side, with disposition filter)
-    const [dashRes, nfRes] = await Promise.all([
-      (supabase as any).from('funding_dashboard').select('*').limit(2000),
-      supabase.from('nonfunded_codes').select('*').order('master_code').order('code'),
-    ])
-    if (dashRes.error) console.error('funding_dashboard load failed:', dashRes.error)
-    if (nfRes.error) console.error('nonfunded_codes load failed:', nfRes.error)
-    if (dashRes.data) {
+  // nonfunded_codes via hook (typed table)
+  const { data: rawNfCodes, loading: nfLoading } = useSupabaseQuery('nonfunded_codes', {
+    order: { column: 'master_code', ascending: true },
+    limit: 2000,
+  })
+  const nfCodes = rawNfCodes as unknown as NonfundedCode[]
+
+  // funding_dashboard is a view (not in Database types), must query manually
+  const loadDashboard = useCallback(async () => {
+    const supabase = createClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).from('funding_dashboard').select('*').limit(2000)
+    if (error) console.error('funding_dashboard load failed:', error)
+    if (data) {
       const projList: Project[] = []
       const fundMap: Record<string, ProjectFunding> = {}
-      dashRes.data.forEach((row: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data.forEach((row: any) => {
         // Extract project fields
         projList.push({
           id: row.id,
@@ -358,11 +363,12 @@ export default function FundingPage() {
       setProjects(projList)
       setFunding(fundMap)
     }
-    if (nfRes.data) setNfCodes(nfRes.data as NonfundedCode[])
-    setLoading(false)
+    setDashLoading(false)
   }, [])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { loadDashboard() }, [loadDashboard])
+
+  const loading = dashLoading || nfLoading
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const showToast = (msg: string) => { setToast(msg); if (toastTimer.current) clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(null), 2000) }
@@ -831,7 +837,7 @@ export default function FundingPage() {
       )}
 
       {selectedProject && (
-        <ProjectPanel project={selectedProject} onClose={() => setSelectedProject(null)} onProjectUpdated={loadData} />
+        <ProjectPanel project={selectedProject} onClose={() => setSelectedProject(null)} onProjectUpdated={loadDashboard} />
       )}
     </div>
   )

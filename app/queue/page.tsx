@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/Nav'
 import { daysAgo, fmt$, fmtDate, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS, STAGE_TASKS } from '@/lib/utils'
 import { ALL_TASKS_MAP } from '@/lib/tasks'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { NewProjectModal } from '@/components/project/NewProjectModal'
 import { usePreferences } from '@/lib/usePreferences'
+import { useSupabaseQuery, useServerFilter } from '@/lib/hooks'
 import type { Project } from '@/types/database'
 
 const CARD_FIELD_OPTIONS: { key: string; label: string }[] = [
@@ -78,108 +78,137 @@ const STATUS_COLOR: Record<string, string> = {
   ok:   'bg-green-500',
 }
 
+// ── Configurable queue sections ──────────────────────────────────────────
+interface QueueSectionConfig { id: string; label: string; task_id: string; match_status: string; color: string; icon: string; sort_order: number }
+const HARDCODED_SECTIONS: QueueSectionConfig[] = [
+  { id: 'hc-1', label: 'City Permit Approval — Ready to Start', task_id: 'city_permit', match_status: 'Ready To Start', color: 'blue', icon: '📋', sort_order: 1 },
+  { id: 'hc-2', label: 'City Permit — Submitted, Pending Approval', task_id: 'city_permit', match_status: 'In Progress,Scheduled,Pending Resolution,Revision Required', color: 'indigo', icon: '📄', sort_order: 2 },
+  { id: 'hc-3', label: 'Utility Permit — Submitted, Pending Approval', task_id: 'util_permit', match_status: 'In Progress,Scheduled,Pending Resolution,Revision Required', color: 'purple', icon: '📄', sort_order: 3 },
+  { id: 'hc-4', label: 'Utility Inspection — Ready to Start', task_id: 'util_insp', match_status: 'Ready To Start', color: 'teal', icon: '⚡', sort_order: 4 },
+  { id: 'hc-5', label: 'Utility Inspection — Submitted, Pending Approval', task_id: 'util_insp', match_status: 'In Progress,Scheduled,Pending Resolution,Revision Required', color: 'cyan', icon: '⚡', sort_order: 5 },
+]
+
 export default function QueuePage() {
-  const supabase = createClient()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [taskStates, setTaskStates] = useState<TaskStateRow[]>([])
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [showNewProject, setShowNewProject] = useState(false)
   const [userPm, setUserPm] = useState<string>(() => {
     if (typeof window !== 'undefined') return localStorage.getItem('mg_pm') ?? ''
     return ''
   })
-  const [availablePms, setAvailablePms] = useState<{ id: string; name: string }[]>([])
   const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
   const [showCardConfig, setShowCardConfig] = useState(false)
   const { prefs, updatePref } = usePreferences()
   const cardFields = prefs.queue_card_fields
 
-  // ── Configurable queue sections from database ────────────────────────────
-  interface QueueSectionConfig { id: string; label: string; task_id: string; match_status: string; color: string; icon: string; sort_order: number }
-  const HARDCODED_SECTIONS: QueueSectionConfig[] = [
-    { id: 'hc-1', label: 'City Permit Approval — Ready to Start', task_id: 'city_permit', match_status: 'Ready To Start', color: 'blue', icon: '📋', sort_order: 1 },
-    { id: 'hc-2', label: 'City Permit — Submitted, Pending Approval', task_id: 'city_permit', match_status: 'In Progress,Scheduled,Pending Resolution,Revision Required', color: 'indigo', icon: '📄', sort_order: 2 },
-    { id: 'hc-3', label: 'Utility Permit — Submitted, Pending Approval', task_id: 'util_permit', match_status: 'In Progress,Scheduled,Pending Resolution,Revision Required', color: 'purple', icon: '📄', sort_order: 3 },
-    { id: 'hc-4', label: 'Utility Inspection — Ready to Start', task_id: 'util_insp', match_status: 'Ready To Start', color: 'teal', icon: '⚡', sort_order: 4 },
-    { id: 'hc-5', label: 'Utility Inspection — Submitted, Pending Approval', task_id: 'util_insp', match_status: 'In Progress,Scheduled,Pending Resolution,Revision Required', color: 'cyan', icon: '⚡', sort_order: 5 },
-  ]
+  // ── Queue sections from DB (with hardcoded fallback) ───────────────────
   const [queueSections, setQueueSections] = useState<QueueSectionConfig[]>(HARDCODED_SECTIONS)
 
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => ({
-    followups: false, blocked: true, active: true, loyalty: true, complete: true,
-  }))
-  const toggleBucket = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
+  const { data: queueSectionsData } = useSupabaseQuery('queue_sections' as any, {
+    select: 'id, label, task_id, match_status, color, icon, sort_order',
+    filters: { active: true },
+    order: { column: 'sort_order', ascending: true },
+    limit: 100,
+  })
 
-  const loadData = useCallback(async () => {
-    const pm = userPm
-
-    // Server-side: push PM and disposition filters to database
-    let projQuery = supabase.from('projects')
-      .select('id, name, city, address, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date')
-      .limit(2000)
-    if (pm) projQuery = projQuery.eq('pm_id', pm)
-
-    // Only load task_state for queue-relevant tasks + follow-ups (not all 25K+ rows)
-    // Include task IDs from dynamic queue sections config
-    const sectionTaskIds = queueSections.map(s => s.task_id)
-    const QUEUE_TASKS = [...new Set(['city_permit', 'util_permit', 'util_insp', 'welcome', 'ia', 'ub', 'sched_survey', 'ntp', ...sectionTaskIds])]
-    const [projRes, taskRes, followUpRes] = await Promise.all([
-      projQuery,
-      supabase.from('task_state')
-        .select('project_id, task_id, status, reason')
-        .in('task_id', QUEUE_TASKS)
-        .limit(50000),
-      supabase.from('task_state')
-        .select('project_id, task_id, follow_up_date')
-        .not('follow_up_date', 'is', null)
-        .limit(5000),
-    ])
-
-    if (projRes.error) console.error('projects load failed:', projRes.error)
-    if (taskRes.error) console.error('task_state load failed:', taskRes.error)
-
-    if (projRes.data) {
-      setProjects(projRes.data as Project[])
-      const pmMap = new Map<string, string>()
-      ;(projRes.data as Project[]).forEach(p => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
-      setAvailablePms([...pmMap.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)))
+  useEffect(() => {
+    if (queueSectionsData && queueSectionsData.length > 0) {
+      setQueueSections(queueSectionsData as unknown as QueueSectionConfig[])
     }
+  }, [queueSectionsData])
 
-    // Merge task data and follow-up data
-    const allTasks: TaskStateRow[] = [...(taskRes.data ?? []) as TaskStateRow[]]
-    if (followUpRes.data) {
-      for (const fu of followUpRes.data as any[]) {
-        const existing = allTasks.find(t => t.project_id === fu.project_id && t.task_id === fu.task_id)
-        if (existing) {
-          existing.follow_up_date = fu.follow_up_date
-        } else {
-          allTasks.push({ project_id: fu.project_id, task_id: fu.task_id, status: '', follow_up_date: fu.follow_up_date })
-        }
+  // ── PM filter (server-side) via useServerFilter ────────────────────────
+  // Build PM filter for useSupabaseQuery
+  const pmFilters = useMemo(() => {
+    const f: Record<string, any> = {}
+    if (userPm) f.pm_id = { eq: userPm }
+    return f
+  }, [userPm])
+
+  // ── Task IDs needed for queue sections ─────────────────────────────────
+  const queueTaskIds = useMemo(() => {
+    const sectionTaskIds = queueSections.map(s => s.task_id)
+    return [...new Set(['city_permit', 'util_permit', 'util_insp', 'welcome', 'ia', 'ub', 'sched_survey', 'ntp', ...sectionTaskIds])]
+  }, [queueSections])
+
+  // ── Query 1: Projects with PM filter ───────────────────────────────────
+  const {
+    data: projectsRaw,
+    loading: projectsLoading,
+    refresh: refreshProjects,
+  } = useSupabaseQuery('projects', {
+    select: 'id, name, city, address, pm, pm_id, stage, stage_date, sale_date, contract, blocker, financier, disposition, follow_up_date',
+    filters: pmFilters,
+    limit: 2000,
+    subscribe: true,
+  })
+  const projects = projectsRaw as unknown as Project[]
+
+  // ── Query 2: Task states for queue-relevant tasks ──────────────────────
+  const taskFilters = useMemo(() => ({
+    task_id: { in: queueTaskIds },
+  }), [queueTaskIds])
+
+  const {
+    data: taskDataRaw,
+    loading: tasksLoading,
+    refresh: refreshTasks,
+  } = useSupabaseQuery('task_state', {
+    select: 'project_id, task_id, status, reason',
+    filters: taskFilters,
+    limit: 50000,
+    subscribe: true,
+  })
+
+  // ── Query 3: Task states with follow-up dates ──────────────────────────
+  const {
+    data: followUpDataRaw,
+    refresh: refreshFollowUps,
+  } = useSupabaseQuery('task_state', {
+    select: 'project_id, task_id, follow_up_date',
+    filters: { follow_up_date: { isNot: null } },
+    limit: 5000,
+    subscribe: true,
+  })
+
+  // ── Merge task data + follow-up data ───────────────────────────────────
+  const taskStates: TaskStateRow[] = useMemo(() => {
+    const allTasks: TaskStateRow[] = [...(taskDataRaw as unknown as TaskStateRow[])]
+    for (const fu of followUpDataRaw as any[]) {
+      const existing = allTasks.find(t => t.project_id === fu.project_id && t.task_id === fu.task_id)
+      if (existing) {
+        existing.follow_up_date = fu.follow_up_date
+      } else {
+        allTasks.push({ project_id: fu.project_id, task_id: fu.task_id, status: '', follow_up_date: fu.follow_up_date })
       }
     }
-    setTaskStates(allTasks)
-    setLoading(false)
-  }, [userPm, queueSections])
+    return allTasks
+  }, [taskDataRaw, followUpDataRaw])
+
+  // ── Extract PM dropdown from loaded projects ───────────────────────────
+  const availablePms = useMemo(() => {
+    const pmMap = new Map<string, string>()
+    projects.forEach(p => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
+    return [...pmMap.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [projects])
+
+  // ── Refresh all queries ────────────────────────────────────────────────
+  const refreshAll = useCallback(() => {
+    refreshProjects()
+    refreshTasks()
+    refreshFollowUps()
+  }, [refreshProjects, refreshTasks, refreshFollowUps])
 
   function selectPm(pm: string) {
     setUserPm(pm)
     localStorage.setItem('mg_pm', pm)
   }
 
-  useEffect(() => { loadData() }, [loadData])
+  const loading = projectsLoading || tasksLoading
 
-  // Load configurable queue sections from database (once on mount)
-  useEffect(() => {
-    ;(supabase as any).from('queue_sections')
-      .select('id, label, task_id, match_status, color, icon, sort_order')
-      .eq('active', true)
-      .order('sort_order')
-      .then(({ data, error }: any) => {
-        if (!error && data && data.length > 0) setQueueSections(data as QueueSectionConfig[])
-        // else: keep hardcoded fallback
-      })
-  }, [])
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => ({
+    followups: false, blocked: true, active: true, loyalty: true, complete: true,
+  }))
+  const toggleBucket = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
 
   // Build task map per project: { projectId: { taskId: { status, reason } } }
   const taskMap = useMemo(() => {
@@ -442,13 +471,13 @@ export default function QueuePage() {
         <ProjectPanel
           project={selectedProject}
           onClose={() => setSelectedProject(null)}
-          onProjectUpdated={loadData}
+          onProjectUpdated={refreshAll}
         />
       )}
       {showNewProject && (
         <NewProjectModal
           onClose={() => setShowNewProject(false)}
-          onCreated={() => { setShowNewProject(false); loadData() }}
+          onCreated={() => { setShowNewProject(false); refreshAll() }}
           existingIds={projects.map(p => p.id)}
           pms={availablePms}
         />

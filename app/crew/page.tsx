@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { db } from '@/lib/db'
 import { cn, fmtDate } from '@/lib/utils'
+import { useSupabaseQuery, useRealtimeSubscription } from '@/lib/hooks'
 import type { Crew, Project, Schedule } from '@/types/database'
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -295,9 +296,8 @@ function JobCard({ job, onStatusChange }: { job: JobWithProject; onStatusChange:
 export default function CrewPage() {
   const supabase = db()
   const [jobs, setJobs] = useState<JobWithProject[]>([])
-  const [crews, setCrews] = useState<Crew[]>([])
   const [crewFilter, setCrewFilter] = useState('all')
-  const [loading, setLoading] = useState(true)
+  const [jobsLoading, setJobsLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
 
   const today = useMemo(() => {
@@ -315,23 +315,33 @@ export default function CrewPage() {
 
   const saturdayIso = useMemo(() => isoDate(getEndOfWeek(today)), [today])
 
-  const loadData = useCallback(async () => {
-    const [crewRes, schedRes] = await Promise.all([
-      supabase.from('crews').select('id, name, warehouse').eq('active', 'TRUE').order('name'),
-      supabase
-        .from('schedule')
-        .select('id, crew_id, date, job_type, time, project_id, notes, status, pm, pm_id, arrival_window, arrays, pitch, stories, special_equipment, electrical_notes, wind_speed, risk_category, travel_adder, wifi_info, msp_upgrade')
-        .gte('date', todayIso)
-        .lte('date', saturdayIso)
-        .neq('status', 'cancelled')
-        .order('date')
-        .order('time'),
-    ])
+  // Crews via useSupabaseQuery — active is STRING 'TRUE'
+  const { data: crews, loading: crewsLoading } = useSupabaseQuery('crews', {
+    select: 'id, name, warehouse',
+    filters: { active: 'TRUE' },
+    order: { column: 'name', ascending: true },
+  })
 
-    if (crewRes.data) setCrews(crewRes.data as Crew[])
+  // Build crew name map from hook data
+  const crewMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    crews.forEach(c => { map[c.id] = c.name })
+    return map
+  }, [crews])
 
-    if (schedRes.data) {
-      const rawJobs = schedRes.data as Schedule[]
+  // Schedule + project merge — manual since it has date range filters + secondary project fetch
+  const loadJobs = useCallback(async () => {
+    const { data: schedData } = await supabase
+      .from('schedule')
+      .select('id, crew_id, date, job_type, time, project_id, notes, status, pm, pm_id, arrival_window, arrays, pitch, stories, special_equipment, electrical_notes, wind_speed, risk_category, travel_adder, wifi_info, msp_upgrade')
+      .gte('date', todayIso)
+      .lte('date', saturdayIso)
+      .neq('status', 'cancelled')
+      .order('date')
+      .order('time')
+
+    if (schedData) {
+      const rawJobs = schedData as Schedule[]
 
       // Fetch project details
       const pids = [...new Set(rawJobs.map((j: any) => j.project_id).filter(Boolean))]
@@ -344,12 +354,6 @@ export default function CrewPage() {
         if (projData) {
           projData.forEach((p: any) => { projMap[p.id] = p })
         }
-      }
-
-      // Build crew name map
-      const crewMap: Record<string, string> = {}
-      if (crewRes.data) {
-        (crewRes.data as Crew[]).forEach(c => { crewMap[c.id] = c.name })
       }
 
       // Merge
@@ -380,22 +384,20 @@ export default function CrewPage() {
       setJobs(merged)
     }
 
-    setLoading(false)
-  }, [todayIso, saturdayIso])
+    setJobsLoading(false)
+  }, [todayIso, saturdayIso, crewMap])
 
-  const loadDataRef = useRef(loadData)
-  useEffect(() => { loadDataRef.current = loadData }, [loadData])
+  const loadJobsRef = useRef(loadJobs)
+  useEffect(() => { loadJobsRef.current = loadJobs }, [loadJobs])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { loadJobs() }, [loadJobs])
 
-  // Realtime
-  useEffect(() => {
-    const channel = supabase
-      .channel('crew-jobs-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, () => loadDataRef.current())
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [])
+  // Realtime subscription for schedule changes via hook
+  useRealtimeSubscription('schedule', {
+    onChange: useCallback(() => loadJobsRef.current(), []),
+  })
+
+  const loading = crewsLoading || jobsLoading
 
   // Filter jobs by crew
   const filteredJobs = useMemo(() => {
