@@ -52,50 +52,49 @@ export default function PipelinePage() {
   const [advanceProgress, setAdvanceProgress] = useState<{ current: number; total: number } | null>(null)
   const [advanceConfirm, setAdvanceConfirm] = useState<{ message: string; onConfirm: () => void } | null>(null)
 
-  // Server filter hook — manages filter state, dropdowns, and query building
+  // Search + filter state (client-side)
+  const [search, setSearch] = useState('')
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({})
+  const setFilter = useCallback((name: string, value: string) => {
+    setFilterValues(prev => ({ ...prev, [name]: value }))
+  }, [])
+
+  // Load all projects once (server-side disposition filter only)
   const {
-    filterValues,
-    setFilter,
-    search,
-    setSearch,
-    buildQueryFilters,
-    buildSearchOr,
-  } = useServerFilter([] as Record<string, unknown>[], {
-    searchFields: SEARCH_FIELDS,
-    extractDropdowns: DROPDOWN_CONFIG,
-  })
-
-  // Merge disposition exclusion with dynamic filters
-  const queryFilters = useMemo(() => ({
-    disposition: { not_in: ['In Service', 'Loyalty', 'Cancelled'] as (string | number)[] },
-    ...buildQueryFilters(),
-  }), [buildQueryFilters])
-
-  const searchOr = useMemo(() => buildSearchOr(), [buildSearchOr])
-
-  // Debounce search to avoid re-fetching on every keystroke
-  const [debouncedOr, setDebouncedOr] = useState(searchOr)
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedOr(searchOr), 350)
-    return () => clearTimeout(t)
-  }, [searchOr])
-
-  // Main query — load all projects (Pipeline needs full view for Kanban)
-  const {
-    data: projects, loading, refresh,
+    data: allProjects, loading, refresh,
   } = useSupabaseQuery('projects', {
     select: PROJECT_COLUMNS,
-    filters: queryFilters,
-    or: debouncedOr,
+    filters: { disposition: { not_in: ['In Service', 'Loyalty', 'Cancelled'] as (string | number)[] } },
     limit: 5000,
   })
 
-  // Feed loaded data back into useServerFilter for dropdown extraction
-  const {
-    dropdowns: extractedDropdowns,
-  } = useServerFilter(projects as unknown as Record<string, unknown>[], {
-    extractDropdowns: DROPDOWN_CONFIG,
-  })
+  // Extract dropdown options from loaded data
+  const { dropdowns: extractedDropdowns } = useServerFilter(
+    allProjects as unknown as Record<string, unknown>[],
+    { extractDropdowns: DROPDOWN_CONFIG }
+  )
+
+  // Client-side filtering (search + dropdowns) — no server re-fetch
+  const projects = useMemo(() => {
+    let result = allProjects as unknown as Project[]
+    if (!result) return []
+
+    // Search filter
+    const q = search.trim().toLowerCase()
+    if (q) {
+      result = result.filter(p => {
+        const fields = [p.name, p.id, p.city, p.address, p.financier, p.ahj].map(f => (f ?? '').toLowerCase())
+        return fields.some(f => f.includes(q))
+      })
+    }
+
+    // Dropdown filters
+    if (filterValues.pm) result = result.filter(p => p.pm_id === filterValues.pm)
+    if (filterValues.financier) result = result.filter(p => p.financier === filterValues.financier)
+    if (filterValues.ahj) result = result.filter(p => p.ahj === filterValues.ahj)
+
+    return result
+  }, [allProjects, search, filterValues])
 
   // Use extracted dropdowns (from data) for the select options
   const pms = extractedDropdowns.pm ?? []
@@ -117,14 +116,11 @@ export default function PipelinePage() {
     if (searchQ && !search) setSearch(searchQ)
   }, [projects])
 
-  // Cast for rendering (hook returns Row type, we need Project)
-  const filtered = projects as unknown as Project[]
-
   // Sort within each column — memoized per stage
   const sortedByStage = useMemo(() => {
     const map: Record<string, Project[]> = {}
     for (const stageId of STAGE_ORDER) {
-      const cards = filtered.filter(p => p.stage === stageId)
+      const cards = projects.filter(p => p.stage === stageId)
       map[stageId] = [...cards].sort((a, b) => {
         if (sort === 'sla') return getSLA(b).days - getSLA(a).days
         if (sort === 'contract') return (Number(b.contract) || 0) - (Number(a.contract) || 0)
@@ -133,15 +129,15 @@ export default function PipelinePage() {
       })
     }
     return map
-  }, [filtered, sort])
+  }, [projects, sort])
 
-  const totalContract = useMemo(() => filtered.reduce((s, p) => s + (Number(p.contract) || 0), 0), [filtered])
+  const totalContract = useMemo(() => projects.reduce((s, p) => s + (Number(p.contract) || 0), 0), [projects])
 
   // ── Bulk selection (shared hook) ────────────────────────────────────────
   const {
     selectMode, setSelectMode, selectedIds, selectedProjects,
     toggleSelect, selectAll, deselectAll, exitSelectMode,
-  } = useBulkSelect(filtered)
+  } = useBulkSelect(projects)
 
   const handleBulkComplete = useCallback(() => {
     exitSelectMode()
@@ -219,7 +215,7 @@ export default function PipelinePage() {
             className="text-xs bg-gray-800 text-gray-200 border border-gray-700 rounded-md px-3 py-1.5 w-40 focus:outline-none focus:border-green-500 placeholder-gray-500"
           />
           <span className="text-xs text-gray-500">
-            {filtered.length} projects · {fmt$(totalContract)}
+            {projects.length} projects · {fmt$(totalContract)}
           </span>
         </>} />
 
@@ -256,7 +252,7 @@ export default function PipelinePage() {
         {/* Select all / deselect all (visible in select mode) */}
         {selectMode && (
           <>
-            <button onClick={() => selectAll(filtered.map(p => p.id))}
+            <button onClick={() => selectAll(projects.map(p => p.id))}
               className="text-xs px-2 py-1.5 rounded-md text-gray-400 hover:text-white bg-gray-800 border border-gray-700">
               Select All
             </button>
@@ -472,7 +468,7 @@ export default function PipelinePage() {
         <NewProjectModal
           onClose={() => setShowNewProject(false)}
           onCreated={() => { setShowNewProject(false); refresh() }}
-          existingIds={filtered.map(p => p.id)}
+          existingIds={projects.map(p => p.id)}
           pms={pms.map(pm => ({ id: pm.value, name: pm.label }))}
         />
       )}
