@@ -1,31 +1,33 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { ConstructionBanner } from '@/components/ConstructionBanner'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, ChevronDown } from 'lucide-react'
 import { NotificationBell } from '@/components/NotificationBell'
 
 // ── Shared nav for all pages ──────────────────────────────────────────────────
-// Usage: <Nav active="Queue" right={<>search + filters</>} />
-// active: label of the current page ('Command','Queue','Pipeline', etc.)
-// right:  optional right-side content (search bars, filters, counts)
+// Primary links are always visible. Secondary links live in "More" dropdown.
 
-const NAV_LINKS = [
-  // { label: 'Dashboard', href: '/dashboard' },
+const PRIMARY_LINKS = [
   { label: 'Command',  href: '/command'  },
   { label: 'Queue',    href: '/queue'    },
   { label: 'Pipeline', href: '/pipeline' },
-  { label: 'Analytics',href: '/analytics'},
   { label: 'Schedule', href: '/schedule' },
-  { label: 'Service',  href: '/service'  },
   { label: 'Funding',  href: '/funding'  },
-  { label: 'Change Orders', href: '/change-orders' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Redesign', href: '/redesign' },
-  { label: 'Legacy',   href: '/legacy'   },
 ]
+
+const MORE_LINKS = [
+  { label: 'Analytics',     href: '/analytics' },
+  { label: 'Service',       href: '/service'  },
+  { label: 'Change Orders', href: '/change-orders' },
+  { label: 'Documents',     href: '/documents' },
+  { label: 'Redesign',      href: '/redesign' },
+  { label: 'Legacy',        href: '/legacy'   },
+]
+
+const ALL_LINKS = [...PRIMARY_LINKS, ...MORE_LINKS]
 
 const GEAR_ICON = (
   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,6 +43,63 @@ const HELP_ICON = (
       d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
   </svg>
 )
+
+/** "More" dropdown for secondary nav links */
+function MoreDropdown({ active, isAdmin }: { active: string; isAdmin: boolean }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const isMoreActive = MORE_LINKS.some(l => l.label === active) || active === 'Audit Trail'
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`text-xs px-3 py-1.5 rounded-md transition-colors flex items-center gap-1 ${
+          isMoreActive
+            ? 'bg-gray-800 text-white'
+            : 'text-gray-400 hover:text-white hover:bg-gray-800'
+        }`}
+      >
+        More <ChevronDown className="w-3 h-3" />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 min-w-[180px] py-1">
+          {MORE_LINKS.map(v => (
+            <a key={v.label} href={v.href} onClick={() => setOpen(false)}
+              className={`block px-4 py-2 text-xs transition-colors ${
+                v.label === active
+                  ? 'text-green-400 bg-gray-700/50'
+                  : 'text-gray-300 hover:text-white hover:bg-gray-700'
+              }`}>
+              {v.label}
+            </a>
+          ))}
+          {isAdmin && (
+            <>
+              <div className="border-t border-gray-700 my-1" />
+              <a href="/audit-trail" onClick={() => setOpen(false)}
+                className={`block px-4 py-2 text-xs transition-colors ${
+                  active === 'Audit Trail'
+                    ? 'text-green-400 bg-gray-700/50'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                }`}>
+                Audit Trail
+              </a>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface NavProps {
   active: string
@@ -65,7 +124,7 @@ export function Nav({ active, right, onNewProject }: NavProps) {
 
         {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-2">
-          {NAV_LINKS.map(v => (
+          {PRIMARY_LINKS.map(v => (
             <a key={v.label} href={v.href}
               className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
                 v.label === active
@@ -75,6 +134,9 @@ export function Nav({ active, right, onNewProject }: NavProps) {
               {v.label}
             </a>
           ))}
+
+          {/* More dropdown */}
+          <MoreDropdown active={active} isAdmin={!loading && !!currentUser?.isAdmin} />
 
           {!loading && currentUser && <NotificationBell />}
 
@@ -90,25 +152,13 @@ export function Nav({ active, right, onNewProject }: NavProps) {
             </a>
           )}
 
-          {(!loading && currentUser?.isAdmin) && (
-            <a href="/audit-trail"
-              className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
-                active === 'Audit Trail'
-                  ? 'bg-gray-800 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}>
-              Audit Trail
-            </a>
-          )}
-
           <a href="/help"
-            className={`text-xs px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+            className={`text-xs px-2 py-1.5 rounded-md transition-colors flex items-center gap-1 ${
               active === 'Help'
                 ? 'bg-gray-800 text-white'
                 : 'text-gray-400 hover:text-white hover:bg-gray-800'
             }`}>
             {HELP_ICON}
-            Help
           </a>
 
           {onNewProject && currentUser && (
@@ -175,7 +225,7 @@ export function Nav({ active, right, onNewProject }: NavProps) {
                 </button>
               )}
 
-              {NAV_LINKS.map(v => (
+              {ALL_LINKS.map(v => (
                 <a key={v.label} href={v.href}
                   onClick={() => setDrawerOpen(false)}
                   className={`block py-3 px-4 text-base font-medium transition-colors ${
