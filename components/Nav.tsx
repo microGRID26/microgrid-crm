@@ -17,6 +17,7 @@ const PRIMARY_LINKS = [
   { label: 'Schedule', href: '/schedule' },
   { label: 'Funding',  href: '/funding'  },
   { label: 'Analytics', href: '/analytics' },
+  { label: 'Inventory', href: '/inventory' },
 ]
 
 const SALES_LINKS = [
@@ -31,7 +32,6 @@ const MORE_LINKS = [
   { label: 'Change Orders', href: '/change-orders' },
   { label: 'Atlas',          href: '/reports'  },
   { label: 'Documents',     href: '/documents' },
-  { label: 'Inventory',     href: '/inventory' },
   { label: 'Redesign',      href: '/redesign' },
   { label: 'Legacy',        href: '/legacy'   },
 ]
