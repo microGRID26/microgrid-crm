@@ -23,10 +23,11 @@ A comprehensive guide for Project Managers and team members at MicroGRID Energy 
 15. [Audit Trail](#audit-trail)
 16. [Admin Portal](#admin-portal)
 17. [Redesign Tool](#redesign-tool)
-18. [Help Center](#help-center)
-19. [@Mentions and Notifications](#mentions-and-notifications)
-20. [Pagination](#pagination)
-21. [Tips and Best Practices](#tips-and-best-practices)
+18. [Legacy Projects](#legacy-projects)
+19. [Help Center](#help-center)
+20. [@Mentions and Notifications](#mentions-and-notifications)
+21. [Pagination](#pagination)
+22. [Tips and Best Practices](#tips-and-best-practices)
 
 ---
 
@@ -1224,6 +1225,57 @@ After configuring the system, click **Generate SLD** to create a Single Line Dia
 ### Batch Processing
 
 A batch processor button in the header allows processing multiple redesigns at once.
+
+---
+
+## Legacy Projects
+
+**URL:** `/legacy`
+
+The Legacy Projects page is a read-only archive of 14,705 historical TriSMART "In Service" projects imported from NetSuite. These projects have completed the installation pipeline and are no longer actively managed. The Legacy page provides lookup access for customer calls, warranty questions, service history, and historical reference.
+
+### Accessing Legacy Projects
+
+Legacy Projects is accessible from the navigation bar. It is completely separate from the active CRM -- legacy projects do not appear in Pipeline, Queue, Command Center, or any other active views.
+
+### Searching
+
+Use the search bar at the top to find projects. Search works across multiple fields:
+
+- Customer name
+- Phone number
+- Email address
+- Street address
+- City
+- Project ID (PROJ-XXXXX format)
+
+### Sortable Table
+
+The results table displays key project information with sortable columns. Click any column header to sort ascending/descending.
+
+### Detail Panel
+
+Click any project row to open a detail panel on the right side. The panel is organized into sections:
+
+- **Customer** -- Name, address, city, state, zip, phone, email
+- **System** -- System kW, panel count, panel type, inverter type, battery info, MSP bus rating
+- **Financial** -- Contract amount, financier, financing type, down payment
+- **Dates** -- Sale date, install complete, PTO date, in service date, and other milestone dates
+- **Permit** -- AHJ, utility, permit numbers, permit fees
+- **Funding** -- M2/M3 amounts and funded dates (from 12,054 merged funding records)
+- **Notes** -- Full BluChat communication history with original authors and timestamps
+
+### Legacy Notes
+
+Each legacy project includes its historical BluChat communication messages -- over 150,000 messages across 8,299 projects. Notes display the original author name, timestamp, and full message text.
+
+New notes can be added by any team member: type in the note field at the top of the Notes section and press Enter or click Add. New notes are timestamped with your name automatically.
+
+### When to Use Legacy vs Active
+
+- **Legacy** (`/legacy`) -- Look up historical TriSMART projects, customer call history, warranty questions, service records
+- **Active** (Pipeline/Queue/Command) -- Manage current MicroGRID projects through the installation pipeline
+- Legacy projects are completely separate and do not impact any active CRM metrics or views
 
 ---
 

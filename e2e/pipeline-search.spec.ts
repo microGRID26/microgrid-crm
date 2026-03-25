@@ -1,7 +1,5 @@
 import { test, expect } from '@playwright/test';
-
-// TODO: Auth setup — these tests require an authenticated session to access
-// the Pipeline page. See navigation.spec.ts for auth setup notes.
+import { isAuthenticated } from './helpers/auth';
 
 test.describe('Pipeline page search', () => {
   test.beforeEach(async ({ page }) => {
@@ -9,11 +7,8 @@ test.describe('Pipeline page search', () => {
   });
 
   test('Pipeline page loads with content', async ({ page }) => {
-    // If authenticated, should see pipeline content or stage headers
-    // If not, will redirect to auth
     const url = page.url();
-    const isOnPipeline = url.includes('/pipeline');
-    if (!isOnPipeline) {
+    if (!url.includes('/pipeline')) {
       test.skip(true, 'Redirected away from pipeline — not authenticated');
       return;
     }
@@ -48,9 +43,6 @@ test.describe('Pipeline page search', () => {
     // Type rapidly to test debounce behavior
     await searchInput.pressSequentially('test', { delay: 50 });
 
-    // Take a snapshot of visible content right after typing
-    const contentDuring = await page.textContent('body');
-
     // Wait for debounce to settle (typical debounce is 200-300ms)
     await page.waitForTimeout(500);
 
@@ -58,10 +50,7 @@ test.describe('Pipeline page search', () => {
     const contentAfter = await page.textContent('body');
     expect(contentAfter).toBeTruthy();
 
-    // Verify no error messages appeared
-    const errorText = page.getByText(/error|crash|undefined/i);
-    const errorCount = await errorText.count();
-    // Some "error" text might be in normal UI — just verify page didn't crash
+    // Verify page didn't crash
     await expect(page).toHaveURL(/\/pipeline/);
   });
 });

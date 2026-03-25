@@ -53,9 +53,12 @@ Key pages: `/command` (SLA dashboard), `/queue` (PM-filtered task-based worklist
 
 Centralized data access functions live in `lib/api/`:
 
-- `lib/api/projects.ts` — `loadProjects`, `loadProjectFunding`, `updateProject`, `loadUsers`, `loadProjectAdders`, `addProjectAdder`, `deleteProjectAdder`
+- `lib/api/projects.ts` — `loadProjects`, `loadProjectFunding`, `updateProject`, `loadUsers`, `loadProjectAdders`, `addProjectAdder`, `deleteProjectAdder`, `loadProjectById`, `loadProjectsByIds`, `searchProjects`
 - `lib/api/notes.ts` — `loadProjectNotes`, `loadTaskNotes`, `addNote`, `deleteNote`, `createMentionNotification`
 - `lib/api/tasks.ts` — `upsertTaskState`, `loadTaskStates`, `loadTaskHistory`, `insertTaskHistory`
+- `lib/api/schedules.ts` — `loadScheduleByDateRange`
+- `lib/api/change-orders.ts` — `loadChangeOrders`
+- `lib/api/crews.ts` — `loadCrewsByIds`, `loadActiveCrews`
 - `lib/api/index.ts` — barrel export for all of the above
 
 Pages should import from `@/lib/api` instead of querying Supabase directly. The API layer handles error logging, type casting, and consistent return shapes.
@@ -184,13 +187,13 @@ Standalone page at `/audit-trail` (admin-only, guarded by `useCurrentUser().isAd
 
 ### Data Inventory
 
-As of March 2026: 938 active projects, 14,705 legacy In Service projects (imported from TriSMART/NetSuite), 53K+ notes (49,517 project-level + 3,660 task-level), 67K+ task history entries, 4,185 adders, 922 service cases, 12,054 funding records (937 active + ~11,117 legacy M2/M3), 4,500+ files in Google Drive across 937 project folders. NetSuite is potentially permanently unavailable.
+As of March 2026: 938 active projects, 14,705 legacy In Service projects (imported from TriSMART/NetSuite), 150,633 legacy BluChat notes (for 8,299 legacy projects), 53K+ notes (49,517 project-level + 3,660 task-level), 67K+ task history entries, 4,185 adders, 922 service cases, 12,054 funding records (937 active + ~11,117 legacy M2/M3), 4,500+ files in Google Drive across 937 project folders. NetSuite is potentially permanently unavailable.
 
 ### SLA System
 
 SLA thresholds are centralized in `lib/utils.ts` (`SLA_THRESHOLDS`). Command Center classifies projects in priority order: Overdue → Blocked → Critical → At Risk → Stalled (5+ days, SLA ok) → Aging (90+ cycle days) → On Track. Loyalty and In Service dispositions are separated out.
 
-**SLA thresholds are active** — evaluation (3/4/6), survey (3/5/10), design (3/5/10), permit (21/30/45), install (5/7/10), inspection (14/21/30), complete (3/5/7) days for on-track/at-risk/critical. All 12 SLA-related tests are enabled and passing.
+**SLA thresholds are currently paused** — all values are set to 999 in `SLA_THRESHOLDS` (original values preserved in comments). This means all projects will appear as "On Track" for SLA purposes until thresholds are re-enabled. The 12 SLA-related tests are skipped (`it.skip`) in the test suite. **Note:** Re-enable thresholds once stage_dates are reset for the active backlog so SLA tracking is meaningful.
 
 ### Task System
 
@@ -322,7 +325,7 @@ The Info tab now includes `permit_fee` and `reinspection_fee` fields in the Perm
 
 The `users` table has a `role` column with values: `super_admin`, `admin`, `finance`, `manager`, `user`. The `useCurrentUser()` hook returns `role`, `isAdmin`, `isSuperAdmin`, `isFinance`, `isManager` convenience booleans. RLS policies use `auth_is_admin()` and `auth_is_super_admin()` Postgres functions that check the `role` column. When adding admin-gated features, check `isAdmin` or `isSuperAdmin` from the hook on the client side; the database enforces the same via RLS.
 
-**Permission model**: All authenticated users can create and edit projects (not just admins). Project deletion is super-admin-only. **Cancel/Reactivate disposition changes are gated to Admin+ users** (enforced in InfoTab and BulkActionBar). Admin portal access requires `admin` or `super_admin` role. Feedback submission uses a `SECURITY DEFINER` function to allow all users to insert regardless of RLS policies. The Permission Matrix in the Admin portal reflects the actual RLS enforcement.
+**Permission model**: All authenticated users can create and edit projects (not just admins). Project deletion is super-admin-only. **Cancel/Reactivate disposition changes are gated to Admin+ users** (enforced in InfoTab and BulkActionBar). Admin portal access requires `admin` or `super_admin` role. Feedback submission uses a `SECURITY DEFINER` function to allow all users to insert regardless of RLS policies. The Permission Matrix in the Admin portal reflects actual RLS enforcement: View (all), Edit (all), Create (all), Delete (super_admin), Cancel/Reactivate (admin+), Funding Edit (finance+), Admin Portal (admin+).
 
 ### Crews Table Quirk
 
@@ -382,7 +385,7 @@ Added in `supabase/016-scale-optimization.sql`:
 - **Helper functions** — `days_ago(date)`, `cycle_days(sale_date, stage_date)`, `sla_status(stage, stage_date)` (uses `sla_thresholds` table)
 - **`funding_dashboard` view** — joins `projects` and `project_funding` with disposition filter (excludes In Service, Loyalty, Cancelled). Used by the Funding page to eliminate client-side join.
 - **Page-level query optimization**:
-  - Pipeline uses server-side filtering (PM, financier, AHJ, search pushed to database)
+  - Pipeline uses server-side filtering for dropdowns (PM, financier, AHJ) but client-side search with 350ms debounce (no server re-fetch on keystrokes)
   - Queue loads only queue-relevant task_state rows (8 specific task IDs + non-null follow_up_date)
   - Command loads only stuck/complete task_state rows (Pending Resolution, Revision Required, Complete)
   - Audit loads only non-Complete task_state rows
@@ -393,6 +396,8 @@ API endpoint at `/api/webhooks/subhub` (route: `app/api/webhooks/subhub/route.ts
 
 - **Disabled by default** — requires `SUBHUB_WEBHOOK_ENABLED=true` in environment variables
 - **Authentication** — optional `SUBHUB_WEBHOOK_SECRET` verified via `Authorization` or `X-Webhook-Secret` header
+- **Requires `SUPABASE_SECRET_KEY`** — uses service role key for database writes (no anon key fallback). Will return 500 if not configured.
+- **Idempotency** — checks for existing project by ID before creating to prevent duplicates
 - **GET endpoint** — health check returning enabled/disabled status
 
 ### Analytics Page Tabs
@@ -436,16 +441,37 @@ All in `supabase/`:
 - `020-queue-config.sql` — DB-driven queue sections
 - `021-user-preferences.sql` — Per-user UI preferences
 - `022-legacy-projects.sql` — Legacy projects table for 14,705 In Service TriSMART projects
+- `legacy_notes` table — created directly in production (no numbered migration file). 150,633 BluChat messages for 8,299 legacy projects.
 
 ### Legacy Projects
 
-The `legacy_projects` table stores 14,705 In Service projects imported from TriSMART/NetSuite. These are historical records not actively managed in the pipeline.
+The `legacy_projects` table stores 14,705 In Service projects imported from TriSMART/NetSuite. The `legacy_notes` table stores 150,633 BluChat messages for 8,299 of those projects. These are historical records not actively managed in the pipeline.
 
 - **Table**: `legacy_projects` (~45 fields) — `id` (TEXT PK, format `PROJ-XXXXX`), `name`, `address`, `city`, `state`, `zip`, `stage`, `disposition`, `pm`, `financier`, `system_kw`, `panel_count`, `panel_type`, `inverter_type`, `contract_amount`, `sale_date`, `install_complete_date`, `pto_date`, `msp_bus_rating`, plus M2/M3 funding fields and more
-- **Page**: `/legacy` — read-only lookup with search (name/ID/address/city), sortable columns, detail panel showing all fields. No editing capability.
-- **Import scripts**: `scripts/import-legacy-projects.ts` (parses NetSuite JSON export), `scripts/upload-legacy-projects.ts` (uploads to Supabase in batches, filters to In Service only). 500 records skipped (null names).
+- **Table**: `legacy_notes` — `id` (UUID PK), `project_id` (TEXT FK), `author` (TEXT), `message` (TEXT), `created_at` (TIMESTAMPTZ). 150,633 records for 8,299 projects.
+- **Page**: `/legacy` — read-only lookup with search (name/phone/email/address/city/ID), sortable columns, detail panel with sections (Customer, System, Financial, Dates, Permit, Funding, Notes). New notes can be added by any team member.
+- **Import scripts**: `scripts/import-legacy-projects.ts` (parses NetSuite JSON export), `scripts/upload-legacy-projects.ts` (uploads to Supabase in batches, filters to In Service only), `scripts/upload-legacy-notes.ts` (uploads BluChat messages). 500 records skipped (null names).
+- **Import utilities**: `lib/legacy-import-utils.ts` — 8 extracted pure functions for field mapping, date parsing, and data transformation.
 - **Funding merge**: 12,054 funding records (M2/M3 amounts and dates) merged into legacy_projects from project_funding data.
-- RLS: read-only for all authenticated users.
+- RLS: read-only for all authenticated users (both tables).
+
+### Construction Banner
+
+The construction banner (`SHOW_BANNER`) is disabled (`false`). The banner component no longer renders.
+
+### Security Headers
+
+`next.config.ts` includes security headers applied to all routes:
+- `X-Frame-Options: DENY` — prevents clickjacking
+- `X-Content-Type-Options: nosniff` — prevents MIME type sniffing
+- `Referrer-Policy: origin-when-cross-origin` — limits referrer information
+- `X-XSS-Protection: 1; mode=block` — enables XSS filtering
+
+### E2E Tests
+
+Playwright is installed for end-to-end testing. Three smoke test specs live in `e2e/`:
+- Basic navigation and page load verification
+- Run with `npx playwright test`
 
 ### File Consolidation (Complete)
 
@@ -464,13 +490,15 @@ All three planned consolidation targets from Session 15 have been completed in S
 
 ### Code Quality
 
-**Current rating: 9.5/10** (up from 9/10 after Session 17). Session 17 improvements: SLA thresholds re-enabled with real values, dead `loyalty` column dropped, permission matrix updated to reflect actual RLS, Cancel/Reactivate gated to Admin+, legacy projects page and import pipeline, construction banner removed. **298 tests passing with 0 failures, 0 skipped** (12 SLA tests un-skipped). Remaining debt: some untyped tables still accessed via `as any` casts (~43 remaining).
+**Current rating: 9.5/10** (up from 9/10 after Session 16). Session 17 improvements: comprehensive audit fixed 40 issues across 24 files, dead `loyalty` column dropped, permission matrix updated to reflect actual RLS, Cancel/Reactivate gated to Admin+, legacy projects page and import pipeline (14,705 projects + 150K notes), API layer expanded (6 new functions, 4 pages migrated), construction banner removed, security headers added. **391 tests passing with 0 failures, 12 skipped** (SLA tests remain skipped while thresholds are paused). **E2E tests:** Playwright installed with 3 smoke test specs in `e2e/`. Remaining debt: some untyped tables still accessed via `as any` casts (~43 remaining).
 
 ## Known Bugs
 
+- **SLA thresholds paused** — all set to 999. Backlog projects are too old for meaningful SLA tracking. Re-enable once stage_dates are reset for active backlog.
 - RLS policies are enforced but still evolving. `auth_is_admin()` and `auth_is_super_admin()` Postgres functions gate write access based on the `role` column. Some tables may still have permissive policies that need tightening.
 - The `active` field on `crews` is a string instead of a boolean, leading to defensive dual-case checking throughout the codebase.
 - `useSupabaseQuery` only supports typed tables from `types/database.ts` — cannot query views (e.g., `funding_dashboard`) or untyped tables directly. Use `lib/api/` or `db()` for those.
+- **SubHub webhook requires service role key** — `SUPABASE_SECRET_KEY` must be set in environment variables. Without it, the webhook returns 500 on POST requests.
 
 ## @Mention System
 

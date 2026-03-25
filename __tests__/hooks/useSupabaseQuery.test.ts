@@ -361,4 +361,117 @@ describe('useSupabaseQuery', () => {
 
     Date.now = originalDateNow
   })
+
+  it('stale-while-revalidate: triggers background refetch after returning stale data', async () => {
+    const rows = [{ id: 'PROJ-001' }]
+    const updatedRows = [{ id: 'PROJ-001', name: 'Updated' }]
+    let callCount = 0
+    const chain: Record<string, any> = {}
+    const methods = ['select', 'eq', 'neq', 'in', 'ilike', 'or', 'order', 'range', 'limit', 'not', 'is', 'gt', 'lt', 'gte', 'lte']
+    for (const m of methods) {
+      chain[m] = vi.fn(() => chain)
+    }
+    chain.then = vi.fn((resolve: any) => {
+      callCount++
+      const data = callCount === 1 ? rows : updatedRows
+      return Promise.resolve({ data, error: null }).then(resolve)
+    })
+    const supabase = mockSupabaseWith(chain)
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useSupabaseQuery } = await import('@/lib/hooks/useSupabaseQuery')
+
+    // First render populates cache
+    const { result, unmount } = renderHook(() => useSupabaseQuery('projects'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.data).toEqual(rows)
+    unmount()
+
+    const fetchCountBefore = supabase.from.mock.calls.length
+
+    // Make cache stale
+    const originalDateNow = Date.now
+    Date.now = () => originalDateNow() + 31_000
+
+    const { result: result2 } = renderHook(() => useSupabaseQuery('projects'))
+
+    // Should not show loading (stale data served immediately)
+    await waitFor(() => expect(result2.current.loading).toBe(false))
+
+    // Background refetch should trigger a new query and eventually update data
+    await waitFor(() => {
+      expect(supabase.from.mock.calls.length).toBeGreaterThan(fetchCountBefore)
+    })
+
+    Date.now = originalDateNow
+  })
+
+  it('not_in filter escapes special characters (commas, quotes, parentheses)', async () => {
+    const chain = buildChain({ data: [], error: null })
+    const supabase = mockSupabaseWith(chain)
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useSupabaseQuery } = await import('@/lib/hooks/useSupabaseQuery')
+
+    // Test values with special characters that could break PostgREST syntax
+    renderHook(() =>
+      useSupabaseQuery('projects', {
+        filters: { disposition: { not_in: ['Sale, Inc.', 'O\'Brien', 'Test(1)'] } },
+      })
+    )
+
+    await waitFor(() => {
+      expect(chain.not).toHaveBeenCalled()
+    })
+
+    // Verify the call was made with properly escaped values
+    const notCall = chain.not.mock.calls[0]
+    expect(notCall[0]).toBe('disposition')
+    expect(notCall[1]).toBe('in')
+    // Commas, quotes, and parentheses should be escaped
+    const valString = notCall[2] as string
+    expect(valString).toContain('\\,')  // escaped comma
+    expect(valString).toContain('\\(')  // escaped open paren
+    expect(valString).toContain('\\)')  // escaped close paren
+  })
+
+  it('not_in filter handles empty array', async () => {
+    const chain = buildChain({ data: [], error: null })
+    const supabase = mockSupabaseWith(chain)
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useSupabaseQuery } = await import('@/lib/hooks/useSupabaseQuery')
+
+    renderHook(() =>
+      useSupabaseQuery('projects', {
+        filters: { disposition: { not_in: [] } },
+      })
+    )
+
+    await waitFor(() => {
+      expect(chain.not).toHaveBeenCalledWith('disposition', 'in', '()')
+    })
+  })
+
+  it('not_in filter handles numeric values without quoting', async () => {
+    const chain = buildChain({ data: [], error: null })
+    const supabase = mockSupabaseWith(chain)
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useSupabaseQuery } = await import('@/lib/hooks/useSupabaseQuery')
+
+    renderHook(() =>
+      useSupabaseQuery('projects', {
+        filters: { stage_order: { not_in: [1, 2, 3] } },
+      })
+    )
+
+    await waitFor(() => {
+      expect(chain.not).toHaveBeenCalledWith('stage_order', 'in', '(1,2,3)')
+    })
+  })
 })
