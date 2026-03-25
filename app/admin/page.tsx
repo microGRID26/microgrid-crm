@@ -20,6 +20,7 @@ import { QueueConfigManager } from '@/components/admin/QueueConfigManager'
 import { AuditTrailManager } from '@/components/admin/AuditTrailManager'
 import { ReasonsManager } from '@/components/admin/ReasonsManager'
 import { DocumentRequirementsManager } from '@/components/admin/DocumentRequirementsManager'
+import { EquipmentManager } from '@/components/admin/EquipmentManager'
 
 export default function AdminPage() {
   const { user: authUser, loading } = useCurrentUser()
@@ -121,6 +122,7 @@ export default function AdminPage() {
             {activeModule === 'utility' && <UtilityManager isSuperAdmin={isSuperAdmin} />}
             {activeModule === 'hoa' && <HOAManager isSuperAdmin={isSuperAdmin} />}
             {activeModule === 'financier' && <FinancierManager isSuperAdmin={isSuperAdmin} />}
+            {activeModule === 'equipment' && <EquipmentManager isSuperAdmin={isSuperAdmin} />}
             {activeModule === 'users'   && <UsersManager currentUserRole={authUser?.role ?? 'user'} />}
             {activeModule === 'crews'   && <CrewsManager />}
             {activeModule === 'sla'     && <SLAManager />}

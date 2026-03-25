@@ -6,6 +6,7 @@ import { STAGE_LABELS, fmt$, escapeIlike } from '@/lib/utils'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { X, Plus } from 'lucide-react'
 import type { Project } from '@/types/database'
+import { EquipmentAutocomplete } from '@/components/EquipmentAutocomplete'
 
 // ── HELPER COMPONENTS ────────────────────────────────────────────────────────
 
@@ -81,6 +82,38 @@ function SelectEditRow({ label, field, value, draft, editing, onChange, options 
         <option value="">Select...</option>
         {options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
+    </div>
+  )
+}
+
+function EquipmentEditRow({ label, field, category, value, draft, editing, onChange }: {
+  label: string
+  field: string
+  category: 'module' | 'inverter' | 'battery' | 'optimizer'
+  value?: string | null
+  draft: Record<string, any>
+  editing: boolean
+  onChange: (d: any) => void
+}) {
+  const current = field in draft ? draft[field] : value
+  if (!editing) {
+    if (!value) return null
+    return (
+      <div className="flex gap-2 py-0.5">
+        <span className="text-gray-500 text-xs w-28 flex-shrink-0">{label}</span>
+        <span className="text-gray-200 text-xs break-words">{value}</span>
+      </div>
+    )
+  }
+  return (
+    <div className="flex gap-2 py-0.5 items-center">
+      <span className="text-gray-500 text-xs w-28 flex-shrink-0">{label}</span>
+      <EquipmentAutocomplete
+        category={category}
+        value={current ?? ''}
+        onChange={v => onChange((d: any) => ({ ...d, [field]: v || null }))}
+        placeholder={`Search ${label.toLowerCase()}...`}
+      />
     </div>
   )
 }
@@ -514,13 +547,13 @@ export function InfoTab({ project, editMode, editDraft, setEditDraft, ahjInfo, u
             <EditRow label="Dealer" field="dealer" value={project.dealer} draft={editDraft} editing={editMode} onChange={setEditDraft} />
           </Section>
           <Section title="Equipment">
-            <EditRow label="Module" field="module" value={project.module} draft={editDraft} editing={editMode} onChange={setEditDraft} />
+            <EquipmentEditRow label="Module" field="module" category="module" value={project.module} draft={editDraft} editing={editMode} onChange={setEditDraft} />
             <EditRow label="Module qty" field="module_qty" value={project.module_qty?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-            <EditRow label="Inverter" field="inverter" value={project.inverter} draft={editDraft} editing={editMode} onChange={setEditDraft} />
+            <EquipmentEditRow label="Inverter" field="inverter" category="inverter" value={project.inverter} draft={editDraft} editing={editMode} onChange={setEditDraft} />
             <EditRow label="Inverter qty" field="inverter_qty" value={project.inverter_qty?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-            <EditRow label="Battery" field="battery" value={project.battery} draft={editDraft} editing={editMode} onChange={setEditDraft} />
+            <EquipmentEditRow label="Battery" field="battery" category="battery" value={project.battery} draft={editDraft} editing={editMode} onChange={setEditDraft} />
             <EditRow label="Battery qty" field="battery_qty" value={project.battery_qty?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
-            <EditRow label="Optimizer" field="optimizer" value={project.optimizer} draft={editDraft} editing={editMode} onChange={setEditDraft} />
+            <EquipmentEditRow label="Optimizer" field="optimizer" category="optimizer" value={project.optimizer} draft={editDraft} editing={editMode} onChange={setEditDraft} />
             <EditRow label="Optimizer qty" field="optimizer_qty" value={project.optimizer_qty?.toString()} draft={editDraft} editing={editMode} onChange={setEditDraft} type="number" />
           </Section>
           <Section title="Site">
