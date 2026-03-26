@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS, daysAgo } from '@/lib/utils'
 import { TASKS, TASK_STATUSES, STATUS_STYLE, PENDING_REASONS, REVISION_REASONS, ALL_TASKS_MAP, TASK_TO_STAGE, isTaskRequired } from '@/lib/tasks'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import type { Project } from '@/types/database'
 import { MessageSquare } from 'lucide-react'
 import React from 'react'
@@ -144,9 +145,9 @@ export function TasksTab({
   const [dbRevisionReasons, setDbRevisionReasons] = useState<Record<string, string[]> | null>(null)
 
   useEffect(() => {
-    const supabase = createClient()
-    ;(supabase as any).from('task_reasons').select('task_id,reason_type,reason,active,sort_order').eq('active', true).order('sort_order')
-      .then(({ data }: any) => {
+    // db() needed: chaining .then().catch() requires a true Promise (typed PromiseLike lacks .catch)
+    ;db().from('task_reasons').select('task_id,reason_type,reason,active,sort_order').eq('active', true).order('sort_order')
+      .then(({ data }: { data: { task_id: string; reason_type: string; reason: string; active: boolean; sort_order: number }[] | null }) => {
         if (!data || data.length === 0) return
         const pending: Record<string, string[]> = {}
         const revision: Record<string, string[]> = {}

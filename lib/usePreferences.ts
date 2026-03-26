@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 
 export interface ExportPreset {
   name: string
@@ -73,11 +74,11 @@ export function usePreferences() {
       if (!uid) { setLoaded(true); return }
       cachedUserId = uid
 
-      const { data: row } = await (supabase as any)
+      const { data: row } = await supabase
         .from('user_preferences')
         .select('*')
         .eq('user_id', uid)
-        .single()
+        .single() as { data: import('@/types/database').UserPreference | null }
 
       if (row) {
         const merged: UserPreferences = {
@@ -85,7 +86,7 @@ export function usePreferences() {
           default_pm_filter: row.default_pm_filter ?? DEFAULTS.default_pm_filter,
           collapsed_sections: row.collapsed_sections ?? DEFAULTS.collapsed_sections,
           queue_card_fields: row.queue_card_fields ?? DEFAULTS.queue_card_fields,
-          export_presets: row.export_presets ?? DEFAULTS.export_presets,
+          export_presets: (row.export_presets as unknown as ExportPreset[]) ?? DEFAULTS.export_presets,
         }
         cachedPrefs = merged
         setPrefs(merged)
@@ -120,8 +121,7 @@ export function usePreferences() {
     if (!cachedUserId) return
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
+      const { error } = await db()
         .from('user_preferences')
         .upsert({
           user_id: cachedUserId,

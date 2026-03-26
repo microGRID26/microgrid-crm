@@ -19,7 +19,7 @@ export function ReasonsManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [showNew, setShowNew] = useState(false)
 
   const load = useCallback(async () => {
-    let q = (supabase as any).from('task_reasons').select('*').order('task_id').order('reason_type').order('sort_order')
+    let q = supabase.from('task_reasons').select('*').order('task_id').order('reason_type').order('sort_order')
     if (filterTask) q = q.eq('task_id', filterTask)
     if (filterType) q = q.eq('reason_type', filterType)
     if (search) q = q.ilike('reason', `%${escapeIlike(search)}%`)
@@ -37,7 +37,7 @@ export function ReasonsManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       setToast('Invalid task ID'); setTimeout(() => setToast(''), 2500); return
     }
     setSaving(true)
-    const { error } = await (supabase as any).from('task_reasons').update({
+    const { error } = await supabase.from('task_reasons').update({
       task_id: draft.task_id, reason_type: draft.reason_type, reason: draft.reason,
       active: draft.active, sort_order: draft.sort_order ?? 0,
     }).eq('id', editing.id)
@@ -51,7 +51,7 @@ export function ReasonsManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       setToast('Invalid task ID'); setTimeout(() => setToast(''), 2500); return
     }
     setSaving(true)
-    const { error } = await (supabase as any).from('task_reasons').insert({
+    const { error } = await supabase.from('task_reasons').insert({
       task_id: draft.task_id, reason_type: draft.reason_type, reason: draft.reason,
       active: draft.active !== false, sort_order: draft.sort_order ?? 0,
     })
@@ -75,7 +75,7 @@ export function ReasonsManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
           <p className="text-xs text-gray-500 mt-0.5">{reasons.length} reason records</p>
         </div>
         <div className="flex items-center gap-3">
-          <select value={filterType} onChange={e => setFilterType(e.target.value as any)}
+          <select value={filterType} onChange={e => setFilterType(e.target.value as '' | 'pending' | 'revision')}
             className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1.5 text-xs text-white">
             <option value="">All Types</option>
             <option value="pending">Pending Resolution</option>
@@ -145,7 +145,7 @@ export function ReasonsManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             {editing && isSuperAdmin ? (
               <button onClick={async () => {
                 if (!confirm('DELETE this reason?')) return
-                await (supabase as any).from('task_reasons').delete().eq('id', editing.id)
+                await supabase.from('task_reasons').delete().eq('id', editing.id)
                 setEditing(null); setToast('Reason deleted'); setTimeout(() => setToast(''), 2500); load()
               }} className="px-3 py-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md">Delete</button>
             ) : <div />}

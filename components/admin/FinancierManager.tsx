@@ -16,7 +16,7 @@ export function FinancierManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [showNew, setShowNew] = useState(false)
 
   const load = useCallback(async () => {
-    let q = (supabase as any).from('financiers').select('*').order('name')
+    let q = supabase.from('financiers').select('*').order('name')
     if (search) q = q.ilike('name', `%${escapeIlike(search)}%`)
     const { data } = await q
     setFinanciers(data ?? [])
@@ -29,7 +29,7 @@ export function FinancierManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const save = async () => {
     if (!editing) return
     setSaving(true)
-    const { error } = await (supabase as any).from('financiers').update({
+    const { error } = await supabase.from('financiers').update({
       name: draft.name, phone: draft.phone, website: draft.website,
       contact_name: draft.contact_name, contact_email: draft.contact_email, notes: draft.notes,
     }).eq('id', editing.id)
@@ -40,7 +40,7 @@ export function FinancierManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const createNew = async () => {
     if (!draft.name?.trim()) return
     setSaving(true)
-    const { error } = await (supabase as any).from('financiers').insert({
+    const { error } = await supabase.from('financiers').insert({
       name: draft.name, phone: draft.phone, website: draft.website,
       contact_name: draft.contact_name, contact_email: draft.contact_email, notes: draft.notes,
     })
@@ -103,7 +103,7 @@ export function FinancierManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             {editing && isSuperAdmin ? (
               <button onClick={async () => {
                 if (!confirm(`DELETE Financier "${editing.name}"?`)) return
-                await (supabase as any).from('financiers').delete().eq('id', editing.id)
+                await supabase.from('financiers').delete().eq('id', editing.id)
                 setEditing(null); setToast('Financier deleted'); setTimeout(() => setToast(''), 2500); load()
               }} className="px-3 py-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md">Delete</button>
             ) : <div />}

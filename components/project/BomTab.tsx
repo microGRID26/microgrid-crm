@@ -130,10 +130,15 @@ export function BomTab({ project }: Props) {
   }
 
   function setOverride(key: string, value: string) {
-    setInputs(prev => ({
-      ...prev,
-      overrides: { ...prev.overrides, [key]: value === '' ? undefined as any : Number(value) }
-    }))
+    setInputs(prev => {
+      const overrides = { ...prev.overrides }
+      if (value === '') {
+        delete overrides[key]
+      } else {
+        overrides[key] = Number(value)
+      }
+      return { ...prev, overrides }
+    })
   }
 
   async function saveBom() {

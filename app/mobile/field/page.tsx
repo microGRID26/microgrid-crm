@@ -485,7 +485,7 @@ export default function FieldPage() {
   // Load crews
   useEffect(() => {
     async function loadCrews() {
-      const { data, error } = await (supabaseDb as any)
+      const { data, error } = await supabaseDb
         .from('crews')
         .select('id, name')
         .eq('active', 'TRUE')
@@ -512,7 +512,7 @@ export default function FieldPage() {
 
   // Load today's schedule
   const loadJobs = useCallback(async () => {
-    const { data: schedData, error: schedError } = await (supabaseDb as any)
+    const { data: schedData, error: schedError } = await supabaseDb
       .from('schedule')
       .select('id, crew_id, date, job_type, time, project_id, notes, status')
       .eq('date', todayIso)
@@ -533,7 +533,7 @@ export default function FieldPage() {
       const pids = [...new Set(rawJobs.map((j: any) => j.project_id).filter(Boolean))]
       const projMap: Record<string, any> = {}
       if (pids.length > 0) {
-        const { data: projData, error: projError } = await (supabase as any)
+        const { data: projData, error: projError } = await supabase
           .from('projects')
           .select('id, name, phone, email, address, city, zip, systemkw, module, module_qty, stage, stage_date, blocker, survey_date, install_complete_date, pto_date')
           .in('id', pids)
@@ -609,7 +609,7 @@ export default function FieldPage() {
     searchTimer.current = setTimeout(async () => {
       setSearching(true)
       const escaped = escapeIlike(search.trim())
-      const { data } = await (supabase as any)
+      const { data } = await supabase
         .from('projects')
         .select('id, name, city, address, phone, email, stage, systemkw')
         .or(`name.ilike.%${escaped}%,id.ilike.%${escaped}%,address.ilike.%${escaped}%`)
@@ -644,7 +644,7 @@ export default function FieldPage() {
       setToast({ message: 'No internet connection', type: 'error' })
       return
     }
-    const { error } = await (supabaseDb as any)
+    const { error } = await supabaseDb
       .from('schedule')
       .update({ status: newStatus })
       .eq('id', jobId)
@@ -678,9 +678,9 @@ export default function FieldPage() {
             // Auto-populate project date
             const dateField = TASK_DATE[taskId]
             if (dateField) {
-              const { data: proj } = await (supabase as any).from('projects').select(dateField).eq('id', job.project_id).maybeSingle()
-              if (proj && !(proj as any)[dateField]) {
-                await (supabaseDb as any).from('projects').update({ [dateField]: todayStr }).eq('id', job.project_id)
+              const { data: proj } = await supabase.from('projects').select(dateField).eq('id', job.project_id).maybeSingle()
+              if (proj && !(proj as Record<string, unknown>)[dateField]) {
+                await supabaseDb.from('projects').update({ [dateField]: todayStr }).eq('id', job.project_id)
               }
             }
           } catch (e) {
@@ -728,9 +728,9 @@ export default function FieldPage() {
     const dateField = TASK_DATE[taskId]
     if (dateField) {
       try {
-        const { data: proj } = await (supabase as any).from('projects').select(dateField).eq('id', job.project_id).maybeSingle()
-        if (proj && !(proj as any)[dateField]) {
-          await (supabaseDb as any).from('projects').update({ [dateField]: todayStr }).eq('id', job.project_id)
+        const { data: proj } = await supabase.from('projects').select(dateField).eq('id', job.project_id).maybeSingle()
+        if (proj && !(proj as Record<string, unknown>)[dateField]) {
+          await supabaseDb.from('projects').update({ [dateField]: todayStr }).eq('id', job.project_id)
         }
       } catch (e) {
         console.error('Failed to auto-populate date:', e)

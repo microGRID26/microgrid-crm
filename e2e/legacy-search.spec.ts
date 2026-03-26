@@ -1,90 +1,101 @@
 import { test, expect } from '@playwright/test';
-import { isAuthenticated } from './helpers/auth';
+import { navigateAuthenticated, waitForDataLoad } from './helpers/auth';
 
 test.describe('Legacy page search and detail panel', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/legacy');
+    await navigateAuthenticated(page, '/legacy');
+    await waitForDataLoad(page);
   });
 
-  test('Legacy Projects heading exists', async ({ page }) => {
+  test('Legacy page heading exists', async ({ page }) => {
     const heading = page.getByRole('heading', { name: /legacy/i });
-    const count = await heading.count();
-    if (count === 0) {
-      test.skip(true, 'Not authenticated — page redirected');
-      return;
-    }
     await expect(heading).toBeVisible();
   });
 
   test('Search box filters results', async ({ page }) => {
     const searchInput = page.getByPlaceholder(/search/i);
-    const inputCount = await searchInput.count();
-    if (inputCount === 0) {
-      test.skip(true, 'Not authenticated — search input not found');
-      return;
-    }
+    await expect(searchInput).toBeVisible();
 
     await searchInput.fill('test');
     await page.waitForTimeout(500);
+
+    // Should still be on legacy page (no crash)
+    await expect(page).toHaveURL(/\/legacy/);
+  });
+
+  test('Search with nonexistent term shows filtered state', async ({ page }) => {
+    const searchInput = page.getByPlaceholder(/search/i);
+    await expect(searchInput).toBeVisible();
+
+    await searchInput.fill('zzzznonexistent999');
+    await page.waitForTimeout(500);
+
+    // Page should handle gracefully — no crash
     await expect(page).toHaveURL(/\/legacy/);
   });
 
   test('Clicking a row opens detail panel', async ({ page }) => {
-    const rows = page.locator('tr[class*="cursor"], [role="row"]');
+    // Legacy page uses table rows
+    const rows = page.locator('tr[class*="cursor"], tbody tr').filter({ hasText: 'PROJ-' });
     const rowCount = await rows.count();
+
     if (rowCount === 0) {
-      test.skip(true, 'No project rows found — likely not authenticated');
+      test.skip(true, 'No project rows found — test environment may have no legacy data');
       return;
     }
 
     await rows.first().click();
+    await page.waitForTimeout(500);
 
-    const panel = page.locator('[class*="fixed"], [class*="modal"], [role="dialog"]');
+    // A detail panel/modal should appear
+    const panel = page.locator('[class*="fixed"], [role="dialog"]');
     const panelCount = await panel.count();
-    if (panelCount > 0) {
-      await expect(panel.first()).toBeVisible();
-    }
+    expect(panelCount).toBeGreaterThan(0);
   });
 
-  test('Detail panel has expected sections', async ({ page }) => {
-    const rows = page.locator('tr[class*="cursor"], [role="row"]');
+  test('Detail panel has expected tabs or sections', async ({ page }) => {
+    const rows = page.locator('tr[class*="cursor"], tbody tr').filter({ hasText: 'PROJ-' });
     const rowCount = await rows.count();
+
     if (rowCount === 0) {
-      test.skip(true, 'No project rows found — likely not authenticated');
+      test.skip(true, 'No project rows found — test environment may have no legacy data');
       return;
     }
 
     await rows.first().click();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(500);
 
-    const sectionNames = ['Customer Info', 'System Specs', 'System', 'Overview'];
-    let foundSection = false;
-    for (const name of sectionNames) {
-      const section = page.getByText(name, { exact: false });
-      if ((await section.count()) > 0) {
-        foundSection = true;
-        break;
-      }
-    }
-    expect(typeof foundSection).toBe('boolean');
+    // ProjectPanel should show tabs (Overview, Tasks, Notes, etc.)
+    const body = await page.textContent('body');
+    const tabNames = ['Overview', 'Tasks', 'Notes', 'Info', 'Files', 'BOM'];
+    const hasTab = tabNames.some((t) => body?.includes(t));
+    expect(hasTab).toBe(true);
   });
 
-  test('Detail panel closes with X button', async ({ page }) => {
-    const rows = page.locator('tr[class*="cursor"], [role="row"]');
+  test('Detail panel closes', async ({ page }) => {
+    const rows = page.locator('tr[class*="cursor"], tbody tr').filter({ hasText: 'PROJ-' });
     const rowCount = await rows.count();
+
     if (rowCount === 0) {
-      test.skip(true, 'No project rows found — likely not authenticated');
+      test.skip(true, 'No project rows found');
       return;
     }
 
     await rows.first().click();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(500);
 
-    const closeBtn = page.locator('button:has-text("X"), button[aria-label*="close"], button[aria-label*="Close"]');
+    // Try to close via X button or Escape
+    const closeBtn = page.locator('button[aria-label*="close"], button[aria-label*="Close"]');
     const closeBtnCount = await closeBtn.count();
+
     if (closeBtnCount > 0) {
       await closeBtn.first().click();
-      await page.waitForTimeout(300);
+    } else {
+      await page.keyboard.press('Escape');
     }
+
+    await page.waitForTimeout(300);
+    // Should still be on legacy page
+    await expect(page).toHaveURL(/\/legacy/);
   });
 });

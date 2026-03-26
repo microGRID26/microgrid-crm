@@ -416,7 +416,7 @@ export async function POST(request: NextRequest) {
       .select('role')
       .eq('id', user.id)
       .single()
-    const role = (userRow as any)?.role ?? 'user'
+    const role = userRow?.role ?? 'user'
     const allowedRoles = ['manager', 'admin', 'super_admin']
     if (!allowedRoles.includes(role)) {
       return NextResponse.json({ error: 'Insufficient permissions. Manager role required.' }, { status: 403 })

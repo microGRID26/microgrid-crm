@@ -302,7 +302,7 @@ export function BulkActionBar({
         const proj = selectedProjects[i]
         setBulkProgress({ current: i + 1, total: selectedProjects.length, action: 'Setting follow-up date' })
         try {
-          await logAudit(proj.id, 'follow_up_date', (proj as any).follow_up_date ?? null, dateVal, currentUser)
+          await logAudit(proj.id, 'follow_up_date', proj.follow_up_date ?? null, dateVal, currentUser)
           await updateProject(proj.id, { follow_up_date: dateVal })
         } catch (err) {
           console.error(`Failed to update ${proj.id}:`, err)
@@ -534,7 +534,7 @@ export function BulkActionBar({
                                 const proj = selectedProjects[i]
                                 setBulkProgress({ current: i + 1, total: selectedProjects.length, action: 'Clearing follow-up dates' })
                                 try {
-                                  await logAudit(proj.id, 'follow_up_date', (proj as any).follow_up_date ?? null, null, currentUser)
+                                  await logAudit(proj.id, 'follow_up_date', proj.follow_up_date ?? null, null, currentUser)
                                   await updateProject(proj.id, { follow_up_date: null })
                                 } catch (err) {
                                   console.error(`Failed to update ${proj.id}:`, err)

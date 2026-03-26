@@ -5,6 +5,9 @@ import type { PurchaseOrder, POLineItem, WarehouseTransaction } from '@/types/da
 
 export type { PurchaseOrder, POLineItem, WarehouseTransaction }
 
+/** Extended PurchaseOrder with optional warning from material linking */
+export type PurchaseOrderResult = PurchaseOrder & { _materialWarning?: string }
+
 export interface ProjectMaterial {
   id: string
   project_id: string
@@ -338,7 +341,7 @@ export async function loadPurchaseOrder(id: string): Promise<{ po: PurchaseOrder
 export async function createPurchaseOrder(
   po: Omit<PurchaseOrder, 'id' | 'created_at' | 'updated_at'>,
   items: Omit<POLineItem, 'id' | 'po_id'>[]
-): Promise<PurchaseOrder | null> {
+): Promise<PurchaseOrderResult | null> {
   const supabase = db()
   const { data: created, error: poErr } = await supabase
     .from('purchase_orders')
@@ -349,7 +352,7 @@ export async function createPurchaseOrder(
     console.error('[createPurchaseOrder]', poErr?.message)
     return null
   }
-  const createdPO = created as PurchaseOrder
+  const createdPO = created as PurchaseOrderResult
 
   // Insert line items
   if (items.length > 0) {
@@ -377,7 +380,7 @@ export async function createPurchaseOrder(
   if (materialErrors.length > 0) {
     console.error('[createPurchaseOrder] material update errors:', materialErrors.join('; '))
     // PO created but some materials failed to link — attach warning
-    ;(createdPO as any)._materialWarning = `${materialErrors.length} material(s) failed to link to PO`
+    createdPO._materialWarning = `${materialErrors.length} material(s) failed to link to PO`
   }
 
   return createdPO
@@ -613,7 +616,9 @@ export async function checkoutFromWarehouse(
     // The stock decrement and warehouse transaction are the source of truth;
     // the project_material record is a convenience link. The component shows
     // a separate warning toast when this fails (checks materialWarning).
-    ;(s as any)._materialWarning = `Failed to create project material record: ${matErr.message}`
+    // Note: this warning is set on a local variable and not returned — dead code.
+    // TODO: consider returning the warning to the caller.
+    ;(s as WarehouseStock & { _materialWarning?: string })._materialWarning = `Failed to create project material record: ${matErr.message}`
   }
 
   return true

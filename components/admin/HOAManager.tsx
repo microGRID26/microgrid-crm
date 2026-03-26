@@ -16,7 +16,7 @@ export function HOAManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [showNew, setShowNew] = useState(false)
 
   const load = useCallback(async () => {
-    let q = (supabase as any).from('hoas').select('*').order('name')
+    let q = supabase.from('hoas').select('*').order('name')
     if (search) q = q.ilike('name', `%${escapeIlike(search)}%`)
     const { data } = await q
     setHoas(data ?? [])
@@ -29,7 +29,7 @@ export function HOAManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const save = async () => {
     if (!editing) return
     setSaving(true)
-    const { error } = await (supabase as any).from('hoas').update({
+    const { error } = await supabase.from('hoas').update({
       name: draft.name, phone: draft.phone, website: draft.website,
       contact_name: draft.contact_name, contact_email: draft.contact_email, notes: draft.notes,
     }).eq('id', editing.id)
@@ -40,7 +40,7 @@ export function HOAManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const createNew = async () => {
     if (!draft.name?.trim()) return
     setSaving(true)
-    const { error } = await (supabase as any).from('hoas').insert({
+    const { error } = await supabase.from('hoas').insert({
       name: draft.name, phone: draft.phone, website: draft.website,
       contact_name: draft.contact_name, contact_email: draft.contact_email, notes: draft.notes,
     })
@@ -103,7 +103,7 @@ export function HOAManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             {editing && isSuperAdmin ? (
               <button onClick={async () => {
                 if (!confirm(`DELETE HOA "${editing.name}"?`)) return
-                await (supabase as any).from('hoas').delete().eq('id', editing.id)
+                await supabase.from('hoas').delete().eq('id', editing.id)
                 setEditing(null); setToast('HOA deleted'); setTimeout(() => setToast(''), 2500); load()
               }} className="px-3 py-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md">Delete</button>
             ) : <div />}

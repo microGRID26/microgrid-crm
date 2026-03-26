@@ -347,7 +347,7 @@ export default function CrewPage() {
       const pids = [...new Set(rawJobs.map((j: any) => j.project_id).filter(Boolean))]
       const projMap: Record<string, any> = {}
       if (pids.length > 0) {
-        const { data: projData } = await (supabase as any)
+        const { data: projData } = await supabase
           .from('projects')
           .select('id, name, phone, email, address, city, zip, systemkw, module, module_qty, inverter, inverter_qty, battery, battery_qty, pm, consultant, advisor')
           .in('id', pids)
@@ -427,7 +427,7 @@ export default function CrewPage() {
 
   // Status update handler
   async function handleStatusChange(jobId: string, newStatus: string) {
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from('schedule')
       .update({ status: newStatus })
       .eq('id', jobId)
@@ -450,7 +450,7 @@ export default function CrewPage() {
         if (taskId) {
           const today = new Date().toISOString().slice(0, 10)
           try {
-            await (supabase as any).from('task_state').upsert({
+            await supabase.from('task_state').upsert({
               project_id: job.project_id,
               task_id: taskId,
               status: 'Complete',
@@ -458,7 +458,7 @@ export default function CrewPage() {
               started_date: today,
             }, { onConflict: 'project_id,task_id' })
 
-            await (supabase as any).from('task_history').insert({
+            await supabase.from('task_history').insert({
               project_id: job.project_id,
               task_id: taskId,
               status: 'Complete',
@@ -473,9 +473,9 @@ export default function CrewPage() {
             }
             const dateField = TASK_DATE[taskId]
             if (dateField) {
-              const { data: proj } = await (supabase as any).from('projects').select(dateField).eq('id', job.project_id).single()
-              if (proj && !(proj as any)[dateField]) {
-                await (supabase as any).from('projects').update({ [dateField]: today }).eq('id', job.project_id)
+              const { data: proj } = await supabase.from('projects').select(dateField).eq('id', job.project_id).single()
+              if (proj && !(proj as Record<string, unknown>)[dateField]) {
+                await supabase.from('projects').update({ [dateField]: today }).eq('id', job.project_id)
               }
             }
           } catch (e) {

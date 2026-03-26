@@ -73,7 +73,7 @@ export function JobBriefPanel({ scheduleId, onClose, onEdit, onOpenProject }: Pr
     async function load() {
       setLoading(true)
       // Fetch the full schedule record (including new install detail fields)
-      const { data: jobData } = await (supabase as any)
+      const { data: jobData } = await supabase
         .from('schedule')
         .select('*')
         .eq('id', scheduleId)

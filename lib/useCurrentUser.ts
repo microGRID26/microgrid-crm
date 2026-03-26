@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { UserRole } from '@/types/database'
+import type { User, UserRole } from '@/types/database'
 
 interface CurrentUser {
   id: string
@@ -67,10 +67,9 @@ export function useCurrentUser() {
       if (!mountedRef.current) return
       const email = data.user?.email
       if (!email) { if (mountedRef.current) setLoading(false); return }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: u } = await (supabase as any)
-        .from('users').select('id, name, email, role')
-        .eq('email', email).single()
+      const { data: u } = await supabase
+        .from('users').select('*')
+        .eq('email', email).single() as { data: User | null }
       if (!u) {
         console.warn(`useCurrentUser: no user row found for ${email}, falling back to default role`)
       }

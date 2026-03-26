@@ -19,7 +19,7 @@ export function NotificationRulesManager() {
   const roleOptions = ['super_admin', 'admin', 'finance', 'manager', 'user']
 
   const load = useCallback(async () => {
-    const { data } = await (supabase as any).from('notification_rules').select('*').order('task_id')
+    const { data } = await supabase.from('notification_rules').select('*').order('task_id')
     setRules((data ?? []) as NotificationRule[])
   }, [])
 
@@ -32,7 +32,7 @@ export function NotificationRulesManager() {
     }
     setSaving(true)
     if (editing) {
-      const { error } = await (supabase as any).from('notification_rules').update({
+      const { error } = await supabase.from('notification_rules').update({
         task_id: draft.task_id,
         trigger_status: draft.trigger_status,
         trigger_reason: draft.trigger_reason || null,
@@ -44,7 +44,7 @@ export function NotificationRulesManager() {
       if (error) { setToast('Save failed'); setSaving(false); setTimeout(() => setToast(''), 2500); return }
       setToast('Rule updated'); setEditing(null)
     } else {
-      const { error } = await (supabase as any).from('notification_rules').insert({
+      const { error } = await supabase.from('notification_rules').insert({
         task_id: draft.task_id,
         trigger_status: draft.trigger_status,
         trigger_reason: draft.trigger_reason || null,
@@ -61,13 +61,13 @@ export function NotificationRulesManager() {
   }
 
   const toggleActive = async (rule: NotificationRule) => {
-    await (supabase as any).from('notification_rules').update({ active: !rule.active }).eq('id', rule.id)
+    await supabase.from('notification_rules').update({ active: !rule.active }).eq('id', rule.id)
     load()
   }
 
   const deleteRule = async (rule: NotificationRule) => {
     if (!confirm('Delete this notification rule?')) return
-    await (supabase as any).from('notification_rules').delete().eq('id', rule.id)
+    await supabase.from('notification_rules').delete().eq('id', rule.id)
     load()
   }
 

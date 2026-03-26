@@ -47,7 +47,7 @@ function AutocompleteInput({ value, onChange, table, placeholder, className }: {
   useEffect(() => {
     if (!focused || value.length < 2) { setSuggestions([]); setOpen(false); return }
     const timer = setTimeout(async () => {
-      const { data } = await (supabase as any).from(table).select('name').ilike('name', `%${escapeIlike(value)}%`).order('name').limit(8)
+      const { data } = await supabase.from(table).select('name').ilike('name', `%${escapeIlike(value)}%`).order('name').limit(8)
       const names = (data ?? []).map((r: any) => r.name)
       setSuggestions(names)
       setOpen(names.length > 0)

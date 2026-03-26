@@ -19,7 +19,7 @@ export function QueueConfigManager() {
   const colorOptions = ['blue', 'indigo', 'purple', 'teal', 'cyan', 'green', 'red', 'amber', 'gray', 'yellow', 'pink', 'orange']
 
   const load = useCallback(async () => {
-    const { data } = await (supabase as any).from('queue_sections').select('*').order('sort_order')
+    const { data } = await supabase.from('queue_sections').select('*').order('sort_order')
     setSections((data ?? []) as QueueSection[])
   }, [])
 
@@ -38,11 +38,11 @@ export function QueueConfigManager() {
       active: draft.active ?? true,
     }
     if (editing) {
-      const { error } = await (supabase as any).from('queue_sections').update(payload).eq('id', editing.id)
+      const { error } = await supabase.from('queue_sections').update(payload).eq('id', editing.id)
       if (error) { setToast('Save failed'); setSaving(false); setTimeout(() => setToast(''), 2500); return }
       setToast('Section updated'); setEditing(null)
     } else {
-      const { error } = await (supabase as any).from('queue_sections').insert(payload)
+      const { error } = await supabase.from('queue_sections').insert(payload)
       if (error) { setToast('Create failed'); setSaving(false); setTimeout(() => setToast(''), 2500); return }
       setToast('Section created'); setShowNew(false)
     }
@@ -50,13 +50,13 @@ export function QueueConfigManager() {
   }
 
   const toggleActive = async (sec: QueueSection) => {
-    await (supabase as any).from('queue_sections').update({ active: !sec.active }).eq('id', sec.id)
+    await supabase.from('queue_sections').update({ active: !sec.active }).eq('id', sec.id)
     load()
   }
 
   const deleteSection = async (sec: QueueSection) => {
     if (!confirm('Delete this queue section?')) return
-    await (supabase as any).from('queue_sections').delete().eq('id', sec.id)
+    await supabase.from('queue_sections').delete().eq('id', sec.id)
     load()
   }
 

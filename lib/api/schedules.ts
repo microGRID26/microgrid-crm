@@ -1,11 +1,11 @@
-import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 
 // ── Schedule data access ─────────────────────────────────────────────────────
 
 /** Load schedule entries for a date range with project name join */
 export async function loadScheduleByDateRange(startDate: string, endDate: string) {
-  const supabase = createClient()
-  const { data, error } = await (supabase as any).from('schedule')
+  // Uses db() because the select includes a join (project:projects) which requires untyped query
+  const { data, error } = await db().from('schedule')
     .select('*, project:projects(name, city)')
     .gte('date', startDate)
     .lte('date', endDate)

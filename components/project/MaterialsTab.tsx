@@ -255,7 +255,7 @@ export function MaterialsTab({ project }: MaterialsTabProps) {
         setSelectedForPO(new Set())
         setShowPOForm(false)
         setPOVendor('')
-        const warning = (result as any)._materialWarning
+        const warning = (result as import('@/lib/api/inventory').PurchaseOrderResult)._materialWarning
         if (warning) {
           showToastMsg(`Created ${result.po_number} — warning: ${warning}`)
         } else {

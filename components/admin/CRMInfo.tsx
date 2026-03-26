@@ -25,7 +25,7 @@ export function CRMInfo() {
         supabase.from('projects').select('*', { count: 'exact', head: true }),
         supabase.from('ahjs').select('*', { count: 'exact', head: true }),
         supabase.from('utilities').select('*', { count: 'exact', head: true }),
-        (supabase as any).from('hoas').select('*', { count: 'exact', head: true }),
+        supabase.from('hoas').select('*', { count: 'exact', head: true }),
         supabase.from('users').select('*', { count: 'exact', head: true }),
         supabase.from('crews').select('*', { count: 'exact', head: true }),
         supabase.from('service_calls').select('*', { count: 'exact', head: true }),

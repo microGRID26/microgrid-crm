@@ -365,8 +365,8 @@ export default function FundingPage() {
   // separate Project[] and ProjectFunding record structures client-side.
   const loadDashboard = useCallback(async () => {
     const supabase = createClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).from('funding_dashboard').select('*').limit(5000)
+    // funding_dashboard is a Postgres view not in Database types — db() required
+    const { data, error } = await db().from('funding_dashboard').select('*').limit(5000)
     if (error) console.error('funding_dashboard load failed:', error)
     if (data) {
       const projList: Project[] = []

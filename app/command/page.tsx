@@ -377,8 +377,7 @@ export default function CommandPage() {
 
   const loadSchedule = useCallback(async () => {
     setScheduleIncomplete(false)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const schedRes = await (supabase as any).from('schedule')
+    const schedRes = await supabase.from('schedule')
       .select('id, project_id, job_type, time, status, crew_id')
       .eq('date', new Date().toISOString().slice(0, 10))
       .neq('status', 'cancelled')

@@ -57,7 +57,7 @@ export function PermissionMatrix() {
               <tr key={row.feature} className="border-t border-gray-800/50">
                 <td className="text-xs text-gray-200 px-4 py-2">{row.feature}</td>
                 {roles.map(r => {
-                  const val = (row as any)[r] as string
+                  const val = row[r]
                   return (
                     <td key={r} className="text-center px-3 py-2">
                       <span className={`text-[10px] px-2 py-0.5 rounded border ${PERM_BADGE[val] ?? PERM_BADGE['\u2014']}`}>{val}</span>

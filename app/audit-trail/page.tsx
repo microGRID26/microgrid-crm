@@ -70,7 +70,7 @@ export default function AuditTrailPage() {
   // Load distinct field names and user names for dropdown filters
   useEffect(() => {
     const supabase = createClient()
-    ;(supabase as any)
+    ;supabase
       .from('audit_log')
       .select('changed_by, field')
       .limit(5000)

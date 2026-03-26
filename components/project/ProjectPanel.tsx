@@ -190,7 +190,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       setHoaInfo(data ?? null)
     }
     if (project.financier) {
-      const { data } = await (supabase as any).from('financiers').select('phone,website,contact_name,contact_email,notes').ilike('name', `%${escapeIlike(project.financier)}%`).limit(1).maybeSingle()
+      const { data } = await supabase.from('financiers').select('phone,website,contact_name,contact_email,notes').ilike('name', `%${escapeIlike(project.financier)}%`).limit(1).maybeSingle()
       setFinancierInfo(data ?? null)
     }
   }, [pid, project.ahj, project.utility, project.hoa, project.financier])
@@ -261,14 +261,14 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
 
   const openFinancierEdit = async () => {
     if (!project.financier) return
-    const { data } = await (supabase as any).from('financiers').select('*').ilike('name', `%${escapeIlike(project.financier)}%`).limit(1).maybeSingle()
+    const { data } = await supabase.from('financiers').select('*').ilike('name', `%${escapeIlike(project.financier)}%`).limit(1).maybeSingle()
     if (data) setFinancierEdit({ ...data })
   }
 
   const saveFinancierEdit = async () => {
     if (!financierEdit) return
     setRefSaving(true)
-    const { error } = await (supabase as any).from('financiers').update({
+    const { error } = await supabase.from('financiers').update({
       phone: financierEdit.phone,
       website: financierEdit.website,
       contact_name: financierEdit.contact_name,
@@ -319,7 +319,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       loadAdders(),
     ])
     // Load notification rules (cached for panel lifetime)
-    ;(supabase as any).from('notification_rules').select('id, task_id, trigger_status, trigger_reason, action_type, action_message, notify_role').eq('active', true).then(({ data: rulesData }: any) => {
+    ;supabase.from('notification_rules').select('id, task_id, trigger_status, trigger_reason, action_type, action_message, notify_role').eq('active', true).then(({ data: rulesData }: { data: { id: string; task_id: string; trigger_status: string; trigger_reason: string | null; action_type: string; action_message: string; notify_role: string | null }[] | null }) => {
       if (rulesData) setNotificationRules(rulesData)
     })
     // Load change order count for this project

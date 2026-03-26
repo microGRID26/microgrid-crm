@@ -112,10 +112,7 @@ export default function QueuePage() {
   // ── Queue sections from DB (with hardcoded fallback) ───────────────────
   const [queueSections, setQueueSections] = useState<QueueSectionConfig[]>(HARDCODED_SECTIONS)
 
-  // queue_sections is an admin-configurable table (migration 020) not in Database types.
-  // Cast required because useSupabaseQuery only accepts typed tables from types/database.ts.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: queueSectionsData } = useSupabaseQuery('queue_sections' as any, {
+  const { data: queueSectionsData } = useSupabaseQuery('queue_sections', {
     select: 'id, label, task_id, match_status, color, icon, sort_order',
     filters: { active: true },
     order: { column: 'sort_order', ascending: true },
@@ -198,7 +195,7 @@ export default function QueuePage() {
   const taskStates: TaskStateRow[] = useMemo(() => {
     const allTasks: TaskStateRow[] = [...(taskDataRaw as unknown as TaskStateRow[])]
     // Only merge follow-up data for projects that match the current PM filter
-    for (const fu of followUpDataRaw as any[]) {
+    for (const fu of followUpDataRaw as unknown as TaskStateRow[]) {
       if (!projectIdSet.has(fu.project_id)) continue
       const existing = allTasks.find(t => t.project_id === fu.project_id && t.task_id === fu.task_id)
       if (existing) {

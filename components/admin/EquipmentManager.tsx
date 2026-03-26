@@ -30,7 +30,7 @@ export function EquipmentManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [showNew, setShowNew] = useState(false)
 
   const load = useCallback(async () => {
-    let q = (supabase as any).from('equipment').select('*').order('category').order('sort_order').order('name')
+    let q = supabase.from('equipment').select('*').order('category').order('sort_order').order('name')
     if (search) q = q.ilike('name', `%${escapeIlike(search)}%`)
     if (catFilter !== 'all') q = q.eq('category', catFilter)
     const { data } = await q
@@ -46,7 +46,7 @@ export function EquipmentManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const save = async () => {
     if (!editing) return
     setSaving(true)
-    const { error } = await (supabase as any).from('equipment').update({
+    const { error } = await supabase.from('equipment').update({
       name: draft.name, manufacturer: draft.manufacturer, model: draft.model,
       category: draft.category, watts: draft.watts ? Number(draft.watts) : null,
       description: draft.description, active: draft.active, sort_order: draft.sort_order ? Number(draft.sort_order) : 0,
@@ -59,7 +59,7 @@ export function EquipmentManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const createNew = async () => {
     if (!draft.name?.trim() || !draft.category) return
     setSaving(true)
-    const { error } = await (supabase as any).from('equipment').insert({
+    const { error } = await supabase.from('equipment').insert({
       name: draft.name, manufacturer: draft.manufacturer || null, model: draft.model || null,
       category: draft.category, watts: draft.watts ? Number(draft.watts) : null,
       description: draft.description || null, active: draft.active ?? true,
@@ -71,7 +71,7 @@ export function EquipmentManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   }
 
   const toggleActive = async (item: Equipment) => {
-    await (supabase as any).from('equipment').update({ active: !item.active }).eq('id', item.id)
+    await supabase.from('equipment').update({ active: !item.active }).eq('id', item.id)
     load()
   }
 
@@ -193,7 +193,7 @@ export function EquipmentManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             {editing && isSuperAdmin ? (
               <button onClick={async () => {
                 if (!confirm(`DELETE "${editing.name}"?`)) return
-                await (supabase as any).from('equipment').delete().eq('id', editing.id)
+                await supabase.from('equipment').delete().eq('id', editing.id)
                 setEditing(null); flash('Equipment deleted'); load()
               }} className="px-3 py-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md">Delete</button>
             ) : <div />}

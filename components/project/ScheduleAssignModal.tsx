@@ -261,7 +261,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
           const dateField = TASK_DATE[taskId]
           if (dateField) {
             const { data: proj } = await supabase.from('projects').select(dateField).eq('id', pid).single()
-            if (proj && !(proj as any)[dateField]) {
+            if (proj && !(proj as Record<string, unknown>)[dateField]) {
               const { error: dateErr } = await supabase.from('projects').update({ [dateField]: today }).eq('id', pid)
               if (dateErr) console.error('date field update failed:', dateErr)
             }
