@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import { TASKS } from '@/lib/tasks'
+import { syncProjectToEdge } from '@/lib/api/edge-sync'
 
 // ── SubHub Webhook: Project Created ─────────────────────────────────────────
 // Receives a POST from SubHub when a contract is signed.
@@ -229,6 +230,9 @@ export async function POST(request: NextRequest) {
       time: new Date().toISOString(),
       pm: 'System',
     })
+
+    // Sync new project to EDGE Portal (fire-and-forget)
+    void syncProjectToEdge(projectId)
 
     console.log(`SubHub webhook: created ${projectId} for ${project.name}`)
 

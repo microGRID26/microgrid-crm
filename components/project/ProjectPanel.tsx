@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { daysAgo, STAGE_LABELS, STAGE_ORDER, escapeIlike } from '@/lib/utils'
 import { TASKS, ALL_TASKS_MAP, ALL_TASKS_FLAT, TASK_TO_STAGE, TASK_DATE_FIELDS, getSameStageDownstream, isTaskRequired } from '@/lib/tasks'
 import { useCurrentUser } from '@/lib/useCurrentUser'
+import { useEdgeSync } from '@/lib/hooks/useEdgeSync'
 import type { Project, Note } from '@/types/database'
 import { BomTab } from './BomTab'
 import { TasksTab } from './TasksTab'
@@ -32,6 +33,7 @@ interface ProjectPanelProps {
 export function ProjectPanel({ project: initialProject, onClose, onProjectUpdated, initialTab }: ProjectPanelProps) {
   const supabase = db()
   const { user: currentUser } = useCurrentUser()
+  const edgeSync = useEdgeSync()
   const [project, setProject] = useState<Project>(initialProject)
   const [tab, setTab] = useState<'tasks' | 'notes' | 'info' | 'bom' | 'files' | 'materials'>(initialTab ?? 'tasks')
   useEffect(() => { if (initialTab) setTab(initialTab) }, [initialTab])
@@ -576,6 +578,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
         if (dispErr) { console.error('disposition update failed:', dispErr); showToast('Update failed'); return }
         setProject(p => ({ ...p, disposition: 'In Service' }))
         onProjectUpdated()
+        edgeSync.notifyInService(pid)
         showToast('Project marked In Service ✓')
         return // skip auto-advance toast below
       } else if (project.disposition === 'In Service') {
@@ -607,6 +610,12 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
           if (fundingErr) console.error('funding milestone upsert failed:', fundingErr)
           const msLabel = taskId === 'install_done' ? 'M2' : 'M3'
           showToast(`${msLabel} milestone now Eligible`)
+          // ── Notify EDGE of funding milestone + install/PTO events ──
+          if (taskId === 'install_done') {
+            edgeSync.notifyInstallComplete(pid, today)
+          } else if (taskId === 'pto') {
+            edgeSync.notifyPTOReceived(pid, today)
+          }
         }
       }
     }
@@ -628,6 +637,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
         if (auditErr) console.error('audit_log insert failed:', auditErr)
         setProject(p => ({ ...p, stage: nextStage as Project['stage'], stage_date: today }))
         onProjectUpdated()
+        edgeSync.notifyStageChanged(pid, project.stage, nextStage)
         showToast(`All tasks done — advanced to ${STAGE_LABELS[nextStage]}`)
       }
     }
@@ -851,6 +861,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     setProject(p => ({ ...p, stage: nextStage as Project['stage'], stage_date: today }))
     setAdvancing(false)
     onProjectUpdated()
+    edgeSync.notifyStageChanged(pid, project.stage, nextStage)
     showToast(`Moved to ${STAGE_LABELS[nextStage]}`)
   }
 

@@ -542,6 +542,18 @@ export interface POLineItem {
   notes: string | null
 }
 
+export interface EdgeSyncLog {
+  id: string
+  project_id: string
+  event_type: string
+  direction: 'outbound' | 'inbound'
+  payload: Record<string, unknown> | null
+  status: 'sent' | 'delivered' | 'failed'
+  response_code: number | null
+  error_message: string | null
+  created_at: string
+}
+
 export interface LegacyProject {
   id: string
   ns_internal_id: string | null
@@ -821,6 +833,12 @@ export type Database = {
         Row: POLineItem
         Insert: Omit<POLineItem, 'id'> & { id?: string }
         Update: Partial<POLineItem>
+
+      }
+      edge_sync_log: {
+        Row: EdgeSyncLog
+        Insert: Omit<EdgeSyncLog, 'id' | 'status' | 'created_at'> & { id?: string; status?: string; created_at?: string }
+        Update: Partial<EdgeSyncLog>
 
       }
       legacy_projects: {

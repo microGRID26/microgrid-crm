@@ -21,6 +21,7 @@ import { AuditTrailManager } from '@/components/admin/AuditTrailManager'
 import { ReasonsManager } from '@/components/admin/ReasonsManager'
 import { DocumentRequirementsManager } from '@/components/admin/DocumentRequirementsManager'
 import { EquipmentManager } from '@/components/admin/EquipmentManager'
+import { EdgeIntegrationManager } from '@/components/admin/EdgeIntegrationManager'
 
 export default function AdminPage() {
   const { user: authUser, loading } = useCurrentUser()
@@ -135,6 +136,7 @@ export default function AdminPage() {
             {activeModule === 'audit'    && <AuditTrailManager />}
             {activeModule === 'reasons'  && <ReasonsManager isSuperAdmin={isSuperAdmin} />}
             {activeModule === 'doc_requirements' && <DocumentRequirementsManager isSuperAdmin={isSuperAdmin} />}
+            {activeModule === 'edge_integration' && <EdgeIntegrationManager />}
           </div>
         </main>
       </div>

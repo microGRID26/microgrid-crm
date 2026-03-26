@@ -463,6 +463,36 @@ API endpoint at `/api/webhooks/subhub` (route: `app/api/webhooks/subhub/route.ts
 - **Idempotency** — checks for existing project by ID before creating to prevent duplicates
 - **GET endpoint** — health check returning enabled/disabled status
 
+### EDGE Integration (NOVA ↔ EDGE Portal)
+
+Bidirectional webhook integration between NOVA CRM and EDGE Portal for project data and funding event synchronization.
+
+**Outbound (NOVA → EDGE):**
+- `lib/api/edge-sync.ts` — `sendToEdge()`, `syncProjectToEdge()`, `syncFundingToEdge()`
+- HMAC-SHA256 signed payloads sent to `EDGE_WEBHOOK_URL/api/webhooks/nova`
+- Events: `project.created`, `project.stage_changed`, `project.install_complete`, `project.pto_received`, `project.in_service`, `funding.milestone_updated`
+- Integration points: ProjectPanel automation chain (task status changes, stage advances), SubHub webhook (project creation)
+- Fire-and-forget via `useEdgeSync` hook — never blocks UI
+- All events logged to `edge_sync_log` table
+
+**Inbound (EDGE → NOVA):**
+- API endpoint at `/api/webhooks/edge` (route: `app/api/webhooks/edge/route.ts`)
+- Receives funding status updates: `funding.m2_funded`, `funding.m3_funded`, `funding.rejected`, `funding.status_update`
+- HMAC-SHA256 signature verification via `X-Webhook-Signature` header
+- Updates `project_funding` table and logs to `audit_log`
+- GET endpoint for health check
+
+**Admin panel:**
+- `components/admin/EdgeIntegrationManager.tsx` — connection status, recent sync log, manual project sync
+
+**Environment variables:**
+```
+NEXT_PUBLIC_EDGE_WEBHOOK_URL=https://edge-portal-blush.vercel.app
+EDGE_WEBHOOK_SECRET=shared-secret-between-nova-and-edge
+```
+
+**Migration:** `supabase/028-edge-sync.sql` — `edge_sync_log` table with project_id, event_type, direction, payload (JSONB), status, response_code, error_message indexes.
+
 ### Atlas (AI Reports)
 
 Natural language query interface at `/reports` (page: `app/reports/page.tsx`, API: `app/api/reports/chat/route.ts`). Branded as "Atlas" in the UI. Users type questions about project data in plain English, and Claude generates a Supabase query plan, executes it, and returns results in a sortable table.
