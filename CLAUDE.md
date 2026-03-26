@@ -95,11 +95,11 @@ Pages should import from `@/lib/api` instead of querying Supabase directly. The 
   - `HelpCategory.tsx` — renders a category heading with its list of HelpTopic accordions
   - `HelpTopic.tsx` — expandable accordion for a single topic (title, description, rich content component, "Try it" link, related topics)
   - `topics/index.ts` — exports `CATEGORIES` (12 categories), `WHATS_NEW` array, and `HelpTopicData` type definition
-  - `topics/all-topics.ts` — barrel import aggregating all 55 topics from 12 category files
+  - `topics/all-topics.ts` — barrel import aggregating all 61 topics from 12 category files
   - `topics/*.tsx` — 12 category files (`getting-started`, `daily-workflow`, `project-management`, `notes-communication`, `financial`, `inventory`, `schedule`, `change-orders`, `analytics`, `administration`, `system-features`, `design-tools`), each exporting an array of `HelpTopicData` with React component content
 - `components/BulkActionBar.tsx` — bulk operations toolbar (see [Bulk Operations](#bulk-operations) section below)
 - `components/Pagination.tsx` — reusable pagination control (see [Pagination](#pagination) section below)
-- `components/admin/` — 17 extracted admin section components (see [File Consolidation](#file-consolidation-complete) section)
+- `components/admin/` — 21 admin section components (see [File Consolidation](#file-consolidation-complete) section)
 - `components/FeedbackButton.tsx` — floating feedback button rendered on every page (bottom-right corner). Submits to `feedback` table with type, message, user info, and current page. Insert allowed for all authenticated users via permissive RLS policy.
 - `components/SessionTracker.tsx` — automatic session tracking component. Logs user sessions to `user_sessions` table with login time, current page, and 60-second heartbeat for duration. Auth fallback handles edge cases where session is not yet available.
 
@@ -608,6 +608,7 @@ All in `supabase/`:
 - `028-edge-sync.sql` — EDGE sync log table (`edge_sync_log`) for NOVA-EDGE bidirectional webhook integration. Tracks all outbound and inbound webhook events with payload, status, and response code. Indexes on project_id, event_type, created_at DESC. RLS: SELECT/INSERT for authenticated users.
 - `029-vendors.sql` — Vendor management table with category, equipment types array, lead time, payment terms. Trigram/category/active indexes. RLS: read/write for authenticated, delete for super_admin.
 - `030-work-orders.sql` — Work order system: `work_orders` table (field work tracking with status lifecycle, crew assignment, customer signature, time tracking) and `wo_checklist_items` table (per-WO checklist with completion tracking). Indexes on project_id, status, scheduled_date, assigned_crew, work_order_id.
+- `031-email-onboarding.sql` — Email onboarding table (`email_onboarding`) for 30-day training series tracking with user enrollment, current day, pause/resume, completion status
 - `seed-document-requirements.sql` — Seeds 23 document requirements across all 7 pipeline stages
 
 ### Legacy Projects
@@ -666,7 +667,7 @@ All in `scripts/`:
 
 All three planned consolidation targets from Session 15 have been completed in Session 16:
 
-**Admin page** — `app/admin/page.tsx` split into 18 components in `components/admin/`:
+**Admin page** — `app/admin/page.tsx` split into 21 components in `components/admin/`:
 - `shared.tsx` — shared styles, types, and utility components (SectionShell, ModalShell, etc.)
 - `UsersManager.tsx`, `CrewsManager.tsx`, `AHJManager.tsx`, `UtilityManager.tsx`, `HOAManager.tsx`
 - `FinancierManager.tsx`, `ReasonsManager.tsx`, `NotificationRulesManager.tsx`, `QueueConfigManager.tsx`
