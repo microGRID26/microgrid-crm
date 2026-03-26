@@ -26,11 +26,11 @@ describe('email-templates', () => {
     }
   })
 
-  describe('all HTML contains NOVA branding', () => {
+  describe('all HTML contains MicroGRID branding', () => {
     for (let day = 1; day <= 30; day++) {
-      it(`day ${day} HTML includes NOVA`, () => {
+      it(`day ${day} HTML includes MicroGRID`, () => {
         const t = getTemplate(day, 'Test User')!
-        expect(t.html).toContain('NOVA')
+        expect(t.html).toContain('MicroGRID')
       })
     }
   })
