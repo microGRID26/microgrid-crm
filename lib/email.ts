@@ -16,7 +16,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   }
   try {
     await resend.emails.send({
-      from: 'NOVA CRM <nova@gomicrogridenergy.com>',
+      from: 'NOVA CRM <onboarding@resend.dev>',
       to,
       subject,
       html,
