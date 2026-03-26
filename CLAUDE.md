@@ -115,7 +115,7 @@ All error screens are styled consistently with the dark theme (`bg-gray-950`, gr
 Reusable hooks in `lib/hooks/` (barrel-exported from `lib/hooks/index.ts`):
 
 **`useSupabaseQuery<T>(table, options)`** — Generic data-fetching hook for any typed Supabase table. Features:
-- **Module-level cache** with 30-second TTL, shared across hook instances
+- **LRU cache** with 50-entry max and 5-minute TTL, shared across hook instances. Evicts least-recently-used entries when capacity is reached. Scale-ready to 5K projects.
 - **Request deduplication** — identical in-flight queries reuse the same promise
 - **Stale-while-revalidate** — returns cached data immediately while refetching in background
 - **Pagination** — pass `page: 1` to enable; returns `totalCount`, `hasMore`, `nextPage`, `prevPage`, `setPage`, `currentPage`
@@ -387,7 +387,7 @@ The Info tab now includes `permit_fee` and `reinspection_fee` fields in the Perm
 
 `types/database.ts` covers core tables (`projects`, `task_state`, `notes`, `crews`, `schedule`, `stage_history`, `project_folders`) plus types added during refactoring: `ServiceCall`, `HOA`, `MentionNotification`, `ProjectAdder`, `ProjectBom`. The `Schedule` interface was expanded with 11 new fields. Several tables used in the app — `project_funding`, `service_calls`, `ahjs`, `utilities`, `users`, `sla_thresholds` — are **not** in the generated types but are accessed through the `lib/api/` layer or `db()` helper which handle casting internally.
 
-**Type safety improved**: `as any` casts reduced from ~198 to ~43 across the codebase. Remaining casts are justified (dynamic property access in admin, test mocks, Supabase RPC calls). New code should use the API layer (`@/lib/api`) or `db()` helper rather than adding new `as any` casts.
+**Type safety improved**: `as any` casts reduced from ~198 to 3 across the codebase (82 removed in Session 17 via full type safety pass — 19 files updated, 16 new interfaces added). Remaining 3 casts are in test mocks and Supabase RPC calls where typing is impractical. New code should use the API layer (`@/lib/api`) or `db()` helper rather than adding new `as any` casts.
 
 ### Role-Based Access
 
@@ -631,7 +631,7 @@ All three planned consolidation targets from Session 15 have been completed in S
 
 ### Code Quality
 
-**Current rating: 9.5/10** (up from 9/10 after Session 16). Session 17 improvements: two comprehensive audits fixed 79 total issues (40 across 24 files + 39 across 18 files), dead `loyalty` column dropped, permission matrix updated to reflect actual RLS, Cancel/Reactivate gated to Admin+, legacy projects page and import pipeline (14,705 projects + 150K notes), API layer expanded (6 new functions, 4 pages migrated), document management system (3 tables, file browser, missing docs report, admin CRUD), 127K NetSuite action comments imported, nav redesigned to two-tier, pipeline utility filter + multi-select AHJ/Utility, construction banner removed, security headers added, equipment catalog (2,517 items with autocomplete and auto-kW calculation), Atlas AI Reports (Manager+, 25/day session-based rate limiting), email domain whitelist on auth. **447 tests passing with 0 failures, 12 skipped** (SLA tests remain skipped while thresholds are paused). **E2E tests:** Playwright installed with 3 smoke test specs in `e2e/`. Remaining debt: some untyped tables still accessed via `as any` casts (~43 remaining).
+**Current rating: 9.5/10** (up from 9/10 after Session 16). Session 17 improvements (~63 commits): three comprehensive audits fixed 100+ total issues across security, performance, and scale (40 + 39 + 30 issues across dozens of files). Type safety: 82 `as any` casts removed (down from ~43 to 3 remaining). Cache upgraded to LRU eviction (50 entries max) with 5-min TTL for scale readiness to 5K projects. Auth gates added to batch, planset, crew, vendors, and inventory pages. Dead `loyalty` column dropped, permission matrix updated to reflect actual RLS, Cancel/Reactivate gated to Admin+, legacy projects page and import pipeline (14,705 projects + 150K notes), API layer expanded (6 new functions, 4 pages migrated), document management system (3 tables, file browser, missing docs report, admin CRUD), 127K NetSuite action comments imported, nav redesigned to two-tier, pipeline utility filter + multi-select AHJ/Utility, construction banner removed, security headers added, equipment catalog (2,517 items with autocomplete and auto-kW calculation), Atlas AI Reports (Manager+, 25/day session-based rate limiting), inventory management (3 phases: materials, POs, warehouse), vendor management (CRUD + admin portal), mobile views (leadership dashboard + field operator), EDGE bidirectional webhook integration, help page overhaul (54 topics across 12 categories), email domain whitelist on auth. **677 tests total (665 passed, 12 skipped)** (SLA tests remain skipped while thresholds are paused). **E2E tests:** Playwright installed with 20+ E2E test specs in `e2e/`. Remaining debt: 3 `as any` casts in test mocks.
 
 ## Known Bugs
 
