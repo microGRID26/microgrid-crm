@@ -424,6 +424,58 @@ describe('autoGenerateMaterials', () => {
   })
 })
 
+// ── lookupByBarcode ─────────────────────────────────────────────────────────
+
+describe('lookupByBarcode', () => {
+  it('returns stock item when barcode matches', async () => {
+    const stockItem = {
+      id: 'ws-1', equipment_id: 'eq-1', name: 'MC4 Connectors',
+      category: 'electrical', quantity_on_hand: 500, reorder_point: 100,
+      unit: 'each', location: 'Shelf A3', barcode: 'BC-12345',
+      last_counted_at: null, updated_at: '2026-03-25',
+    }
+    const chain = mockChain({ data: stockItem, error: null })
+    chain.maybeSingle = vi.fn(() => Promise.resolve({ data: stockItem, error: null }))
+    mockSupabase.from.mockReturnValue(chain)
+
+    const { lookupByBarcode } = await import('@/lib/api/inventory')
+    const result = await lookupByBarcode('BC-12345')
+
+    expect(mockSupabase.from).toHaveBeenCalledWith('warehouse_stock')
+    expect(chain.select).toHaveBeenCalledWith('*')
+    expect(chain.ilike).toHaveBeenCalledWith('barcode', 'BC-12345')
+    expect(chain.limit).toHaveBeenCalledWith(1)
+    expect(chain.maybeSingle).toHaveBeenCalled()
+    expect(result).toEqual(stockItem)
+  })
+
+  it('returns null when no item matches barcode', async () => {
+    const chain = mockChain({ data: null, error: null })
+    chain.maybeSingle = vi.fn(() => Promise.resolve({ data: null, error: null }))
+    mockSupabase.from.mockReturnValue(chain)
+
+    const { lookupByBarcode } = await import('@/lib/api/inventory')
+    const result = await lookupByBarcode('NONEXISTENT-BC')
+
+    expect(result).toBeNull()
+  })
+
+  it('returns null and logs error on database failure', async () => {
+    const error = { message: 'connection timeout' }
+    const chain = mockChain({ data: null, error })
+    chain.maybeSingle = vi.fn(() => Promise.resolve({ data: null, error }))
+    mockSupabase.from.mockReturnValue(chain)
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { lookupByBarcode } = await import('@/lib/api/inventory')
+    const result = await lookupByBarcode('BC-ERR')
+
+    expect(result).toBeNull()
+    expect(consoleSpy).toHaveBeenCalledWith('[lookupByBarcode]', 'connection timeout')
+    consoleSpy.mockRestore()
+  })
+})
+
 // ── loadWarehouseStock ──────────────────────────────────────────────────────
 
 describe('loadWarehouseStock', () => {
@@ -455,6 +507,34 @@ describe('loadWarehouseStock', () => {
 
     expect(chain.eq).toHaveBeenCalledWith('category', 'electrical')
     expect(result).toEqual(stock)
+  })
+
+  it('filters by location when provided', async () => {
+    const stock = [{ id: 'ws-1', name: 'MC4 Connectors', category: 'electrical', quantity_on_hand: 500, location: 'Truck-A' }]
+    const chain = mockChain({ data: stock, error: null })
+    mockSupabase.from.mockReturnValue(chain)
+
+    const { loadWarehouseStock } = await import('@/lib/api/inventory')
+    const result = await loadWarehouseStock(undefined, 'Truck-A')
+
+    expect(chain.eq).toHaveBeenCalledWith('location', 'Truck-A')
+    expect(result).toEqual(stock)
+  })
+
+  it('does not apply location filter when location is omitted', async () => {
+    const stock = [
+      { id: 'ws-1', name: 'MC4 Connectors', category: 'electrical', quantity_on_hand: 500, location: 'Warehouse' },
+      { id: 'ws-2', name: 'Rail Mount', category: 'racking', quantity_on_hand: 200, location: 'Truck-B' },
+    ]
+    const chain = mockChain({ data: stock, error: null })
+    mockSupabase.from.mockReturnValue(chain)
+
+    const { loadWarehouseStock } = await import('@/lib/api/inventory')
+    const result = await loadWarehouseStock()
+
+    // eq should not have been called at all (no category, no location)
+    expect(chain.eq).not.toHaveBeenCalled()
+    expect(result).toHaveLength(2)
   })
 
   it('returns empty array on error', async () => {

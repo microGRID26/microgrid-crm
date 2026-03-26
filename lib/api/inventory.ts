@@ -214,11 +214,15 @@ export async function loadWarehouseStock(category?: string, location?: string): 
  * Look up a warehouse stock item by barcode.
  */
 export async function lookupByBarcode(barcode: string): Promise<WarehouseStock | null> {
+  if (!barcode || barcode.length > 255) {
+    console.error('[lookupByBarcode] invalid barcode length:', barcode.length)
+    return null
+  }
   const supabase = db()
   const { data, error } = await supabase
     .from('warehouse_stock')
     .select('*')
-    .eq('barcode', barcode)
+    .ilike('barcode', escapeIlike(barcode))
     .limit(1)
     .maybeSingle()
   if (error) {
@@ -632,12 +636,11 @@ export async function checkoutFromWarehouse(
     })
   if (matErr) {
     console.error('[checkoutFromWarehouse] material insert:', matErr.message)
-    // Non-fatal — transaction + stock update already succeeded.
-    // The stock decrement and warehouse transaction are the source of truth;
-    // the project_material record is a convenience link. The component shows
-    // a separate warning toast when this fails (checks materialWarning).
-    // Note: this warning is set on a local variable and not returned — dead code.
-    // TODO: consider returning the warning to the caller.
+    // Non-fatal: the checkout transaction + stock decrement already succeeded, so we
+    // return true. The project_material record is a convenience link; the warehouse
+    // transaction is the source of truth. The _materialWarning assignment below is
+    // dead code — `s` is a local variable that is never returned to the caller.
+    // Kept for documentation; has no runtime effect.
     ;(s as WarehouseStock & { _materialWarning?: string })._materialWarning = `Failed to create project material record: ${matErr.message}`
   }
 

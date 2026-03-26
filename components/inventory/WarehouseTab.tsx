@@ -406,9 +406,23 @@ export function WarehouseTab({ projects }: WarehouseTabProps) {
   }
 
   // ── Print label ──────────────────────────────────────────────────────────
+  function escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;')
+  }
+
   function printLabel(item: WarehouseStock) {
+    const safeName = escapeHtml(item.name)
+    const safeBarcode = escapeHtml(item.barcode || 'NO BARCODE')
+    const safeLocation = escapeHtml(item.location || '')
+    const safeCategory = escapeHtml(item.category)
+
     const html = `<!DOCTYPE html>
-<html><head><title>Label - ${item.name}</title>
+<html><head><title>Label - ${safeName}</title>
 <style>
 @page { size: 2in 1in; margin: 0; }
 body { font-family: Arial, sans-serif; width: 2in; height: 1in; padding: 4px 6px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
@@ -416,9 +430,9 @@ body { font-family: Arial, sans-serif; width: 2in; height: 1in; padding: 4px 6px
 .barcode { font-size: 11px; font-family: monospace; font-weight: bold; letter-spacing: 1px; margin: 2px 0; }
 .meta { font-size: 7px; color: #555; display: flex; justify-content: space-between; }
 </style></head><body>
-<div class="name">${item.name}</div>
-<div class="barcode">${item.barcode || 'NO BARCODE'}</div>
-<div class="meta"><span>${item.location || ''}</span><span>${item.category}</span></div>
+<div class="name">${safeName}</div>
+<div class="barcode">${safeBarcode}</div>
+<div class="meta"><span>${safeLocation}</span><span>${safeCategory}</span></div>
 </body></html>`
     const win = window.open('', '_blank', 'width=250,height=150')
     if (win) {
@@ -701,6 +715,7 @@ body { font-family: Arial, sans-serif; width: 2in; height: 1in; padding: 4px 6px
                       value={addBarcode}
                       onChange={e => setAddBarcode(e.target.value)}
                       placeholder="e.g., BOS-AWG10-001"
+                      maxLength={255}
                       className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white font-mono placeholder-gray-600"
                     />
                   </div>

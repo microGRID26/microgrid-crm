@@ -197,6 +197,43 @@ function Warehouse() {
   )
 }
 
+function BarcodeScan() {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-3">
+        Scan warehouse item barcodes from your phone to instantly look up stock and perform check-out or check-in actions in the field.
+      </p>
+      <div className="space-y-3">
+        <div className="bg-gray-800/50 rounded-lg px-4 py-3 border-l-2 border-green-500">
+          <div className="text-xs font-bold text-green-400 mb-1">Step 1: Assign Barcodes</div>
+          <div className="text-xs text-gray-400">Edit a warehouse stock item and enter its barcode value. Print labels and affix to bins or items.</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-lg px-4 py-3 border-l-2 border-blue-500">
+          <div className="text-xs font-bold text-blue-400 mb-1">Step 2: Open Scanner</div>
+          <div className="text-xs text-gray-400">Go to <span className="text-green-400 font-mono">/mobile/scan</span> on your phone. Tap to open the camera, or type the barcode manually.</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-lg px-4 py-3 border-l-2 border-amber-500">
+          <div className="text-xs font-bold text-amber-400 mb-1">Step 3: Scan &amp; Act</div>
+          <div className="text-xs text-gray-400">Point camera at barcode. System shows item details, quantity on hand, and location. Choose Checkout (for a project) or Check In.</div>
+        </div>
+      </div>
+      <div className="mt-4 space-y-1 text-xs">
+        {[
+          'Supports EAN-13, EAN-8, QR Code, Code 128, Code 39, UPC-A, UPC-E',
+          'Camera scanning requires Chrome or Edge on Android (BarcodeDetector API)',
+          'Manual text entry works on all browsers as a fallback',
+          'Use the Location field to track items by crew truck (e.g., "Truck 1")',
+        ].map((item, i) => (
+          <div key={i} className="flex items-start gap-2 text-gray-400">
+            <span className="text-green-400 mt-0.5 font-bold shrink-0">&bull;</span>
+            <span>{item}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function EquipmentCatalog() {
   return (
     <div>
@@ -247,6 +284,16 @@ export const inventoryTopics: HelpTopicData[] = [
     tryItLink: '/inventory',
     relatedTopics: ['materials-tab'],
     content: Warehouse,
+  },
+  {
+    id: 'barcode-scanning',
+    title: 'Barcode Scanning',
+    description: 'Scan barcodes to look up and manage warehouse stock from mobile',
+    category: 'Inventory & Materials',
+    keywords: ['barcode', 'scan', 'qr', 'camera', 'mobile', 'warehouse', 'checkout', 'checkin', 'label', 'truck'],
+    tryItLink: '/mobile/scan',
+    relatedTopics: ['warehouse', 'materials-tab'],
+    content: BarcodeScan,
   },
   {
     id: 'equipment-catalog',

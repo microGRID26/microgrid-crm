@@ -200,6 +200,10 @@ export default function MobileScanPage() {
     if (!foundItem || !action || !user?.name) return
     if (action === 'checkout' && !selectedProject) return
     if (quantity <= 0) return
+    if (action === 'checkin' && quantity > 10000) {
+      setToast({ message: 'Maximum check-in quantity is 10,000', type: 'error' })
+      return
+    }
 
     setProcessing(true)
     let ok = false
@@ -222,10 +226,17 @@ export default function MobileScanPage() {
     }
 
     if (ok) {
-      const newQty = action === 'checkout'
-        ? foundItem.quantity_on_hand - quantity
-        : foundItem.quantity_on_hand + quantity
-      setFoundItem({ ...foundItem, quantity_on_hand: newQty })
+      // Re-fetch from database to get true current quantity instead of optimistic update
+      const refreshed = await lookupByBarcode(foundItem.barcode || '')
+      if (refreshed) {
+        setFoundItem(refreshed)
+      } else {
+        // Fallback to optimistic if re-fetch fails (item still exists)
+        const newQty = action === 'checkout'
+          ? foundItem.quantity_on_hand - quantity
+          : foundItem.quantity_on_hand + quantity
+        setFoundItem({ ...foundItem, quantity_on_hand: newQty })
+      }
       setToast({
         message: action === 'checkout'
           ? `Checked out ${quantity} ${foundItem.unit}(s) to ${selectedProject!.id}`
@@ -343,6 +354,7 @@ export default function MobileScanPage() {
                 onChange={e => setManualInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleLookup(manualInput)}
                 placeholder="Scan or type barcode..."
+                maxLength={255}
                 className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 font-mono min-h-[44px]"
                 autoFocus={!hasBarcodeAPI}
               />
@@ -506,10 +518,14 @@ export default function MobileScanPage() {
                   <input
                     type="number"
                     min={1}
+                    max={10000}
                     value={quantity}
-                    onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={e => setQuantity(Math.max(1, Math.min(10000, parseInt(e.target.value) || 1)))}
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white min-h-[44px]"
                   />
+                  {quantity > 10000 && (
+                    <p className="text-xs text-red-400 mt-1">Maximum check-in quantity is 10,000</p>
+                  )}
                 </div>
 
                 <div>

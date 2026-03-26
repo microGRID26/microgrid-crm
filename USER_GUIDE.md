@@ -1548,8 +1548,39 @@ Items where the quantity on hand is at or below the reorder point are highlighte
 
 ##### Search and Filter
 
-- **Search** -- filter by item name
+- **Search** -- filter by item name, barcode, location, or category
 - **Category dropdown** -- filter by equipment category
+- **Location dropdown** -- filter by warehouse location or crew truck (e.g., "Main Warehouse", "Truck 1", "Truck 2")
+
+##### Warehouse Truck Locations
+
+The **Location** field on warehouse stock items supports crew truck names in addition to traditional shelf/bin identifiers. This lets you track which items are on which truck:
+
+- Set the location to the truck name (e.g., "Truck 1", "Truck 2", "Service Van")
+- Use the location filter dropdown on the Warehouse tab to view only items on a specific truck
+- When materials are checked out to a project, the transaction records which truck/location the item came from
+
+##### Barcode Scanning
+
+Each warehouse stock item can have a **barcode** value assigned. This enables mobile barcode scanning for fast check-out and check-in:
+
+1. **Assign barcodes** -- In the Warehouse tab, edit a stock item and enter its barcode value (from the physical label)
+2. **Scan on mobile** -- Navigate to `/mobile/scan` (accessible from the mobile field view). Point your phone camera at the barcode, or type it manually
+3. **Instant lookup** -- The system finds the matching warehouse item and shows its name, category, quantity on hand, and location
+4. **Checkout or Check In** -- Tap the action you need, enter quantity and project (for checkouts), and confirm
+
+Supported barcode formats: EAN-13, EAN-8, QR Code, Code 128, Code 39, UPC-A, UPC-E. Camera scanning uses the browser BarcodeDetector API (supported on Chrome and Edge for Android). On unsupported browsers, use the manual entry field.
+
+##### Printing Barcode Labels
+
+To create labels for your warehouse items:
+
+1. Generate barcodes using any barcode generator (online tools or label printer software)
+2. Print them as adhesive labels
+3. Affix labels to warehouse bins, shelves, or items
+4. Enter the barcode value into the stock item's barcode field in the Warehouse tab
+
+Any standard barcode or QR code format works as long as it matches one of the supported formats listed above.
 
 ### Navigation
 
