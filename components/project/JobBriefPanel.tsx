@@ -148,7 +148,7 @@ export function JobBriefPanel({ scheduleId, onClose, onEdit, onOpenProject }: Pr
               <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-2 flex-wrap">
                 <span>{job.project_id}</span>
                 <span>-</span>
-                <span>{fmtDate(job.date)}</span>
+                <span>{fmtDate(job.date)}{job.end_date && job.end_date !== job.date ? ` - ${fmtDate(job.end_date)}` : ''}</span>
                 <span>-</span>
                 <span>{crewName || 'Unassigned'}</span>
               </div>

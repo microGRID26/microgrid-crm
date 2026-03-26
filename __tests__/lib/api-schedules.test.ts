@@ -47,8 +47,8 @@ describe('loadScheduleByDateRange', () => {
 
     expect(mockSupabase.from).toHaveBeenCalledWith('schedule')
     expect(chain.select).toHaveBeenCalledWith('*, project:projects(name, city)')
-    expect(chain.gte).toHaveBeenCalledWith('date', '2026-03-01')
     expect(chain.lte).toHaveBeenCalledWith('date', '2026-03-31')
+    expect(chain.or).toHaveBeenCalledWith('end_date.gte.2026-03-01,and(end_date.is.null,date.gte.2026-03-01)')
     expect(result.data).toEqual(scheduleData)
     expect(result.error).toBeNull()
   })

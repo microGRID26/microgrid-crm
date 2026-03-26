@@ -159,17 +159,29 @@ export default function SchedulePage() {
   }, [schedule, salesProjectIds])
 
   // Memoize schedule map: crewId|date -> jobs[]
+  // Multi-day jobs (with end_date) appear in every day column they span
   const schedMap = useMemo(() => {
     const map: Record<string, Schedule[]> = {}
     filteredSchedule.forEach(s => {
       if (!s.crew_id || !s.date) return
-      const key = `${s.crew_id}|${s.date}`
-      if (!map[key]) map[key] = []
-      map[key].push(s)
+      const startDate = s.date
+      const endDate = (s as ScheduleWithProject).end_date || s.date
+      // Add this job to every day column it spans within the visible week
+      days.forEach(d => {
+        const dayIso = isoDate(d)
+        if (dayIso >= startDate && dayIso <= endDate) {
+          const key = `${s.crew_id}|${dayIso}`
+          if (!map[key]) map[key] = []
+          // Avoid duplicate entries for the same job on the same day
+          if (!map[key].some(existing => existing.id === s.id)) {
+            map[key].push(s)
+          }
+        }
+      })
     })
     Object.keys(map).forEach(key => { map[key] = [...map[key]].sort((a, b) => (a.time ?? '99:99') > (b.time ?? '99:99') ? 1 : -1) })
     return map
-  }, [filteredSchedule])
+  }, [filteredSchedule, days])
 
   function jobsFor(crewId: string, date: string): ScheduleWithProject[] {
     const all = schedMap[`${crewId}|${date}`] ?? []
@@ -405,6 +417,15 @@ export default function SchedulePage() {
                         const isCancelled = job.status === 'cancelled'
                         const projectData = job.project
                         const pmName = job.pm
+                        const isMultiDay = !!(job as ScheduleWithProject).end_date && (job as ScheduleWithProject).end_date !== job.date
+                        const multiDayLabel = isMultiDay ? (() => {
+                          const start = new Date(job.date + 'T00:00:00')
+                          const end = new Date(((job as ScheduleWithProject).end_date ?? job.date) + 'T00:00:00')
+                          const current = new Date(iso + 'T00:00:00')
+                          const totalDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1
+                          const dayNum = Math.round((current.getTime() - start.getTime()) / 86400000) + 1
+                          return `Day ${dayNum}/${totalDays}`
+                        })() : null
                         return (
                           <div
                             key={job.id}
@@ -412,12 +433,14 @@ export default function SchedulePage() {
                             className={cn(
                               colors.bg, colors.text,
                               'rounded px-2 py-1.5 mb-1 cursor-pointer hover:opacity-80 transition-opacity',
-                              isCancelled && 'opacity-50 line-through'
+                              isCancelled && 'opacity-50 line-through',
+                              isMultiDay && 'border-l-2 border-l-white/30'
                             )}
                           >
                             <div className="flex items-center gap-1.5">
                               <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', statusInfo.dot)} title={statusInfo.label} />
                               {job.time && <span className="text-xs font-bold opacity-90">{fmtTime(job.time)}</span>}
+                              {multiDayLabel && <span className="text-[10px] opacity-60 ml-auto">{multiDayLabel}</span>}
                             </div>
                             <div className="text-xs font-semibold truncate max-w-32">{projectData?.name ?? job.project_id}</div>
                             <div className="text-xs opacity-70 uppercase tracking-wide">{JOB_LABELS[job.job_type] ?? job.job_type}</div>

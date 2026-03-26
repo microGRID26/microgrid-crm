@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { db } from '@/lib/db'
 import { escapeIlike } from '@/lib/utils'
+import { clearQueryCache } from '@/lib/hooks'
 import type { Crew, Project, Schedule } from '@/types/database'
 
 const JOB_TYPES = [
@@ -36,6 +37,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
   const [form, setForm] = useState({
     crew_id: crewId ?? (crews[0]?.id ?? ''),
     date,
+    end_date: '',
     job_type: jobType,
     time: '08:00',
     notes: '',
@@ -82,6 +84,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
         setForm({
           crew_id: data.crew_id,
           date: data.date,
+          end_date: data.end_date ?? '',
           job_type: data.job_type,
           time: data.time ?? '08:00',
           notes: data.notes ?? '',
@@ -132,24 +135,32 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
       .then(({ data }: any) => { if (data) setProjectResults(data as Project[]) })
   }, [projectSearch])
 
-  // Check conflict
+  // Check conflict — handles multi-day ranges
   useEffect(() => {
     if (!form.crew_id || !form.date) { setConflict(null); return }
+    const rangeEnd = form.end_date || form.date
+    // Find jobs that overlap with the date range [form.date, rangeEnd]
+    // A job overlaps if: job.date <= rangeEnd AND (job.end_date >= form.date OR (job.end_date IS NULL AND job.date >= form.date))
     ;supabase.from('schedule')
-      .select('id,project_id')
+      .select('id,project_id,date,end_date')
       .eq('crew_id', form.crew_id)
-      .eq('date', form.date)
+      .lte('date', rangeEnd)
       .neq('status', 'cancelled')
       .then(({ data }: any) => {
         if (!data) { setConflict(null); return }
-        const others = data.filter((s: any) => s.id !== scheduleId)
+        const others = data.filter((s: any) => {
+          if (s.id === scheduleId) return false
+          const jobEnd = s.end_date || s.date
+          // Overlap: job starts <= our end AND job ends >= our start
+          return jobEnd >= form.date
+        })
         if (others.length > 0) {
-          setConflict(`${others.length} job${others.length > 1 ? 's' : ''} already scheduled for this crew on this day`)
+          setConflict(`${others.length} job${others.length > 1 ? 's' : ''} already scheduled for this crew in this date range`)
         } else {
           setConflict(null)
         }
       })
-  }, [form.crew_id, form.date, scheduleId])
+  }, [form.crew_id, form.date, form.end_date, scheduleId])
 
   async function save() {
     if (!form.project_id && !selectedProject?.id) return
@@ -160,6 +171,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
       crew_id: form.crew_id,
       project_id: pid,
       date: form.date,
+      end_date: form.end_date || null,
       job_type: form.job_type,
       time: form.time || null,
       notes: form.notes || null,
@@ -226,6 +238,9 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
       }
     }
 
+    // Clear query cache so useSupabaseQuery hooks refetch fresh data
+    clearQueryCache()
+
     // When saving with status 'complete' (edit or new), auto-complete the job task
     if (form.status === 'complete') {
       const JOB_TO_TASK: Record<string, string> = {
@@ -285,6 +300,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
       setError(result.error.message ?? 'Failed to cancel job. Please try again.')
       return
     }
+    clearQueryCache()
     onSaved()
   }
 
@@ -349,11 +365,17 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {/* Date */}
             <div>
               <label className={labelCls}>Date *</label>
               <input className={inputCls} type="date" value={form.date} onChange={e => set('date', e.target.value)} />
+            </div>
+            {/* End Date (multi-day) */}
+            <div>
+              <label className={labelCls}>End Date</label>
+              <input className={inputCls} type="date" value={form.end_date} onChange={e => set('end_date', e.target.value)}
+                min={form.date} placeholder="Single day" />
             </div>
             {/* Time */}
             <div>

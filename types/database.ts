@@ -128,13 +128,14 @@ export interface Schedule {
   crew_id: string
   job_type: string
   date: string
+  end_date: string | null
   time: string | null
   notes: string | null
   status: string
   pm: string | null
   pm_id: string | null
   arrival_window: string | null
-  arrays: string | null
+  arrays: number | null
   pitch: string | null
   stories: string | null
   special_equipment: string | null
