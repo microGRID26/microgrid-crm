@@ -167,12 +167,12 @@ export function Nav({ active, right, onNewProject }: NavProps) {
           )}
 
           <a href="/help"
-            className={`text-xs px-2 py-1.5 rounded-md transition-colors flex items-center gap-1 ${
+            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
               active === 'Help'
                 ? 'bg-gray-800 text-white'
                 : 'text-gray-400 hover:text-white hover:bg-gray-800'
             }`}>
-            {HELP_ICON}
+            Help
           </a>
 
           {/* New Project button — hidden for sales users */}
