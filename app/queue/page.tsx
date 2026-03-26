@@ -1008,7 +1008,7 @@ function QueueCard({ p, taskMap, onOpen, cardFields, selectMode, isSelected, onT
   isSelected?: boolean
   onToggleSelect?: (id: string) => void
   fundingMap: Record<string, FundingRecord>
-  currentUser: any
+  currentUser: { name?: string; id?: string } | null
   onRefresh: () => void
   todayStr: string
 }) {
@@ -1280,7 +1280,7 @@ function CardFieldsModal({ selected, onSave, onClose }: {
   const [fields, setFields] = useState<Set<string>>(new Set(selected))
 
   function toggle(key: string) {
-    setFields(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
+    setFields(s => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n })
   }
 
   return (
