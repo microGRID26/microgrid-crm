@@ -155,6 +155,51 @@ function EmailOnboarding() {
   )
 }
 
+function QueueConfig() {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-3">The Queue page sections are fully configurable from the Admin portal. Add sections for any task from any stage — not just permits and inspections.</p>
+
+      <div className="bg-gray-800 rounded-lg p-4 mb-4">
+        <div className="text-xs text-green-400 font-semibold mb-2">How to Add a Queue Section</div>
+        <div className="space-y-2 text-xs text-gray-400">
+          <div className="bg-gray-800/50 rounded px-3 py-2 border-l-2 border-green-500">
+            <span className="text-white font-medium">1.</span> Go to Admin → Queue Config
+          </div>
+          <div className="bg-gray-800/50 rounded px-3 py-2 border-l-2 border-blue-500">
+            <span className="text-white font-medium">2.</span> Click &quot;Add Section&quot; — enter a label (e.g., &quot;Schedule Site Survey&quot;)
+          </div>
+          <div className="bg-gray-800/50 rounded px-3 py-2 border-l-2 border-amber-500">
+            <span className="text-white font-medium">3.</span> Pick the task (e.g., <span className="text-white">sched_survey</span>) and match status (e.g., <span className="text-white">Ready To Start</span>)
+          </div>
+          <div className="bg-gray-800/50 rounded px-3 py-2 border-l-2 border-purple-500">
+            <span className="text-white font-medium">4.</span> Set sort order and color. The section appears on the Queue page immediately.
+          </div>
+        </div>
+      </div>
+
+      <div className="text-xs text-gray-400 mb-3">Example sections you could add:</div>
+      <div className="space-y-1.5 text-xs">
+        {[
+          { label: 'Schedule Site Survey', task: 'sched_survey', status: 'Ready To Start', stage: 'Evaluation' },
+          { label: 'Welcome Calls Due', task: 'welcome', status: 'Ready To Start', stage: 'Evaluation' },
+          { label: 'NTP Pending', task: 'ntp', status: 'In Progress, Pending Resolution', stage: 'Evaluation' },
+          { label: 'Design Review', task: 'build_design', status: 'Ready To Start', stage: 'Design' },
+          { label: 'Engineering Approval', task: 'eng_approval', status: 'In Progress', stage: 'Design' },
+          { label: 'Install Scheduling', task: 'sched_install', status: 'Ready To Start', stage: 'Install' },
+        ].map(s => (
+          <div key={s.label} className="bg-gray-800/50 rounded px-3 py-2 flex items-center justify-between">
+            <span className="text-white">{s.label}</span>
+            <span className="text-gray-500">{s.stage} → {s.task} = {s.status}</span>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-xs text-gray-500 mt-3">Any task from any stage can become a Queue section. Sections update in real-time — no page reload needed.</p>
+    </div>
+  )
+}
+
 export const administrationTopics: HelpTopicData[] = [
   {
     id: 'admin-portal',
@@ -212,6 +257,16 @@ export const administrationTopics: HelpTopicData[] = [
     tryItLink: '/vendors',
     relatedTopics: ['admin-portal', 'equipment-manager', 'materials-tab'],
     content: VendorManagement,
+  },
+  {
+    id: 'queue-config',
+    title: 'Queue Section Configuration',
+    description: 'Add custom task-based sections to the Queue page',
+    category: 'Administration',
+    keywords: ['queue', 'section', 'config', 'task', 'stage', 'permit', 'survey', 'evaluation', 'design', 'install', 'configurable'],
+    tryItLink: '/admin',
+    relatedTopics: ['admin-portal', 'queue-page'],
+    content: QueueConfig,
   },
   {
     id: 'email-onboarding',
