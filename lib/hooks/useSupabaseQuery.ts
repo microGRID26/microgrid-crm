@@ -69,6 +69,13 @@ interface UseSupabaseQueryOptions {
   debounceMs?: number
   /** Whether the query is enabled (default true) */
   enabled?: boolean
+  /**
+   * Narrow the realtime subscription to only matching rows.
+   * Uses Supabase PostgREST filter syntax, e.g., 'pm_id=eq.abc123'.
+   * When set, only changes to rows matching this filter trigger cache
+   * invalidation and refetch. If omitted, all table changes are subscribed to.
+   */
+  realtimeFilter?: string
 }
 
 interface UseSupabaseQueryResult<T> {
@@ -164,6 +171,7 @@ export function useSupabaseQuery<T extends TableName>(
     subscribe = false,
     debounceMs = 300,
     enabled = true,
+    realtimeFilter,
   } = options
 
   const [data, setData] = useState<Row[]>([])
@@ -368,6 +376,7 @@ export function useSupabaseQuery<T extends TableName>(
     onChange: handleRealtimeChange,
     debounceMs,
     enabled: subscribe,
+    filter: realtimeFilter,
   })
 
   // Refresh function — clears cache and refetches

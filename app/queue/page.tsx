@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Nav } from '@/components/Nav'
 import { daysAgo, fmt$, fmtDate, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS, STAGE_TASKS } from '@/lib/utils'
 import { ALL_TASKS_MAP } from '@/lib/tasks'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { NewProjectModal } from '@/components/project/NewProjectModal'
 import { usePreferences } from '@/lib/usePreferences'
-import { useSupabaseQuery } from '@/lib/hooks'
+import { useSupabaseQuery, useRealtimeSubscription } from '@/lib/hooks'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { BulkActionBar, useBulkSelect, SelectCheckbox } from '@/components/BulkActionBar'
 import type { Project } from '@/types/database'
@@ -141,6 +141,12 @@ export default function QueuePage() {
     return [...new Set(['city_permit', 'util_permit', 'util_insp', 'welcome', 'ia', 'ub', 'sched_survey', 'ntp', ...sectionTaskIds])]
   }, [queueSections])
 
+  // ── Realtime scope filter: narrow subscription when PM filter is active ──
+  const projectRealtimeFilter = useMemo(
+    () => userPm ? `pm_id=eq.${userPm}` : undefined,
+    [userPm]
+  )
+
   // ── Query 1: Projects with PM filter ─────────────────────
   const {
     data: projectsRaw,
@@ -151,6 +157,7 @@ export default function QueuePage() {
     filters: pmFilters,
     limit: 5000,
     subscribe: true,
+    realtimeFilter: projectRealtimeFilter,
   })
 
   // Apply sales filtering (consultant/advisor match)
@@ -247,7 +254,8 @@ export default function QueuePage() {
   const toggleBucket = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
 
   // Build task map per project: { projectId: { taskId: { status, reason } } }
-  const taskMap = useMemo(() => {
+  // Full rebuild from query data (runs on initial load and full refetches)
+  const taskMapMemo = useMemo(() => {
     const map: Record<string, Record<string, TaskEntry>> = {}
     for (const t of taskStates) {
       if (!map[t.project_id]) map[t.project_id] = {}
@@ -258,6 +266,94 @@ export default function QueuePage() {
     }
     return map
   }, [taskStates])
+
+  // Ref mirrors the memo value and can be incrementally updated via realtime
+  const taskMapRef = useRef(taskMapMemo)
+  const [taskMapVersion, setTaskMapVersion] = useState(0)
+
+  // Sync ref when the full memo rebuilds (initial load or full refetch)
+  useEffect(() => {
+    taskMapRef.current = taskMapMemo
+    setTaskMapVersion(v => v + 1)
+  }, [taskMapMemo])
+
+  // Ref for queueTaskIds so the realtime callback can access latest value
+  const queueTaskIdsRef = useRef(queueTaskIds)
+  useEffect(() => { queueTaskIdsRef.current = queueTaskIds }, [queueTaskIds])
+
+  // Incremental realtime subscription for task_state changes.
+  // Updates only the affected project's entries in the ref instead of
+  // invalidating the entire cache and refetching all 50K rows.
+  // Set up a dedicated realtime channel that receives the full payload
+  // for incremental task map updates
+  useEffect(() => {
+    // Dynamic import to keep SSR safe (this is a 'use client' component
+    // but the import avoids bundling issues)
+    let channelRef: { current: unknown } = { current: null }
+
+    const setupChannel = async () => {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+
+      const channel = supabase
+        .channel('queue-taskmap-incremental')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'task_state' },
+          (payload) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const row = ((payload as any).new ?? (payload as any).old) as TaskStateRow | undefined
+            if (!row?.project_id || !row?.task_id) return
+
+            // Only update if this task_id is one we care about in the queue
+            const relevantTaskIds = new Set(queueTaskIdsRef.current)
+            if (!relevantTaskIds.has(row.task_id)) return
+
+            const map = taskMapRef.current
+            if (payload.eventType === 'DELETE') {
+              if (map[row.project_id]) {
+                delete map[row.project_id][row.task_id]
+                if (Object.keys(map[row.project_id]).length === 0) {
+                  delete map[row.project_id]
+                }
+              }
+            } else {
+              // INSERT or UPDATE
+              if (!map[row.project_id]) map[row.project_id] = {}
+              map[row.project_id][row.task_id] = {
+                status: row.status,
+                reason: row.reason ?? undefined,
+              }
+            }
+            // Trigger a re-render so consumers of taskMap see the update
+            setTaskMapVersion(v => v + 1)
+          }
+        )
+        .subscribe()
+
+      channelRef.current = channel
+    }
+
+    setupChannel()
+
+    return () => {
+      if (channelRef.current) {
+        import('@/lib/supabase/client').then(({ createClient }) => {
+          const supabase = createClient()
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabase.removeChannel(channelRef.current as any)
+        })
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // stable — refs handle changing values
+
+  // taskMap: use the ref value, re-read when version bumps.
+  // The memo provides a stable reference identity that changes only when
+  // either (a) the full rebuild fires via taskMapMemo or (b) an incremental
+  // realtime update bumps taskMapVersion.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const taskMap = useMemo(() => taskMapRef.current, [taskMapVersion])
 
   // In Service, Cancelled, and Loyalty projects excluded from main sections
   // Loyalty gets its own collapsible section below
