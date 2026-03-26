@@ -62,6 +62,36 @@ function PermissionMatrix() {
   )
 }
 
+function EdgeIntegration() {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-3">
+        NOVA syncs project data and funding events bidirectionally with the EDGE Portal via webhooks.
+        All sync activity is logged and visible in the Admin portal.
+      </p>
+      <div className="space-y-2 text-xs">
+        <div className="bg-gray-800 rounded-md px-3 py-2">
+          <span className="text-blue-400 font-medium">Outbound (NOVA → EDGE):</span>
+          <span className="text-gray-400 ml-1">Project creation, stage changes, install complete, PTO received, in service, funding milestones</span>
+        </div>
+        <div className="bg-gray-800 rounded-md px-3 py-2">
+          <span className="text-purple-400 font-medium">Inbound (EDGE → NOVA):</span>
+          <span className="text-gray-400 ml-1">M2/M3 funded, funding rejected, milestone status updates</span>
+        </div>
+        <div className="bg-gray-800 rounded-md px-3 py-2">
+          <span className="text-green-400 font-medium">Admin panel:</span>
+          <span className="text-gray-400 ml-1">Connection status, manual project sync, recent sync log (last 20 events)</span>
+        </div>
+        <div className="bg-gray-800 rounded-md px-3 py-2">
+          <span className="text-amber-400 font-medium">Security:</span>
+          <span className="text-gray-400 ml-1">HMAC-SHA256 signed payloads, timing-safe verification</span>
+        </div>
+      </div>
+      <p className="text-xs text-gray-500 mt-3">Requires NEXT_PUBLIC_EDGE_WEBHOOK_URL and EDGE_WEBHOOK_SECRET environment variables.</p>
+    </div>
+  )
+}
+
 function EquipmentManager() {
   return (
     <div>
@@ -107,5 +137,15 @@ export const administrationTopics: HelpTopicData[] = [
     keywords: ['equipment', 'catalog', 'admin', 'panel', 'inverter', 'battery', 'manage'],
     relatedTopics: ['equipment-catalog', 'admin-portal'],
     content: EquipmentManager,
+  },
+  {
+    id: 'edge-integration',
+    title: 'EDGE Integration',
+    description: 'Bidirectional webhook sync between NOVA and EDGE Portal',
+    category: 'Administration',
+    keywords: ['edge', 'integration', 'webhook', 'sync', 'funding', 'portal', 'outbound', 'inbound'],
+    tryItLink: '/admin',
+    relatedTopics: ['admin-portal', 'funding-milestones'],
+    content: EdgeIntegration,
   },
 ]

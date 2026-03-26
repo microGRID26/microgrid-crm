@@ -16,8 +16,6 @@ function supabase() {
 
 /** Timing-safe secret comparison */
 function verifySignature(body: string, signature: string): boolean {
-  if (!WEBHOOK_SECRET) return true // No secret configured = skip verification
-
   try {
     const expected = crypto
       .createHmac('sha256', WEBHOOK_SECRET)
@@ -79,12 +77,15 @@ async function logSync(
 export async function POST(request: NextRequest) {
   const bodyText = await request.text()
 
+  // #1: Reject all requests if webhook secret is not configured
+  if (!WEBHOOK_SECRET) {
+    return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 503 })
+  }
+
   // Verify webhook signature
-  if (WEBHOOK_SECRET) {
-    const signature = request.headers.get('x-webhook-signature') ?? ''
-    if (!verifySignature(bodyText, signature)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const signature = request.headers.get('x-webhook-signature') ?? ''
+  if (!verifySignature(bodyText, signature)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   let payload: EdgeInboundPayload
@@ -94,7 +95,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { event, project_id, data } = payload
+  const { event, project_id, data, timestamp } = payload
+
+  // #6: Timestamp freshness check — reject payloads older than 5 minutes
+  if (timestamp) {
+    const payloadAge = Date.now() - new Date(timestamp).getTime()
+    if (isNaN(payloadAge) || payloadAge > 5 * 60 * 1000) {
+      return NextResponse.json({ error: 'Timestamp too old or invalid' }, { status: 400 })
+    }
+  } else {
+    // Backward compatibility: accept payloads without timestamp but log a warning
+    console.warn('edge-webhook: received payload without timestamp field')
+  }
 
   // Validate required fields
   if (!event || !project_id) {
@@ -106,6 +118,23 @@ export async function POST(request: NextRequest) {
   }
 
   const db = supabase()
+
+  // #2: Idempotency — skip duplicate events (same project + event type within 1 hour)
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { data: duplicate } = await db
+    .from('edge_sync_log')
+    .select('id')
+    .eq('project_id', project_id)
+    .eq('event_type', event)
+    .eq('direction', 'inbound')
+    .eq('status', 'delivered')
+    .gte('created_at', oneHourAgo)
+    .limit(1)
+    .maybeSingle()
+
+  if (duplicate) {
+    return NextResponse.json({ success: true, message: 'Already processed' }, { status: 200 })
+  }
 
   // Verify project exists
   const { data: existingProject, error: projErr } = await db
@@ -225,6 +254,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Log successful sync
+    // #7: Concurrent audit race is acceptable — the upsert on project_funding uses
+    // onConflict: 'project_id', so parallel requests for the same project will
+    // resolve to last-write-wins on the funding row. The audit_log is append-only,
+    // so concurrent inserts are always safe (no lost writes).
     await logSync(db, project_id, event, payload as Record<string, unknown>, 'delivered', 200)
 
     console.log(`edge-webhook: processed ${event} for ${project_id}`)

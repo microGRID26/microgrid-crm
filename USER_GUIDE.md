@@ -36,7 +36,8 @@ A comprehensive guide for Project Managers and team members at MicroGRID Energy 
 28. [@Mentions and Notifications](#mentions-and-notifications)
 29. [Pagination](#pagination)
 30. [Mobile Views](#mobile-views)
-31. [Tips and Best Practices](#tips-and-best-practices)
+31. [EDGE Integration](#edge-integration)
+32. [Tips and Best Practices](#tips-and-best-practices)
 
 ---
 
@@ -1957,6 +1958,63 @@ Tapping a job card or search result opens a full-screen project detail view show
 #### Realtime Updates
 
 The page subscribes to realtime changes on the schedule table, so if a dispatcher adds or modifies a job, the field view updates automatically without manual refresh. A manual refresh button is also available.
+
+---
+
+## EDGE Integration
+
+**Admin Portal Section:** EDGE Integration (visible in Admin portal sidebar)
+
+NOVA integrates bidirectionally with the EDGE Portal to synchronize project data and funding events. This integration runs automatically in the background -- no manual action is required for day-to-day operations.
+
+### What Syncs Automatically
+
+**NOVA sends to EDGE (outbound):**
+
+- Project creation (full project data when a new project is created via SubHub)
+- Stage changes (when a project advances to a new pipeline stage)
+- Install Complete (when the Install Complete task is marked done)
+- PTO Received (when the PTO Received task is marked done)
+- In Service (when a project transitions to In Service disposition)
+- Funding milestone updates (M2/M3 eligibility changes)
+
+**EDGE sends to NOVA (inbound):**
+
+- M2 Funded -- marks M2 as funded with amount and date
+- M3 Funded -- marks M3 as funded with amount and date
+- Funding Rejected -- marks a milestone as rejected with reason
+- Funding Status Update -- general milestone status change
+
+All inbound funding updates are logged to the audit trail and update the Funding page in real time.
+
+### Configuration (Admin Only)
+
+The integration requires two environment variables set in Vercel:
+
+| Variable | Purpose |
+|----------|---------|
+| `NEXT_PUBLIC_EDGE_WEBHOOK_URL` | The EDGE Portal base URL (e.g., `https://edge-portal-blush.vercel.app`) |
+| `EDGE_WEBHOOK_SECRET` | Shared HMAC secret for signing and verifying webhook payloads |
+
+If the webhook URL is not configured, outbound events are silently skipped (no errors). If the secret is not set, signature verification is bypassed on both sides.
+
+### Viewing Sync Status
+
+In the Admin portal, click **EDGE Integration** in the sidebar to see:
+
+- **Connection Status** -- shows whether the integration is connected or not configured, the masked endpoint URL, last sync time, and recent event count
+- **Manual Sync** -- enter a project ID (e.g., `PROJ-12345`) and click "Sync to EDGE" to push a full project snapshot. Useful for one-off corrections or initial backfills.
+- **Recent Sync Log** -- table of the 20 most recent sync events showing timestamp, project, event type, direction (OUT = NOVA to EDGE, IN = EDGE to NOVA), status (delivered/failed), and any error message
+
+### Security
+
+All webhook payloads are signed with HMAC-SHA256 using the shared secret. The signature is sent in the `X-Webhook-Signature` header. The receiving side verifies the signature using timing-safe comparison to prevent timing attacks. Unsigned requests are rejected when a secret is configured.
+
+### Troubleshooting
+
+- **"Not Configured" status** -- The `NEXT_PUBLIC_EDGE_WEBHOOK_URL` environment variable is not set. Add it in Vercel and redeploy.
+- **Failed events in sync log** -- Check the error message column. Common causes: EDGE Portal is down (HTTP 5xx), project not found on EDGE side (HTTP 404), or network timeout.
+- **Manual sync button disabled** -- Integration must be configured first. Set the environment variables and refresh.
 
 ---
 

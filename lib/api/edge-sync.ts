@@ -1,6 +1,12 @@
 // lib/api/edge-sync.ts — NOVA → EDGE webhook integration
 // Sends project data and funding events to the EDGE Portal.
 // Fire-and-forget: never blocks UI on webhook success/failure.
+//
+// #8: Asymmetric signing — NOVA signs outbound payloads with HMAC-SHA256 using
+// the shared EDGE_WEBHOOK_SECRET. EDGE must validate the `x-webhook-signature`
+// header on their end by computing the same HMAC over the raw request body and
+// comparing in constant time. If EDGE does not verify signatures, any party with
+// the webhook URL can send forged events.
 
 import { db } from '@/lib/db'
 
@@ -98,46 +104,80 @@ export async function sendToEdge(
 
   const body = JSON.stringify(payload)
 
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+  // #3: Retry with exponential backoff — max 3 attempts, only on network errors and 5xx
+  const MAX_ATTEMPTS = 3
+  const BASE_DELAY_MS = 1000
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      // Sign the request if a secret is configured
+      // #4: Use lowercase header name to match what inbound handler reads
+      if (EDGE_WEBHOOK_SECRET) {
+        const signature = await signPayload(body)
+        headers['x-webhook-signature'] = signature
+      }
+
+      const res = await fetch(`${EDGE_WEBHOOK_URL}/api/webhooks/nova`, {
+        method: 'POST',
+        headers,
+        body,
+        signal: AbortSignal.timeout(10000), // 10s timeout
+      })
+
+      // #5: Consume response body for error details
+      const responseBody = await res.text()
+
+      const ok = res.ok
+      await logSync(
+        projectId,
+        event,
+        'outbound',
+        payload,
+        ok ? 'delivered' : 'failed',
+        res.status,
+        ok ? undefined : `HTTP ${res.status}: ${responseBody.slice(0, 500)}`
+      )
+
+      if (ok) return true
+
+      // Don't retry 4xx — these are client errors that won't resolve on retry
+      if (res.status >= 400 && res.status < 500) {
+        console.error(`edge-sync: ${event} for ${projectId} failed with HTTP ${res.status} (not retrying)`)
+        return false
+      }
+
+      // 5xx — retry if attempts remain
+      if (attempt < MAX_ATTEMPTS) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1) // 1s, 2s, 4s
+        console.warn(`edge-sync: ${event} for ${projectId} got HTTP ${res.status}, retrying in ${delay}ms (attempt ${attempt}/${MAX_ATTEMPTS})`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+
+      console.error(`edge-sync: ${event} for ${projectId} failed with HTTP ${res.status} after ${MAX_ATTEMPTS} attempts`)
+      return false
+
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+
+      if (attempt < MAX_ATTEMPTS) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1)
+        console.warn(`edge-sync: ${event} for ${projectId} failed (${errorMessage}), retrying in ${delay}ms (attempt ${attempt}/${MAX_ATTEMPTS})`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+
+      console.error(`edge-sync: ${event} for ${projectId} failed after ${MAX_ATTEMPTS} attempts:`, errorMessage)
+      await logSync(projectId, event, 'outbound', payload, 'failed', undefined, errorMessage)
+      return false
     }
-
-    // Sign the request if a secret is configured
-    if (EDGE_WEBHOOK_SECRET) {
-      const signature = await signPayload(body)
-      headers['X-Webhook-Signature'] = signature
-    }
-
-    const res = await fetch(`${EDGE_WEBHOOK_URL}/api/webhooks/nova`, {
-      method: 'POST',
-      headers,
-      body,
-      signal: AbortSignal.timeout(10000), // 10s timeout
-    })
-
-    const ok = res.ok
-    await logSync(
-      projectId,
-      event,
-      'outbound',
-      payload,
-      ok ? 'delivered' : 'failed',
-      res.status,
-      ok ? undefined : `HTTP ${res.status}`
-    )
-
-    if (!ok) {
-      console.error(`edge-sync: ${event} for ${projectId} failed with HTTP ${res.status}`)
-    }
-
-    return ok
-  } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-    console.error(`edge-sync: ${event} for ${projectId} failed:`, errorMessage)
-    await logSync(projectId, event, 'outbound', payload, 'failed', undefined, errorMessage)
-    return false
   }
+
+  return false // Should not reach here, but satisfy TypeScript
 }
 
 // ── Full Project Sync ────────────────────────────────────────────────────────
