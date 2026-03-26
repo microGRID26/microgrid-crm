@@ -168,13 +168,14 @@ export type DateRange = 'today' | '7days' | '30days' | 'all'
 
 // ── Shared UI ─────────────────────────────────────────────────────────────────
 
-export function Input({ label, value, onChange, type = 'text', className = '' }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; className?: string
+export function Input({ id, label, value, onChange, type = 'text', className = '' }: {
+  id?: string; label: string; value: string; onChange: (v: string) => void; type?: string; className?: string
 }) {
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
-      <label className="text-xs text-gray-400 font-medium">{label}</label>
+      <label htmlFor={id} className="text-xs text-gray-400 font-medium">{label}</label>
       <input
+        id={id}
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -185,11 +186,12 @@ export function Input({ label, value, onChange, type = 'text', className = '' }:
   )
 }
 
-export function Textarea({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+export function Textarea({ id, label, value, onChange }: { id?: string; label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs text-gray-400 font-medium">{label}</label>
+      <label htmlFor={id} className="text-xs text-gray-400 font-medium">{label}</label>
       <textarea
+        id={id}
         value={value}
         onChange={e => onChange(e.target.value)}
         rows={3}

@@ -47,7 +47,7 @@ The Supabase client is globally mocked in `vitest.setup.ts`. Tests focus on busi
 
 All pages are in `app/*/page.tsx` as client components (`"use client"`). Each page fetches its own data via the Supabase browser client on mount and subscribes to realtime changes. Root `/` redirects to `/command`.
 
-Key pages: `/command` (SLA dashboard), `/queue` (PM-filtered task-based worklist with collapsible sections), `/pipeline` (visual stage grid), `/analytics` (6 tabs: Leadership, Pipeline Health, By PM, Funding, Cycle Times, Dealers), `/audit` (task compliance), `/audit-trail` (admin-only change log with sortable columns, filters, pagination at 50/page, and ProjectPanel integration), `/schedule` (crew calendar), `/service`, `/funding` (M1/M2/M3 milestones with sortable columns, powered by `funding_dashboard` Postgres view), `/inventory` (3-tab inventory hub: Project Materials, Purchase Orders, Warehouse — with filters, sorting, pagination, and PO status advancement), `/change-orders` (HCO/change order queue with 6-step workflow), `/documents` (file browser hub + `/documents/missing` missing docs report), `/reports` (AI-powered natural language query interface), `/legacy` (read-only lookup of 14,705 In Service legacy TriSMART projects), `/batch` (SLD batch design — upload or manually enter multiple project redesigns, configure target equipment, process string calculations and panel-fit estimates in bulk, download results), `/crew` (mobile-optimized daily crew view — shows scheduled jobs for the current week grouped by date, with job type badges, status dots, customer/address/equipment details, Google Maps links, and call/email buttons; uses `useSupabaseQuery` for projects/crews and realtime subscriptions), `/dashboard` (PM performance dashboard — shows the logged-in PM's portfolio metrics: active/blocked/critical counts, portfolio value, upcoming schedule, SLA health, and task breakdown; uses `useSupabaseQuery` for projects/tasks/crews), `/planset` (Duracell SLD planset generator — hardcoded reference design for PROJ-29857 with full equipment specs, string configurations, and SVG-rendered single-line diagram sheets), `/redesign` (system redesign calculator — enter existing and target system specs, calculates string sizing, voltage/current compatibility, panel-fit estimates per roof face, and generates downloadable DXF single-line diagrams), `/mobile/leadership` (mobile-first leadership dashboard — role-gated to Manager+, shows active projects, portfolio value, installs/M2/M3 funded this month, blocked count, pipeline stage distribution bar chart, PM performance table, avg sale-to-install and aging stats; auto-refreshes every 5 minutes), `/mobile/field` (mobile-first field operator view — shows today's scheduled jobs sorted by status, with job type badges, status progression buttons (Start Job / Mark Complete), one-tap call/navigate/notes actions, project search, project detail modal with customer info and note submission, auto-completes corresponding NOVA tasks when jobs are marked complete; realtime subscription on schedule table), `/admin`, `/help` (topic-based knowledge base — 53 topics across 12 categories with search, sidebar navigation, accordion layout, "What's New" section, deep linking via URL hash, and related topic cross-references).
+Key pages: `/command` (SLA dashboard), `/queue` (PM-filtered task-based worklist with collapsible sections), `/pipeline` (visual stage grid), `/analytics` (6 tabs: Leadership, Pipeline Health, By PM, Funding, Cycle Times, Dealers), `/audit` (task compliance), `/audit-trail` (admin-only change log with sortable columns, filters, pagination at 50/page, and ProjectPanel integration), `/schedule` (crew calendar), `/service`, `/funding` (M1/M2/M3 milestones with sortable columns, powered by `funding_dashboard` Postgres view), `/inventory` (3-tab inventory hub: Project Materials, Purchase Orders, Warehouse — with filters, sorting, pagination, and PO status advancement), `/change-orders` (HCO/change order queue with 6-step workflow), `/documents` (file browser hub + `/documents/missing` missing docs report), `/reports` (AI-powered natural language query interface), `/legacy` (read-only lookup of 14,705 In Service legacy TriSMART projects), `/batch` (SLD batch design — upload or manually enter multiple project redesigns, configure target equipment, process string calculations and panel-fit estimates in bulk, download results), `/crew` (mobile-optimized daily crew view — shows scheduled jobs for the current week grouped by date, with job type badges, status dots, customer/address/equipment details, Google Maps links, and call/email buttons; uses `useSupabaseQuery` for projects/crews and realtime subscriptions), `/dashboard` (PM performance dashboard — shows the logged-in PM's portfolio metrics: active/blocked/critical counts, portfolio value, upcoming schedule, SLA health, and task breakdown; uses `useSupabaseQuery` for projects/tasks/crews), `/planset` (Duracell SLD planset generator — hardcoded reference design for PROJ-29857 with full equipment specs, string configurations, and SVG-rendered single-line diagram sheets), `/redesign` (system redesign calculator — enter existing and target system specs, calculates string sizing, voltage/current compatibility, panel-fit estimates per roof face, and generates downloadable DXF single-line diagrams), `/mobile/leadership` (mobile-first leadership dashboard — role-gated to Manager+, shows active projects, portfolio value, installs/M2/M3 funded this month, blocked count, pipeline stage distribution bar chart, PM performance table, avg sale-to-install and aging stats; auto-refreshes every 5 minutes), `/mobile/field` (mobile-first field operator view — shows today's scheduled jobs sorted by status, with job type badges, status progression buttons (Start Job / Mark Complete), one-tap call/navigate/notes actions, project search, project detail modal with customer info and note submission, auto-completes corresponding NOVA tasks when jobs are marked complete; realtime subscription on schedule table), `/vendors` (vendor/supplier directory — searchable table with category and equipment type filters, expandable inline edit, active/inactive toggle, summary cards by category; delete is super-admin-only), `/admin`, `/help` (topic-based knowledge base — 54 topics across 12 categories with search, sidebar navigation, accordion layout, "What's New" section, deep linking via URL hash, and related topic cross-references).
 
 ### API Layer
 
@@ -62,6 +62,7 @@ Centralized data access functions live in `lib/api/`:
 - `lib/api/documents.ts` — `loadProjectFiles`, `searchProjectFiles`, `searchAllProjectFiles`, `loadAllProjectFiles`, `loadDocumentRequirements`, `loadProjectDocuments`, `updateDocumentStatus`
 - `lib/api/equipment.ts` — `loadEquipment`, `searchEquipment`, `loadAllEquipment`, `EQUIPMENT_CATEGORIES`
 - `lib/api/inventory.ts` — `loadProjectMaterials`, `addProjectMaterial`, `updateProjectMaterial`, `deleteProjectMaterial`, `autoGenerateMaterials`, `loadWarehouseStock`, `loadAllProjectMaterials`, `generatePONumber`, `loadPurchaseOrders`, `loadPurchaseOrder`, `createPurchaseOrder`, `updatePurchaseOrderStatus`, `updatePurchaseOrder`, `loadPOLineItems`, `addWarehouseStock`, `updateWarehouseStock`, `deleteWarehouseStock`, `checkoutFromWarehouse`, `checkinToWarehouse`, `adjustWarehouseStock`, `loadWarehouseTransactions`, `getLowStockItems`. Constants: `MATERIAL_STATUSES`, `MATERIAL_SOURCES`, `MATERIAL_CATEGORIES`, `PO_STATUSES`, `PO_STATUS_COLORS`. Types: `ProjectMaterial`, `WarehouseStock`, `WarehouseTransaction`
+- `lib/api/vendors.ts` — `loadVendors`, `searchVendors`, `loadVendor`, `addVendor`, `updateVendor`, `deleteVendor`. Constants: `VENDOR_CATEGORIES`, `EQUIPMENT_TYPE_OPTIONS`. Type: `Vendor`, `VendorCategory`
 - `lib/api/index.ts` — barrel export for all of the above
 
 Pages should import from `@/lib/api` instead of querying Supabase directly. The API layer handles error logging, type casting, and consistent return shapes.
@@ -93,11 +94,11 @@ Pages should import from `@/lib/api` instead of querying Supabase directly. The 
   - `HelpCategory.tsx` — renders a category heading with its list of HelpTopic accordions
   - `HelpTopic.tsx` — expandable accordion for a single topic (title, description, rich content component, "Try it" link, related topics)
   - `topics/index.ts` — exports `CATEGORIES` (12 categories), `WHATS_NEW` array, and `HelpTopicData` type definition
-  - `topics/all-topics.ts` — barrel import aggregating all 53 topics from 12 category files
+  - `topics/all-topics.ts` — barrel import aggregating all 54 topics from 12 category files
   - `topics/*.tsx` — 12 category files (`getting-started`, `daily-workflow`, `project-management`, `notes-communication`, `financial`, `inventory`, `schedule`, `change-orders`, `analytics`, `administration`, `system-features`, `design-tools`), each exporting an array of `HelpTopicData` with React component content
 - `components/BulkActionBar.tsx` — bulk operations toolbar (see [Bulk Operations](#bulk-operations) section below)
 - `components/Pagination.tsx` — reusable pagination control (see [Pagination](#pagination) section below)
-- `components/admin/` — 16 extracted admin section components (see [File Consolidation](#file-consolidation-complete) section)
+- `components/admin/` — 17 extracted admin section components (see [File Consolidation](#file-consolidation-complete) section)
 - `components/FeedbackButton.tsx` — floating feedback button rendered on every page (bottom-right corner). Submits to `feedback` table with type, message, user info, and current page. Insert allowed for all authenticated users via permissive RLS policy.
 - `components/SessionTracker.tsx` — automatic session tracking component. Logs user sessions to `user_sessions` table with login time, current page, and 60-second heartbeat for duration. Auth fallback handles edge cases where session is not yet available.
 
@@ -202,6 +203,7 @@ Standalone page at `/audit-trail` (admin-only, guarded by `useCurrentUser().isAd
 - **warehouse_transactions** — warehouse check-out/check-in/adjustment audit trail. Fields: `id` (UUID PK), `stock_id` (UUID FK → warehouse_stock), `project_id` (TEXT, nullable), `transaction_type` (checkout/checkin/adjustment/recount), `quantity` (INTEGER), `notes`, `performed_by`, `created_at`. RLS: SELECT/INSERT for authenticated users. Migration: `supabase/027-warehouse-transactions.sql`. Indexes on stock_id, project_id, transaction_type.
 - **purchase_orders** — purchase order tracking. Fields: `id` (UUID PK), `po_number` (TEXT UNIQUE, format `PO-YYYYMMDD-NNN`), `vendor`, `project_id` (optional TEXT), `status` (draft/submitted/confirmed/shipped/delivered/cancelled), `total_amount`, `notes`, `created_by`, `created_at`, `updated_at`, `submitted_at`, `confirmed_at`, `shipped_at`, `delivered_at`, `tracking_number`, `expected_delivery`. RLS: SELECT/INSERT/UPDATE for authenticated users. Migration: `supabase/026-purchase-orders.sql`.
 - **po_line_items** — line items for purchase orders. Fields: `id` (UUID PK), `po_id` (UUID FK → purchase_orders ON DELETE CASCADE), `material_id` (UUID FK → project_materials), `equipment_id` (UUID FK → equipment), `name`, `quantity`, `unit_price`, `total_price`, `notes`. RLS: SELECT/INSERT/UPDATE/DELETE for authenticated users. Migration: `supabase/026-purchase-orders.sql`.
+- **vendors** — supplier/contractor directory. Fields: `id` (UUID PK), `name` (TEXT NOT NULL), `contact_name`, `contact_email`, `contact_phone`, `website`, `address`, `city`, `state`, `zip`, `category` (manufacturer/distributor/subcontractor/other), `equipment_types` (TEXT[] — modules/inverters/batteries/racking/electrical/other), `lead_time_days` (INTEGER), `payment_terms` (TEXT), `notes`, `active` (BOOLEAN DEFAULT true), `created_at`. Trigram index on name, index on category and active. RLS: SELECT/INSERT/UPDATE for all authenticated users, DELETE for super_admin only. Migration: `supabase/029-vendors.sql`.
 - **ahjs**, **utilities** — reference data for permit authorities and utility companies
 - **project_adders** — project adders/extras (e.g., EV charger, critter guard, ground mount). Fields: `id`, `project_id`, `name`, `price`, `quantity`, `created_at`. RLS open to all authenticated users. Migration: `supabase/013-adders.sql`. Contains 4,185 records imported from NetSuite.
 
@@ -557,6 +559,7 @@ All in `supabase/`:
 - `026-purchase-orders.sql` — Inventory Phase 2: `purchase_orders` table (PO tracking with lifecycle timestamps) and `po_line_items` table (line items linked to materials and equipment). Indexes on status, vendor, project_id, po_id.
 - `027-warehouse-transactions.sql` — Inventory Phase 3: `warehouse_transactions` table for check-out/check-in/adjustment audit trail with FK to warehouse_stock. Indexes on stock_id, project_id, transaction_type. RLS: SELECT/INSERT for authenticated users.
 - `028-edge-sync.sql` — EDGE sync log table (`edge_sync_log`) for NOVA-EDGE bidirectional webhook integration. Tracks all outbound and inbound webhook events with payload, status, and response code. Indexes on project_id, event_type, created_at DESC. RLS: SELECT/INSERT for authenticated users.
+- `029-vendors.sql` — Vendor management table with category, equipment types array, lead time, payment terms. Trigram/category/active indexes. RLS: read/write for authenticated, delete for super_admin.
 - `seed-document-requirements.sql` — Seeds 23 document requirements across all 7 pipeline stages
 
 ### Legacy Projects
@@ -615,11 +618,11 @@ All in `scripts/`:
 
 All three planned consolidation targets from Session 15 have been completed in Session 16:
 
-**Admin page** — `app/admin/page.tsx` split into 16 components in `components/admin/`:
+**Admin page** — `app/admin/page.tsx` split into 17 components in `components/admin/`:
 - `shared.tsx` — shared styles, types, and utility components (SectionShell, ModalShell, etc.)
 - `UsersManager.tsx`, `CrewsManager.tsx`, `AHJManager.tsx`, `UtilityManager.tsx`, `HOAManager.tsx`
 - `FinancierManager.tsx`, `ReasonsManager.tsx`, `NotificationRulesManager.tsx`, `QueueConfigManager.tsx`
-- `SLAManager.tsx`, `FeedbackManager.tsx`, `AuditTrailManager.tsx`, `PermissionMatrix.tsx`
+- `SLAManager.tsx`, `FeedbackManager.tsx`, `AuditTrailManager.tsx`, `PermissionMatrix.tsx`, `VendorManager.tsx`
 - `CRMInfo.tsx`, `ReleaseNotes.tsx`
 
 **ProjectPanel** — `components/project/FilesTab.tsx` extracted as standalone component.
@@ -661,6 +664,29 @@ The Admin portal includes an HOA Manager for managing 421 HOA records stored in 
 ### hoas Table
 
 - **hoas** — HOA reference data. Fields: `id`, `name`, `phone`, `website`, `contact_name`, `contact_email`, `notes`. 421 records. Used for autocomplete in project Info tab.
+
+## Vendor Management
+
+Vendor/supplier directory accessible from the nav bar "More" dropdown and the Admin portal.
+
+### Vendors Page (`/vendors`)
+
+Standalone page at `/vendors`. Displays all vendors in a searchable, filterable table with:
+- **Summary cards** — counts by category (manufacturer, distributor, subcontractor, other)
+- **Filters** — search (name, contact, city, email), category dropdown, equipment type dropdown
+- **Inline editing** — click a row to expand an edit panel below the table with all vendor fields
+- **Equipment types** — multi-select toggles for modules, inverters, batteries, racking, electrical, other
+- **Active toggle** — click the green dot to activate/deactivate a vendor
+- **Delete** — super-admin only, with confirmation dialog
+- **Add Vendor** — form at the top of the page with all fields
+
+### VendorManager (Admin)
+
+Admin portal section (`components/admin/VendorManager.tsx`) provides the same CRUD in a modal-based interface with search, category filter, and table view. Uses shared admin components (`Input`, `Textarea`, `Modal`, `SaveBtn`, `SearchBar`).
+
+### API Layer
+
+`lib/api/vendors.ts` exports: `loadVendors(activeOnly?)`, `searchVendors(query)`, `loadVendor(id)`, `addVendor(vendor)`, `updateVendor(id, updates)`, `deleteVendor(id)`. Constants: `VENDOR_CATEGORIES` (manufacturer/distributor/subcontractor/other), `EQUIPMENT_TYPE_OPTIONS` (modules/inverters/batteries/racking/electrical/other). Uses `db()` helper and `escapeIlike()` for search.
 
 ## Permit Drop Off Notification
 

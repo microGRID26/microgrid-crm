@@ -133,7 +133,7 @@ export default function InventoryPage() {
     }
     // Look up vendor contact info
     const po = purchaseOrders.find(p => p.id === poId)
-    if (po) lookupVendor(po.vendor)
+    if (po?.vendor) lookupVendor(po.vendor)
   }
 
   // Status advance

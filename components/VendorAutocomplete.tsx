@@ -50,7 +50,7 @@ export function VendorAutocomplete({ value, onChange, placeholder, disabled, cla
     if (ids.length === 0) { setRecentItems([]); return }
     const { loadVendors } = await import('@/lib/api/vendors')
     const all = await loadVendors(true)
-    const items = ids.map(id => all.find(v => v.id === id)).filter(Boolean) as Vendor[]
+    const items = ids.map(id => all.find(v => v.id === id)).filter((v): v is Vendor => v !== undefined)
     setRecentItems(items)
   }, [])
 
@@ -161,10 +161,12 @@ export function VendorAutocomplete({ value, onChange, placeholder, disabled, cla
         onFocus={handleFocus}
         disabled={disabled}
         placeholder={placeholder ?? 'Search vendors...'}
+        aria-autocomplete="list"
+        aria-expanded={showDropdown}
         className={className ?? 'w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-600'}
       />
       {showDropdown && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded-md shadow-xl max-h-56 overflow-y-auto">
+        <div role="listbox" className="absolute z-50 top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded-md shadow-xl max-h-56 overflow-y-auto">
           {showRecentsHeader && (
             <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-700">
               Recently used
@@ -174,6 +176,7 @@ export function VendorAutocomplete({ value, onChange, placeholder, disabled, cla
             <button
               key={item.id}
               type="button"
+              aria-label={`Select vendor ${item.name}`}
               onClick={() => handleSelect(item)}
               className={`w-full text-left px-3 py-2.5 text-xs transition-colors ${
                 idx === activeIndex

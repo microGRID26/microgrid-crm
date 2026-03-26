@@ -25,19 +25,20 @@ A comprehensive guide for Project Managers and team members at MicroGRID Energy 
 17. [Document Management](#document-management)
 18. [Equipment Catalog](#equipment-catalog)
 19. [Inventory Management](#inventory-management)
-20. [Redesign Tool](#redesign-tool)
-21. [Batch Design](#batch-design)
-22. [Crew Mobile View](#crew-mobile-view)
-23. [Crew Performance Dashboard](#crew-performance-dashboard)
-24. [Planset (Duracell SLD)](#planset-duracell-sld)
-25. [Atlas (AI Reports)](#atlas-ai-reports)
-26. [Legacy Projects](#legacy-projects)
-27. [Help Center](#help-center)
-28. [@Mentions and Notifications](#mentions-and-notifications)
-29. [Pagination](#pagination)
-30. [Mobile Views](#mobile-views)
-31. [EDGE Integration](#edge-integration)
-32. [Tips and Best Practices](#tips-and-best-practices)
+20. [Vendor Management](#vendor-management)
+21. [Redesign Tool](#redesign-tool)
+22. [Batch Design](#batch-design)
+23. [Crew Mobile View](#crew-mobile-view)
+24. [Crew Performance Dashboard](#crew-performance-dashboard)
+25. [Planset (Duracell SLD)](#planset-duracell-sld)
+26. [Atlas (AI Reports)](#atlas-ai-reports)
+27. [Legacy Projects](#legacy-projects)
+28. [Help Center](#help-center)
+29. [@Mentions and Notifications](#mentions-and-notifications)
+30. [Pagination](#pagination)
+31. [Mobile Views](#mobile-views)
+32. [EDGE Integration](#edge-integration)
+33. [Tips and Best Practices](#tips-and-best-practices)
 
 ---
 
@@ -1476,6 +1477,49 @@ Items where the quantity on hand is at or below the reorder point are highlighte
 ### Navigation
 
 Inventory is accessible from the **primary navigation bar** (alongside Command, Queue, Pipeline, etc.).
+
+---
+
+## Vendor Management
+
+**URL:** `/vendors`
+
+The Vendor Management page provides a centralized directory of suppliers and contractors used across operations. All authenticated users can view and manage vendors; only Super Admins can delete records.
+
+### Viewing Vendors
+
+The vendor table displays all vendors sorted alphabetically with columns for name, category, contact, phone, email, equipment types, lead time, and active status. Summary cards at the top show counts per category (manufacturer, distributor, subcontractor, other).
+
+### Filtering
+
+- **Search** -- Type in the search bar to filter by vendor name, contact name, city, or email
+- **Category** -- Filter by manufacturer, distributor, subcontractor, or other
+- **Equipment Type** -- Filter by what the vendor supplies: modules, inverters, batteries, racking, electrical, or other
+
+### Adding a Vendor
+
+1. Click **Add Vendor** in the top-right corner
+2. Fill in the vendor name (required) and any other details: category, contact info, address, website, lead time, payment terms, and notes
+3. Select equipment types by clicking the toggle buttons
+4. Click **Add Vendor** to save
+
+### Editing a Vendor
+
+1. Click any vendor row to expand the inline edit panel
+2. Update fields as needed -- name, category, contact info, address, equipment types, lead time, payment terms, notes
+3. Click **Save** to apply changes, or **Cancel** to discard
+
+### Activating / Deactivating
+
+Click the green status dot in the Active column to toggle a vendor between active and inactive. Inactive vendors appear dimmed in the table.
+
+### Deleting a Vendor
+
+Only Super Admins can delete vendors. In the expanded edit panel, click "Delete vendor" at the bottom-left. A confirmation dialog prevents accidental deletion.
+
+### Admin Portal
+
+The Admin portal includes a Vendor Manager section with the same functionality in a modal-based interface. Access it from the Admin sidebar.
 
 ---
 

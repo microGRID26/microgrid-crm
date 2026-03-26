@@ -14,6 +14,7 @@ function AdminPortal() {
           'Financiers -- 10 financing companies',
           'SLA -- Editable thresholds per stage',
           'Equipment -- Catalog management',
+          'Vendors -- Supplier/contractor directory',
           'Feedback -- User-submitted bugs/features',
           'Audit Trail -- Session + change tracking',
         ].map((item, i) => (
@@ -100,6 +101,32 @@ function EquipmentManager() {
   )
 }
 
+function VendorManagement() {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-3">Track suppliers and contractors with contact info, equipment types, lead times, and payment terms. Accessible from the nav bar or Admin portal.</p>
+      <div className="space-y-2 text-xs">
+        <div className="bg-gray-800 rounded-md px-3 py-2">
+          <span className="text-blue-400 font-medium">Categories:</span>
+          <span className="text-gray-400 ml-1">Manufacturer, Distributor, Subcontractor, Other</span>
+        </div>
+        <div className="bg-gray-800 rounded-md px-3 py-2">
+          <span className="text-purple-400 font-medium">Equipment Types:</span>
+          <span className="text-gray-400 ml-1">Modules, Inverters, Batteries, Racking, Electrical, Other</span>
+        </div>
+        <div className="bg-gray-800 rounded-md px-3 py-2">
+          <span className="text-green-400 font-medium">Fields:</span>
+          <span className="text-gray-400 ml-1">Name, contact info, address, website, lead time (days), payment terms, notes</span>
+        </div>
+        <div className="bg-gray-800 rounded-md px-3 py-2">
+          <span className="text-amber-400 font-medium">Permissions:</span>
+          <span className="text-gray-400 ml-1">All users can view/add/edit. Only Super Admins can delete.</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export const administrationTopics: HelpTopicData[] = [
   {
     id: 'admin-portal',
@@ -147,5 +174,15 @@ export const administrationTopics: HelpTopicData[] = [
     tryItLink: '/admin',
     relatedTopics: ['admin-portal', 'funding-milestones'],
     content: EdgeIntegration,
+  },
+  {
+    id: 'vendor-management',
+    title: 'Vendor Management',
+    description: 'Track suppliers, contractors, lead times, and equipment types',
+    category: 'Administration',
+    keywords: ['vendor', 'supplier', 'contractor', 'manufacturer', 'distributor', 'lead time', 'payment terms', 'equipment'],
+    tryItLink: '/vendors',
+    relatedTopics: ['admin-portal', 'equipment-manager', 'materials-tab'],
+    content: VendorManagement,
   },
 ]

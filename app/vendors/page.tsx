@@ -242,8 +242,9 @@ export default function VendorsPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="md:col-span-2">
-                <label className="text-xs text-gray-400 block mb-1">Name *</label>
+                <label htmlFor="add-vendor-name" className="text-xs text-gray-400 block mb-1">Name *</label>
                 <input
+                  id="add-vendor-name"
                   value={addDraft.name ?? ''}
                   onChange={e => setAddDraft(d => ({ ...d, name: e.target.value }))}
                   placeholder="Vendor name"
@@ -251,8 +252,9 @@ export default function VendorsPage() {
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Category</label>
+                <label htmlFor="add-vendor-category" className="text-xs text-gray-400 block mb-1">Category</label>
                 <select
+                  id="add-vendor-category"
                   value={addDraft.category ?? ''}
                   onChange={e => setAddDraft(d => ({ ...d, category: e.target.value || null }))}
                   className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white"
@@ -264,32 +266,36 @@ export default function VendorsPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Contact Name</label>
+                <label htmlFor="add-vendor-contact" className="text-xs text-gray-400 block mb-1">Contact Name</label>
                 <input
+                  id="add-vendor-contact"
                   value={addDraft.contact_name ?? ''}
                   onChange={e => setAddDraft(d => ({ ...d, contact_name: e.target.value }))}
                   className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-600"
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Phone</label>
+                <label htmlFor="add-vendor-phone" className="text-xs text-gray-400 block mb-1">Phone</label>
                 <input
+                  id="add-vendor-phone"
                   value={addDraft.contact_phone ?? ''}
                   onChange={e => setAddDraft(d => ({ ...d, contact_phone: e.target.value }))}
                   className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-600"
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Email</label>
+                <label htmlFor="add-vendor-email" className="text-xs text-gray-400 block mb-1">Email</label>
                 <input
+                  id="add-vendor-email"
                   value={addDraft.contact_email ?? ''}
                   onChange={e => setAddDraft(d => ({ ...d, contact_email: e.target.value }))}
                   className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-600"
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Website</label>
+                <label htmlFor="add-vendor-website" className="text-xs text-gray-400 block mb-1">Website</label>
                 <input
+                  id="add-vendor-website"
                   value={addDraft.website ?? ''}
                   onChange={e => setAddDraft(d => ({ ...d, website: e.target.value }))}
                   placeholder="https://..."
@@ -297,8 +303,9 @@ export default function VendorsPage() {
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Address</label>
+                <label htmlFor="add-vendor-address" className="text-xs text-gray-400 block mb-1">Address</label>
                 <input
+                  id="add-vendor-address"
                   value={addDraft.address ?? ''}
                   onChange={e => setAddDraft(d => ({ ...d, address: e.target.value }))}
                   className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-600"
@@ -306,16 +313,18 @@ export default function VendorsPage() {
               </div>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className="text-xs text-gray-400 block mb-1">City</label>
+                  <label htmlFor="add-vendor-city" className="text-xs text-gray-400 block mb-1">City</label>
                   <input
+                    id="add-vendor-city"
                     value={addDraft.city ?? ''}
                     onChange={e => setAddDraft(d => ({ ...d, city: e.target.value }))}
                     className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-600"
                   />
                 </div>
                 <div className="w-16">
-                  <label className="text-xs text-gray-400 block mb-1">State</label>
+                  <label htmlFor="add-vendor-state" className="text-xs text-gray-400 block mb-1">State</label>
                   <input
+                    id="add-vendor-state"
                     value={addDraft.state ?? ''}
                     onChange={e => setAddDraft(d => ({ ...d, state: e.target.value }))}
                     maxLength={2}
@@ -323,8 +332,9 @@ export default function VendorsPage() {
                   />
                 </div>
                 <div className="w-20">
-                  <label className="text-xs text-gray-400 block mb-1">ZIP</label>
+                  <label htmlFor="add-vendor-zip" className="text-xs text-gray-400 block mb-1">ZIP</label>
                   <input
+                    id="add-vendor-zip"
                     value={addDraft.zip ?? ''}
                     onChange={e => setAddDraft(d => ({ ...d, zip: e.target.value }))}
                     className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-600"
@@ -332,8 +342,9 @@ export default function VendorsPage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Lead Time (days)</label>
+                <label htmlFor="add-vendor-lead-time" className="text-xs text-gray-400 block mb-1">Lead Time (days)</label>
                 <input
+                  id="add-vendor-lead-time"
                   type="number"
                   min={0}
                   value={addDraft.lead_time_days ?? ''}
@@ -342,8 +353,9 @@ export default function VendorsPage() {
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Payment Terms</label>
+                <label htmlFor="add-vendor-payment" className="text-xs text-gray-400 block mb-1">Payment Terms</label>
                 <input
+                  id="add-vendor-payment"
                   value={addDraft.payment_terms ?? ''}
                   onChange={e => setAddDraft(d => ({ ...d, payment_terms: e.target.value }))}
                   placeholder="e.g., Net 30"
@@ -372,8 +384,9 @@ export default function VendorsPage() {
               </div>
             </div>
             <div>
-              <label className="text-xs text-gray-400 block mb-1">Notes</label>
+              <label htmlFor="add-vendor-notes" className="text-xs text-gray-400 block mb-1">Notes</label>
               <textarea
+                id="add-vendor-notes"
                 value={addDraft.notes ?? ''}
                 onChange={e => setAddDraft(d => ({ ...d, notes: e.target.value }))}
                 rows={2}
@@ -486,16 +499,18 @@ export default function VendorsPage() {
                   <h3 className="text-sm font-semibold text-white">Edit Vendor — {v.name}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="md:col-span-2">
-                      <label className="text-xs text-gray-400 block mb-1">Name</label>
+                      <label htmlFor="edit-vendor-name" className="text-xs text-gray-400 block mb-1">Name</label>
                       <input
+                        id="edit-vendor-name"
                         value={editDraft.name ?? ''}
                         onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
                         className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-400 block mb-1">Category</label>
+                      <label htmlFor="edit-vendor-category" className="text-xs text-gray-400 block mb-1">Category</label>
                       <select
+                        id="edit-vendor-category"
                         value={editDraft.category ?? ''}
                         onChange={e => setEditDraft(d => ({ ...d, category: e.target.value || null }))}
                         className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white"
@@ -507,40 +522,45 @@ export default function VendorsPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-gray-400 block mb-1">Contact Name</label>
+                      <label htmlFor="edit-vendor-contact" className="text-xs text-gray-400 block mb-1">Contact Name</label>
                       <input
+                        id="edit-vendor-contact"
                         value={editDraft.contact_name ?? ''}
                         onChange={e => setEditDraft(d => ({ ...d, contact_name: e.target.value }))}
                         className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-400 block mb-1">Phone</label>
+                      <label htmlFor="edit-vendor-phone" className="text-xs text-gray-400 block mb-1">Phone</label>
                       <input
+                        id="edit-vendor-phone"
                         value={editDraft.contact_phone ?? ''}
                         onChange={e => setEditDraft(d => ({ ...d, contact_phone: e.target.value }))}
                         className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-400 block mb-1">Email</label>
+                      <label htmlFor="edit-vendor-email" className="text-xs text-gray-400 block mb-1">Email</label>
                       <input
+                        id="edit-vendor-email"
                         value={editDraft.contact_email ?? ''}
                         onChange={e => setEditDraft(d => ({ ...d, contact_email: e.target.value }))}
                         className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-400 block mb-1">Website</label>
+                      <label htmlFor="edit-vendor-website" className="text-xs text-gray-400 block mb-1">Website</label>
                       <input
+                        id="edit-vendor-website"
                         value={editDraft.website ?? ''}
                         onChange={e => setEditDraft(d => ({ ...d, website: e.target.value }))}
                         className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-400 block mb-1">Address</label>
+                      <label htmlFor="edit-vendor-address" className="text-xs text-gray-400 block mb-1">Address</label>
                       <input
+                        id="edit-vendor-address"
                         value={editDraft.address ?? ''}
                         onChange={e => setEditDraft(d => ({ ...d, address: e.target.value }))}
                         className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white"
@@ -548,16 +568,18 @@ export default function VendorsPage() {
                     </div>
                     <div className="flex gap-2">
                       <div className="flex-1">
-                        <label className="text-xs text-gray-400 block mb-1">City</label>
+                        <label htmlFor="edit-vendor-city" className="text-xs text-gray-400 block mb-1">City</label>
                         <input
+                          id="edit-vendor-city"
                           value={editDraft.city ?? ''}
                           onChange={e => setEditDraft(d => ({ ...d, city: e.target.value }))}
                           className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white"
                         />
                       </div>
                       <div className="w-16">
-                        <label className="text-xs text-gray-400 block mb-1">State</label>
+                        <label htmlFor="edit-vendor-state" className="text-xs text-gray-400 block mb-1">State</label>
                         <input
+                          id="edit-vendor-state"
                           value={editDraft.state ?? ''}
                           onChange={e => setEditDraft(d => ({ ...d, state: e.target.value }))}
                           maxLength={2}
@@ -565,8 +587,9 @@ export default function VendorsPage() {
                         />
                       </div>
                       <div className="w-20">
-                        <label className="text-xs text-gray-400 block mb-1">ZIP</label>
+                        <label htmlFor="edit-vendor-zip" className="text-xs text-gray-400 block mb-1">ZIP</label>
                         <input
+                          id="edit-vendor-zip"
                           value={editDraft.zip ?? ''}
                           onChange={e => setEditDraft(d => ({ ...d, zip: e.target.value }))}
                           className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white"
@@ -574,8 +597,9 @@ export default function VendorsPage() {
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs text-gray-400 block mb-1">Lead Time (days)</label>
+                      <label htmlFor="edit-vendor-lead-time" className="text-xs text-gray-400 block mb-1">Lead Time (days)</label>
                       <input
+                        id="edit-vendor-lead-time"
                         type="number"
                         min={0}
                         value={editDraft.lead_time_days ?? ''}
@@ -584,8 +608,9 @@ export default function VendorsPage() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-400 block mb-1">Payment Terms</label>
+                      <label htmlFor="edit-vendor-payment" className="text-xs text-gray-400 block mb-1">Payment Terms</label>
                       <input
+                        id="edit-vendor-payment"
                         value={editDraft.payment_terms ?? ''}
                         onChange={e => setEditDraft(d => ({ ...d, payment_terms: e.target.value }))}
                         placeholder="e.g., Net 30"
@@ -614,8 +639,9 @@ export default function VendorsPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400 block mb-1">Notes</label>
+                    <label htmlFor="edit-vendor-notes" className="text-xs text-gray-400 block mb-1">Notes</label>
                     <textarea
+                      id="edit-vendor-notes"
                       value={editDraft.notes ?? ''}
                       onChange={e => setEditDraft(d => ({ ...d, notes: e.target.value }))}
                       rows={2}

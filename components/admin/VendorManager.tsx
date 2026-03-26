@@ -4,15 +4,16 @@ import { useEffect, useState, useCallback } from 'react'
 import { db } from '@/lib/db'
 import { escapeIlike } from '@/lib/utils'
 import { Input, Textarea, Modal, SaveBtn, SearchBar } from './shared'
-import { VENDOR_CATEGORIES, EQUIPMENT_TYPE_OPTIONS } from '@/lib/api/vendors'
+import { VENDOR_CATEGORIES, EQUIPMENT_TYPE_OPTIONS, deleteVendor } from '@/lib/api/vendors'
+import type { Vendor } from '@/lib/api/vendors'
 
 export function VendorManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const supabase = db()
-  const [vendors, setVendors] = useState<any[]>([])
+  const [vendors, setVendors] = useState<Vendor[]>([])
   const [search, setSearch] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
-  const [editing, setEditing] = useState<any | null>(null)
-  const [draft, setDraft] = useState<any>({})
+  const [editing, setEditing] = useState<Vendor | null>(null)
+  const [draft, setDraft] = useState<Partial<Vendor> & { equipment_types?: string[] }>({})
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
   const [showNew, setShowNew] = useState(false)
@@ -27,7 +28,7 @@ export function VendorManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
   useEffect(() => { load() }, [load])
 
-  const openEdit = (v: any) => { setEditing(v); setDraft({ ...v, equipment_types: v.equipment_types ?? [] }) }
+  const openEdit = (v: Vendor) => { setEditing(v); setDraft({ ...v, equipment_types: v.equipment_types ?? [] }) }
 
   function toggleEquipType(types: string[], type: string): string[] {
     return types.includes(type) ? types.filter((t: string) => t !== type) : [...types, type]
@@ -80,7 +81,7 @@ export function VendorManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
     setSaving(false); setShowNew(false); setDraft({}); setToast('Vendor created'); setTimeout(() => setToast(''), 2500); load()
   }
 
-  const toggleActive = async (v: any) => {
+  const toggleActive = async (v: Vendor) => {
     const { error } = await supabase.from('vendors').update({ active: !v.active }).eq('id', v.id)
     if (!error) { setToast(v.active ? 'Deactivated' : 'Activated'); setTimeout(() => setToast(''), 2500); load() }
   }
@@ -155,13 +156,14 @@ export function VendorManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       </div>
       {(editing || showNew) && (
         <Modal title={editing ? `Edit Vendor \u2014 ${editing.name}` : 'New Vendor'} onClose={() => { setEditing(null); setShowNew(false) }}>
-          <Input label="Name" value={draft.name ?? ''} onChange={v => setDraft((d: any) => ({ ...d, name: v }))} />
+          <Input id="vendor-name" label="Name" value={draft.name ?? ''} onChange={v => setDraft(d => ({ ...d, name: v }))} />
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-400 block mb-1">Category</label>
+              <label htmlFor="vendor-category" className="text-xs text-gray-400 block mb-1">Category</label>
               <select
+                id="vendor-category"
                 value={draft.category ?? ''}
-                onChange={e => setDraft((d: any) => ({ ...d, category: e.target.value || null }))}
+                onChange={e => setDraft(d => ({ ...d, category: e.target.value || null }))}
                 className="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-sm text-white"
               >
                 <option value="">Select...</option>
@@ -170,35 +172,36 @@ export function VendorManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                 ))}
               </select>
             </div>
-            <Input label="Payment Terms" value={draft.payment_terms ?? ''} onChange={v => setDraft((d: any) => ({ ...d, payment_terms: v }))} />
+            <Input id="vendor-payment-terms" label="Payment Terms" value={draft.payment_terms ?? ''} onChange={v => setDraft(d => ({ ...d, payment_terms: v }))} />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Contact Name" value={draft.contact_name ?? ''} onChange={v => setDraft((d: any) => ({ ...d, contact_name: v }))} />
-            <Input label="Phone" value={draft.contact_phone ?? ''} onChange={v => setDraft((d: any) => ({ ...d, contact_phone: v }))} />
+            <Input id="vendor-contact-name" label="Contact Name" value={draft.contact_name ?? ''} onChange={v => setDraft(d => ({ ...d, contact_name: v }))} />
+            <Input id="vendor-phone" label="Phone" value={draft.contact_phone ?? ''} onChange={v => setDraft(d => ({ ...d, contact_phone: v }))} />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Email" value={draft.contact_email ?? ''} onChange={v => setDraft((d: any) => ({ ...d, contact_email: v }))} />
-            <Input label="Website" value={draft.website ?? ''} onChange={v => setDraft((d: any) => ({ ...d, website: v }))} />
+            <Input id="vendor-email" label="Email" value={draft.contact_email ?? ''} onChange={v => setDraft(d => ({ ...d, contact_email: v }))} />
+            <Input id="vendor-website" label="Website" value={draft.website ?? ''} onChange={v => setDraft(d => ({ ...d, website: v }))} />
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <Input label="Address" value={draft.address ?? ''} onChange={v => setDraft((d: any) => ({ ...d, address: v }))} />
-            <Input label="City" value={draft.city ?? ''} onChange={v => setDraft((d: any) => ({ ...d, city: v }))} />
+            <Input id="vendor-address" label="Address" value={draft.address ?? ''} onChange={v => setDraft(d => ({ ...d, address: v }))} />
+            <Input id="vendor-city" label="City" value={draft.city ?? ''} onChange={v => setDraft(d => ({ ...d, city: v }))} />
             <div className="flex gap-2">
               <div className="flex-1">
-                <Input label="State" value={draft.state ?? ''} onChange={v => setDraft((d: any) => ({ ...d, state: v }))} />
+                <Input id="vendor-state" label="State" value={draft.state ?? ''} onChange={v => setDraft(d => ({ ...d, state: v }))} />
               </div>
               <div className="flex-1">
-                <Input label="ZIP" value={draft.zip ?? ''} onChange={v => setDraft((d: any) => ({ ...d, zip: v }))} />
+                <Input id="vendor-zip" label="ZIP" value={draft.zip ?? ''} onChange={v => setDraft(d => ({ ...d, zip: v }))} />
               </div>
             </div>
           </div>
           <div>
-            <label className="text-xs text-gray-400 block mb-1">Lead Time (days)</label>
+            <label htmlFor="vendor-lead-time" className="text-xs text-gray-400 block mb-1">Lead Time (days)</label>
             <input
+              id="vendor-lead-time"
               type="number"
               min={0}
               value={draft.lead_time_days ?? ''}
-              onChange={e => setDraft((d: any) => ({ ...d, lead_time_days: e.target.value ? parseInt(e.target.value) : null }))}
+              onChange={e => setDraft(d => ({ ...d, lead_time_days: e.target.value ? parseInt(e.target.value) : null }))}
               className="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-sm text-white"
             />
           </div>
@@ -211,7 +214,7 @@ export function VendorManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                   <button
                     key={t}
                     type="button"
-                    onClick={() => setDraft((d: any) => ({ ...d, equipment_types: toggleEquipType(d.equipment_types ?? [], t) }))}
+                    onClick={() => setDraft(d => ({ ...d, equipment_types: toggleEquipType(d.equipment_types ?? [], t) }))}
                     className={`text-xs px-2 py-1 rounded transition-colors ${
                       selected ? 'bg-green-600/30 text-green-400 border border-green-600' : 'bg-gray-900 text-gray-400 border border-gray-700 hover:border-gray-500'
                     }`}
@@ -222,12 +225,12 @@ export function VendorManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               })}
             </div>
           </div>
-          <Textarea label="Notes" value={draft.notes ?? ''} onChange={v => setDraft((d: any) => ({ ...d, notes: v }))} />
+          <Textarea id="vendor-notes" label="Notes" value={draft.notes ?? ''} onChange={v => setDraft(d => ({ ...d, notes: v }))} />
           {editing && (
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setDraft((d: any) => ({ ...d, active: !d.active }))}
+                onClick={() => setDraft(d => ({ ...d, active: !d.active }))}
                 className={`w-4 h-4 rounded-full border-2 transition-colors ${
                   draft.active ? 'bg-green-500 border-green-500' : 'bg-transparent border-gray-600'
                 }`}
@@ -239,7 +242,8 @@ export function VendorManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             {editing && isSuperAdmin ? (
               <button onClick={async () => {
                 if (!confirm(`DELETE Vendor "${editing.name}"?`)) return
-                await supabase.from('vendors').delete().eq('id', editing.id)
+                const ok = await deleteVendor(editing.id)
+                if (!ok) { setToast('Delete failed'); setTimeout(() => setToast(''), 2500); return }
                 setEditing(null); setToast('Vendor deleted'); setTimeout(() => setToast(''), 2500); load()
               }} className="px-3 py-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md">Delete</button>
             ) : <div />}
