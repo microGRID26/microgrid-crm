@@ -94,16 +94,37 @@ export function DocumentChecklist({ projectId, currentStage }: DocumentChecklist
       }
 
       // Auto-match by filename pattern and folder name
+      // Strategy: first try folder+pattern match, then pattern-only fallback
       let matchedFile: ProjectFile | null = null
+      const reqFolder = req.folder_name?.toLowerCase() ?? ''
+      // Extract folder number prefix (e.g., "08" from "08 Design") for flexible matching
+      const reqFolderNum = reqFolder.match(/^(\d+)/)?.[1] ?? ''
+      const reqFolderWords = reqFolder.replace(/^\d+\s*/, '').split(/\s+/).filter(Boolean)
+
+      // Pass 1: folder match + filename pattern
       for (const f of files) {
-        // Check folder match first
         if (req.folder_name && f.folder_name) {
-          if (!f.folder_name.toLowerCase().includes(req.folder_name.toLowerCase())) continue
+          const fn = f.folder_name.toLowerCase()
+          // Match if folder contains the requirement folder name, OR shares the number prefix,
+          // OR contains any significant word from the requirement folder name
+          const folderMatch = fn.includes(reqFolder) ||
+            (reqFolderNum && fn.match(/^(\d+)/)?.[1] === reqFolderNum) ||
+            reqFolderWords.some(w => w.length > 2 && fn.includes(w))
+          if (!folderMatch) continue
         }
-        // Check filename pattern
         if (req.filename_pattern && matchesPattern(f.file_name, req.filename_pattern)) {
           matchedFile = f
           break
+        }
+      }
+
+      // Pass 2: filename pattern only (any folder) if no folder match found
+      if (!matchedFile && req.filename_pattern) {
+        for (const f of files) {
+          if (matchesPattern(f.file_name, req.filename_pattern)) {
+            matchedFile = f
+            break
+          }
         }
       }
 
