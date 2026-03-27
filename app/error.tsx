@@ -22,7 +22,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           </svg>
         </div>
         <h1 className="text-lg font-semibold text-white mb-2">Something went wrong</h1>
-        <p className="text-sm text-gray-400 mb-4">{error.message}</p>
+        <p className="text-sm text-gray-400 mb-4">An unexpected error occurred. Please try again or contact support if the problem persists.</p>
         <div className="flex items-center justify-center gap-3">
           <button
             onClick={reset}

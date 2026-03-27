@@ -268,6 +268,48 @@ function PendingAndRevision() {
   )
 }
 
+function WarrantyTracking() {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-3">Track equipment warranties and file claims from the project panel or the standalone <span className="text-green-400 font-mono">/warranty</span> page.</p>
+      <div className="space-y-3 text-xs">
+        <div>
+          <span className="text-gray-300 font-medium block mb-1">Warranty Status</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded">Active</span>
+            <span className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">Expiring Soon (90 days)</span>
+            <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded">Expired</span>
+            <span className="bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded">No End Date</span>
+          </div>
+        </div>
+        <div>
+          <span className="text-gray-300 font-medium block mb-1">Equipment Types</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">Panel</span>
+            <span className="bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded">Inverter</span>
+            <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">Battery</span>
+            <span className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">Optimizer</span>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="bg-gray-800/50 rounded-lg px-4 py-3 border-l-2 border-green-500">
+            <div className="text-xs font-bold text-green-400 mb-1">Auto-populate</div>
+            <div className="text-xs text-gray-400">Click Auto-populate in the Warranty tab to create records from the project equipment (module, inverter, battery, optimizer). Existing records are not duplicated.</div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg px-4 py-3 border-l-2 border-blue-500">
+            <div className="text-xs font-bold text-blue-400 mb-1">Warranty Claims</div>
+            <div className="text-xs text-gray-400">Expand a warranty record and click New Claim to file a claim. Claims track issue description, submission date, resolution, and replacement serial numbers. Status flow: draft, submitted, approved, denied, completed.</div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg px-4 py-3 border-l-2 border-amber-500">
+            <div className="text-xs font-bold text-amber-400 mb-1">Standalone Page</div>
+            <div className="text-xs text-gray-400">The /warranty page shows all warranties across projects with filters (type, status, manufacturer, search), sortable columns, summary cards, and CSV export.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export const projectManagementTopics: HelpTopicData[] = [
   {
     id: 'task-statuses',
@@ -357,5 +399,15 @@ export const projectManagementTopics: HelpTopicData[] = [
     tryItLink: '/service',
     relatedTopics: ['work-orders', 'opening-project'],
     content: ServiceCases,
+  },
+  {
+    id: 'warranty-tracking',
+    title: 'Warranty Tracking',
+    description: 'Track equipment warranties and file warranty claims',
+    category: 'Project Management',
+    keywords: ['warranty', 'guarantee', 'expiring', 'expired', 'claim', 'panel', 'inverter', 'battery', 'serial', 'manufacturer', 'equipment'],
+    tryItLink: '/warranty',
+    relatedTopics: ['materials-tab', 'equipment-catalog', 'service-cases'],
+    content: WarrantyTracking,
   },
 ]

@@ -8,6 +8,7 @@ import { db } from '@/lib/db'
 import type { Project } from '@/types/database'
 import { MessageSquare } from 'lucide-react'
 import React from 'react'
+import { PermitPortalCard, OpenPortalButton } from './PermitPortalCard'
 
 const FILE_PATTERN = /(\S+\.(?:pdf|png|jpg|jpeg|gif|dwg|xlsx|xls|csv|doc|docx|zip|heic|mp4|mov))/gi
 const INLINE_IMAGE = /^image_\d{4}-\d{2}-\d{2}T/i
@@ -80,6 +81,9 @@ interface TasksTabProps {
   onScheduleTask?: (jobType: string) => void
   folderUrl?: string | null
 }
+
+// Permit-related task IDs — show "Open Portal" button on these
+const PERMIT_TASKS = new Set(['city_permit', 'util_permit', 'city_insp', 'util_insp'])
 
 // Tasks that can be scheduled — maps task_id to schedule job_type
 const SCHEDULABLE_TASKS: Record<string, string> = {
@@ -315,6 +319,11 @@ export function TasksTab({
               </div>
             </div>
 
+            {/* ── Permit Portal Card — shown on permit/inspection stages ── */}
+            {project.ahj && (viewStage === 'permit' || viewStage === 'inspection') && (
+              <PermitPortalCard ahjName={project.ahj} compact={false} />
+            )}
+
             {/* ── Task Table ──────────────────────────────────────────── */}
             {viewedTasks.length === 0 ? (
               <div className="text-gray-500 text-xs text-center py-8">No tasks defined for this stage.</div>
@@ -437,6 +446,11 @@ export function TasksTab({
                           >
                             Schedule
                           </button>
+                        )}
+
+                        {/* Open Portal button for permit/inspection tasks */}
+                        {project.ahj && PERMIT_TASKS.has(task.id) && !locked && (status === 'In Progress' || status === 'Scheduled' || status === 'Ready To Start') && (
+                          <OpenPortalButton ahjName={project.ahj} />
                         )}
 
                         {/* Status dropdown */}

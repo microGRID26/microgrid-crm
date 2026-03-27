@@ -15,7 +15,7 @@ import {
 } from '@/lib/api/warranties'
 import type { EquipmentWarranty, WarrantyClaim } from '@/lib/api/warranties'
 import { fmtDate } from '@/lib/utils'
-import { Shield, Plus, Trash2, ChevronDown, ChevronUp, Wand2, AlertTriangle, FileText } from 'lucide-react'
+import { Shield, Plus, Trash2, ChevronDown, ChevronUp, Wand2, FileText } from 'lucide-react'
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -284,11 +284,11 @@ export function WarrantyTab({ project }: WarrantyTabProps) {
           <h3 className="text-white font-semibold">Equipment Warranties</h3>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={autoPopulate}
+          <button onClick={autoPopulate} aria-label="Auto-populate warranties from project equipment"
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors">
             <Wand2 className="w-3.5 h-3.5" /> Auto-populate
           </button>
-          <button onClick={() => setShowAddForm(!showAddForm)}
+          <button onClick={() => setShowAddForm(!showAddForm)} aria-label="Add new warranty record"
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded bg-green-700 text-white hover:bg-green-600 transition-colors">
             <Plus className="w-3.5 h-3.5" /> Add Warranty
           </button>
@@ -435,10 +435,12 @@ export function WarrantyTab({ project }: WarrantyTabProps) {
                     {/* Actions */}
                     <div className="flex gap-2">
                       <button onClick={() => { setShowClaimForm(showClaimForm === w.id ? null : w.id); setClaimIssue('') }}
+                        aria-label="Create new warranty claim"
                         className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-blue-900 text-blue-300 hover:bg-blue-800">
                         <FileText className="w-3 h-3" /> New Claim
                       </button>
                       <button onClick={() => handleDelete(w.id)}
+                        aria-label="Delete warranty record"
                         className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-red-900/50 text-red-400 hover:bg-red-900">
                         <Trash2 className="w-3 h-3" /> Delete
                       </button>
@@ -449,6 +451,7 @@ export function WarrantyTab({ project }: WarrantyTabProps) {
                       <div className="bg-gray-900 rounded p-3 space-y-2">
                         <label className="text-xs text-gray-400 block">Issue Description</label>
                         <textarea value={claimIssue} onChange={e => setClaimIssue(e.target.value)}
+                          aria-label="Issue description"
                           className="w-full bg-gray-800 text-white text-sm rounded px-2 py-1.5 border border-gray-600 h-20 resize-none" />
                         <div className="flex justify-end gap-2">
                           <button onClick={() => setShowClaimForm(null)}
@@ -481,6 +484,7 @@ export function WarrantyTab({ project }: WarrantyTabProps) {
                             </div>
                             <select value={c.status}
                               onChange={e => handleClaimStatusChange(c.id, w.id, e.target.value)}
+                              aria-label="Change claim status"
                               className={`text-xs px-2 py-0.5 rounded border-0 ${CLAIM_STATUS_BADGE[c.status] ?? 'bg-gray-700 text-gray-300'}`}>
                               {CLAIM_STATUSES.map(s => (
                                 <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>

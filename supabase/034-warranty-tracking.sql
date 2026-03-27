@@ -47,8 +47,10 @@ ALTER TABLE equipment_warranties ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "ew_select" ON equipment_warranties FOR SELECT TO authenticated USING (true);
 CREATE POLICY "ew_insert" ON equipment_warranties FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "ew_update" ON equipment_warranties FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "ew_delete" ON equipment_warranties FOR DELETE TO authenticated USING (true);
 
 ALTER TABLE warranty_claims ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "wc_select" ON warranty_claims FOR SELECT TO authenticated USING (true);
 CREATE POLICY "wc_insert" ON warranty_claims FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "wc_update" ON warranty_claims FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "wc_delete" ON warranty_claims FOR DELETE TO authenticated USING (true);

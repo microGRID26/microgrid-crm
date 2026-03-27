@@ -34,6 +34,7 @@ const MORE_LINKS = [
   { label: 'Warranty',      href: '/warranty' },
   { label: 'Vendors',       href: '/vendors'  },
   { label: 'Atlas',          href: '/reports'  },
+  { label: 'Permits',       href: '/permits'   },
   { label: 'Documents',     href: '/documents' },
   { label: 'Redesign',      href: '/redesign' },
   { label: 'Legacy',        href: '/legacy'   },
