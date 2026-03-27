@@ -722,7 +722,7 @@ Notes can be deleted via a hover X button that appears on each note. A confirmat
 
 ### mention_notifications Table
 
-- **mention_notifications** — notification records for @mentions. Fields: `id`, `mentioned_user_id`, `mentioned_by`, `project_id`, `message`, `read`, `created_at`. Migration: `supabase/015-mentions.sql`. RLS scoped so users can only read their own notifications. Read state is tracked client-side in localStorage (`mg_notif_read`) and server-side via the `read` column.
+- **mention_notifications** — notification records for @mentions. Fields: `id`, `mentioned_user_id`, `mentioned_by`, `project_id`, `message`, `read`, `created_at`. Migration: `supabase/015-mentions.sql`. RLS scoped so users can only read their own notifications. Read state is tracked via the DB `read` column (single source of truth). Ephemeral notifications (blocked/revision) are session-scoped and reset on page reload.
 
 ### Notification Bell
 

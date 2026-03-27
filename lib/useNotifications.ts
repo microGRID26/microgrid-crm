@@ -41,6 +41,8 @@ export function useNotifications() {
   const { user } = useCurrentUser()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  // Track IDs of ephemeral notifications (blocked/revision) dismissed this session
+  const dismissedEphemeralRef = useRef<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     if (!user) return
@@ -72,44 +74,49 @@ export function useNotifications() {
 
     const notifs: Notification[] = []
 
-    // Blocked projects
+    // Blocked projects — ephemeral, reflect current state
     projects.filter(p => p.blocker).forEach(p => {
+      const id = `blocked-${p.id}`
       notifs.push({
-        id: `blocked-${p.id}`,
+        id,
         type: 'blocked',
         title: 'Project Blocked',
         message: `${p.name}: ${p.blocker}`,
         projectId: p.id,
         projectName: p.name,
         timestamp: new Date().toISOString(),
-        read: false,
+        read: dismissedEphemeralRef.current.has(id),
       })
     })
 
-    // Recent revision/pending tasks
+    // Recent revision/pending tasks — ephemeral, reflect current state
     if (recentHistory) {
       recentHistory.forEach((h: TaskHistoryRow) => {
         const proj = projects.find(p => p.id === h.project_id)
         if (!proj) return
+        const id = `task-${h.project_id}-${h.task_id}-${h.changed_at}`
         notifs.push({
-          id: `task-${h.project_id}-${h.task_id}-${h.changed_at}`,
+          id,
           type: 'revision',
           title: h.status === 'Revision Required' ? 'Revision Required' : 'Task Stuck',
           message: `${proj.name}: ${h.task_id}${h.reason ? ' \u2014 ' + h.reason : ''}`,
           projectId: h.project_id,
           projectName: proj.name,
           timestamp: h.changed_at,
-          read: false,
+          read: dismissedEphemeralRef.current.has(id),
         })
       })
     }
 
-    // @mention notifications — join with projects for name
+    // @mention notifications — DB is the source of truth for read state
+    // Fetch both read and unread from last 30 days so we have recent history
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
     const { data: mentions } = await supabase
       .from('mention_notifications')
       .select('id, project_id, mentioned_by, message, created_at, read, project:projects(name)')
       .eq('mentioned_user_id', user.id)
-      .eq('read', false)
+      .gte('created_at', thirtyDaysAgo.toISOString())
       .order('created_at', { ascending: false })
       .limit(20)
 
@@ -124,20 +131,13 @@ export function useNotifications() {
           projectId: m.project_id,
           projectName: projName,
           timestamp: m.created_at,
-          read: false,
+          read: m.read, // DB is source of truth
         })
       })
     }
 
     // Sort newest first
     notifs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-
-    // Read state from localStorage
-    let readIds: string[] = []
-    try {
-      readIds = JSON.parse(localStorage.getItem('mg_notif_read') || '[]')
-    } catch { readIds = [] }
-    notifs.forEach(n => { if (readIds.includes(n.id)) n.read = true })
 
     setNotifications(notifs)
     setLoading(false)
@@ -154,37 +154,60 @@ export function useNotifications() {
     return () => clearInterval(interval)
   }, [])
 
-  const markRead = (id: string) => {
+  const markRead = useCallback((id: string) => {
+    // Optimistically update local state
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
-    // Mark in localStorage — cap at 100 most recent IDs
-    let readIds: string[] = []
-    try {
-      readIds = JSON.parse(localStorage.getItem('mg_notif_read') || '[]')
-    } catch { readIds = [] }
-    if (!readIds.includes(id)) {
-      readIds.push(id)
-      localStorage.setItem('mg_notif_read', JSON.stringify(readIds.slice(-100)))
-    }
-    // Fire-and-forget DB update for mention notifications
-    if (id.startsWith('mention-')) {
-      const dbId = id.replace('mention-', '')
-      db().from('mention_notifications').update({ read: true }).eq('id', dbId).then(() => {}, (err: unknown) => console.error('Failed to mark notification read:', err))
-    }
-  }
 
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-    // localStorage — keep only most recent 100 IDs
-    const ids = notifications.map(n => n.id).slice(-100)
-    localStorage.setItem('mg_notif_read', JSON.stringify(ids))
-    // Fire-and-forget DB update for all unread mention notifications
-    const mentionIds = notifications
-      .filter(n => !n.read && n.id.startsWith('mention-'))
-      .map(n => n.id.replace('mention-', ''))
-    if (mentionIds.length > 0) {
-      db().from('mention_notifications').update({ read: true }).in('id', mentionIds).then(() => {}, (err: unknown) => console.error('Failed to mark notifications read:', err))
+    if (id.startsWith('mention-')) {
+      // Mention notification — update DB (source of truth)
+      const dbId = id.replace('mention-', '')
+      db().from('mention_notifications')
+        .update({ read: true })
+        .eq('id', dbId)
+        .then(({ error }: { error: unknown }) => {
+          if (error) {
+            console.error('Failed to mark notification read in DB:', error)
+            // Revert optimistic update on failure so it stays unread
+            setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: false } : n))
+          }
+        })
+    } else {
+      // Ephemeral notification (blocked/revision) — track dismissal in session memory
+      dismissedEphemeralRef.current.add(id)
     }
-  }
+  }, [])
+
+  const markAllRead = useCallback(() => {
+    setNotifications(prev => {
+      // Collect mention IDs from the current state for DB update
+      const unreadMentionDbIds = prev
+        .filter(n => !n.read && n.id.startsWith('mention-'))
+        .map(n => n.id.replace('mention-', ''))
+
+      // Track all ephemeral IDs as dismissed
+      prev.forEach(n => {
+        if (!n.read && !n.id.startsWith('mention-')) {
+          dismissedEphemeralRef.current.add(n.id)
+        }
+      })
+
+      // Fire DB update for mention notifications
+      if (unreadMentionDbIds.length > 0) {
+        db().from('mention_notifications')
+          .update({ read: true })
+          .in('id', unreadMentionDbIds)
+          .then(({ error }: { error: unknown }) => {
+            if (error) {
+              console.error('Failed to mark all notifications read in DB:', error)
+              // On failure, reload from DB to get accurate state
+              loadRef.current()
+            }
+          })
+      }
+
+      return prev.map(n => ({ ...n, read: true }))
+    })
+  }, [])
 
   const unreadCount = notifications.filter(n => !n.read).length
 
