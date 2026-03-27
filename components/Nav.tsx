@@ -36,6 +36,7 @@ const MORE_LINKS = [
   { label: 'Atlas',          href: '/reports'  },
   { label: 'Permits',       href: '/permits'   },
   { label: 'Documents',     href: '/documents' },
+  { label: 'Fleet',         href: '/fleet'    },
   { label: 'Redesign',      href: '/redesign' },
   { label: 'Legacy',        href: '/legacy'   },
 ]

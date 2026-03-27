@@ -27,3 +27,7 @@ export { loadWorkOrders, loadWorkOrder, createWorkOrder, updateWorkOrder, update
 export type { WorkOrder, WOChecklistItem, WorkOrderFilters } from './work-orders'
 export { loadProjectWarranties, addWarranty, updateWarranty, deleteWarranty, loadWarrantyClaims, addClaim, updateClaim, loadExpiringWarranties, loadAllWarranties, loadOpenClaims, WARRANTY_EQUIPMENT_TYPES, CLAIM_STATUSES } from './warranties'
 export type { EquipmentWarranty, WarrantyClaim, WarrantyFilters, WarrantyEquipmentType, ClaimStatus } from './warranties'
+export { loadVehicles, loadVehicle, addVehicle, updateVehicle, deleteVehicle, loadVehicleMaintenance, addMaintenance, updateMaintenance, loadUpcomingMaintenance, VEHICLE_STATUSES, MAINTENANCE_TYPES, MAINTENANCE_TYPE_LABELS, STATUS_LABELS as VEHICLE_STATUS_LABELS } from './fleet'
+export type { Vehicle, MaintenanceRecord, VehicleStatus, MaintenanceType, VehicleFilters } from './fleet'
+export { loadFieldDefinitions, addFieldDefinition, updateFieldDefinition, deleteFieldDefinition, loadProjectCustomFields, saveProjectCustomField, loadAllCustomFieldValues, FIELD_TYPES } from './custom-fields'
+export type { CustomFieldDefinition, CustomFieldValue, CustomFieldType } from './custom-fields'
