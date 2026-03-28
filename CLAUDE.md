@@ -696,6 +696,7 @@ All in `supabase/`:
 - `040-org-id-on-tables.sql` — Adds nullable `org_id UUID REFERENCES organizations(id)` to 8 tables: projects, crews, warehouse_stock, vendors, task_reasons, notification_rules, queue_sections, document_requirements. Composite indexes for org-scoped queries. Phase 1: no RLS changes.
 - `041-org-backfill.sql` — Creates default MicroGRID Energy org (fixed UUID `a0000000-0000-0000-0000-000000000001`), backfills all existing data, creates org_memberships for all active users (role-mapped: super_admin->owner, admin->admin, else->member).
 - `042-org-rls-helpers.sql` — RLS helper functions: `auth_user_org_ids()` (returns user's org UUID array), `auth_is_org_member(org_id)`, `auth_is_org_admin(org_id)` (includes super_admin fallback), `auth_is_platform_user()` (checks platform org type). All SECURITY DEFINER with search_path pinned.
+- `043-org-rls-enforcement.sql` — Phase 4: Org-scoped RLS enforcement. Replaces permissive `USING (true)` SELECT policies with org-membership checks on 30 tables. Direct org_id check on 8 tables (projects, crews, warehouse_stock, vendors, task_reasons, notification_rules, queue_sections, document_requirements). EXISTS subquery via project_id on 16 tables (task_state, notes, schedule, stage_history, project_funding, audit_log, service_calls, project_folders, project_adders, change_orders, project_materials, purchase_orders, po_line_items, project_files, project_documents, work_orders, wo_checklist_items, equipment_warranties, warranty_claims, edge_sync_log, warehouse_transactions, task_history). All policies include `org_id IS NULL` backward compat and `auth_is_platform_user()` for EDGE cross-org visibility. Write policies unchanged. DELETE stays super_admin-only.
 - `seed-document-requirements.sql` — Seeds 23 document requirements across all 7 pipeline stages
 
 ### Legacy Projects
@@ -730,6 +731,16 @@ The construction banner (`SHOW_BANNER`) is disabled (`false`). The banner compon
 **Data masking** — AHJ credentials (login usernames/passwords) are masked in the UI and only visible on explicit reveal.
 
 **Error sanitization** — API error responses do not expose internal details; stack traces and Supabase error messages are logged server-side only.
+
+**Org-scoped RLS (Phase 4)** — Migration `043-org-rls-enforcement.sql` replaces permissive `USING (true)` SELECT policies with org-membership checks. Three access patterns:
+
+1. **Direct org_id** (8 tables): `projects`, `crews`, `warehouse_stock`, `vendors`, `task_reasons`, `notification_rules`, `queue_sections`, `document_requirements` — checks `org_id = ANY(auth_user_org_ids())`.
+2. **Inherited via project_id** (16 tables): `task_state`, `notes`, `schedule`, `stage_history`, `project_funding`, `audit_log`, `service_calls`, `project_folders`, `project_adders`, `change_orders`, `project_materials`, `project_files`, `project_documents`, `work_orders`, `equipment_warranties`, `warranty_claims`, `edge_sync_log`, `task_history` — uses `EXISTS (SELECT 1 FROM projects p WHERE p.id = table.project_id AND ...)`.
+3. **Inherited via parent FK** (3 tables): `po_line_items` (via purchase_orders), `wo_checklist_items` (via work_orders), `warehouse_transactions` (via warehouse_stock).
+
+All policies include: `org_id IS NULL` (backward compat for pre-backfill data), `auth_is_platform_user()` (EDGE cross-org visibility), `auth_is_super_admin()` (via platform_user fallback). Write policies unchanged. Global tables (ahjs, utilities, equipment, hoas, financiers, etc.) stay globally readable. User-scoped tables (user_preferences, mention_notifications, etc.) stay user-scoped. Legacy tables (legacy_projects, legacy_notes) stay read-only for all.
+
+**IMPORTANT**: When adding new tables with `project_id`, always add an org-scoped SELECT policy using the EXISTS subquery pattern from migration 043. When dropping old SELECT policies, verify the **actual policy name** in the original migration — Postgres OR-combines multiple policies, so a surviving permissive policy bypasses the new restriction entirely.
 
 ### E2E Tests
 
