@@ -30,10 +30,11 @@ export const EQUIPMENT_TYPE_OPTIONS = ['modules', 'inverters', 'batteries', 'rac
 /**
  * Load all vendors, optionally filtering to active only.
  */
-export async function loadVendors(activeOnly?: boolean): Promise<Vendor[]> {
+export async function loadVendors(activeOnly?: boolean, orgId?: string | null): Promise<Vendor[]> {
   const supabase = db()
   let q = supabase.from('vendors').select('*').order('name')
   if (activeOnly) q = q.eq('active', true)
+  if (orgId) q = q.eq('org_id', orgId)
   const { data, error } = await q
   if (error) console.error('[loadVendors]', error.message)
   return (data ?? []) as Vendor[]
@@ -42,16 +43,18 @@ export async function loadVendors(activeOnly?: boolean): Promise<Vendor[]> {
 /**
  * Search vendors by name (ilike). Returns active vendors only.
  */
-export async function searchVendors(query: string): Promise<Vendor[]> {
+export async function searchVendors(query: string, orgId?: string | null): Promise<Vendor[]> {
   if (!query.trim()) return []
   const supabase = db()
-  const { data, error } = await supabase
+  let q = supabase
     .from('vendors')
     .select('*')
     .eq('active', true)
     .ilike('name', `%${escapeIlike(query)}%`)
     .order('name')
     .limit(20)
+  if (orgId) q = q.eq('org_id', orgId)
+  const { data, error } = await q
   if (error) {
     console.error('[searchVendors]', error.message)
     return []

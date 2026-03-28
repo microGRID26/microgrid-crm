@@ -229,6 +229,7 @@ export async function syncProjectToEdge(projectId: string): Promise<boolean> {
       dealer: project.dealer,
       advisor: project.advisor,
       consultant: project.consultant,
+      org_id: project.org_id ?? null,
     })
   } catch (err) {
     console.error('edge-sync: syncProjectToEdge failed:', err)
@@ -257,6 +258,13 @@ export async function syncFundingToEdge(projectId: string): Promise<boolean> {
       return false
     }
 
+    // Load org_id from the project record for the funding payload
+    const { data: proj } = await supabase
+      .from('projects')
+      .select('org_id')
+      .eq('id', projectId)
+      .single()
+
     return sendToEdge('funding.milestone_updated', projectId, {
       m1_status: funding.m1_status,
       m1_amount: funding.m1_amount,
@@ -268,6 +276,7 @@ export async function syncFundingToEdge(projectId: string): Promise<boolean> {
       m3_amount: funding.m3_amount,
       m3_funded_date: funding.m3_funded_date,
       m3_projected: funding.m3_projected,
+      org_id: proj?.org_id ?? null,
     })
   } catch (err) {
     console.error('edge-sync: syncFundingToEdge failed:', err)

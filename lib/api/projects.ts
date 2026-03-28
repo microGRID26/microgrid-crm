@@ -13,6 +13,7 @@ const TASK_STATE_LIMIT = 50000
 
 export interface ProjectQuery {
   pmId?: string
+  orgId?: string | null
   excludeDispositions?: string[]
   includeFields?: string
   limit?: number
@@ -23,6 +24,10 @@ export async function loadProjects(opts: ProjectQuery = {}) {
   const fields = opts.includeFields ?? PROJECT_FIELDS
   // db() needed: select uses a dynamic field string variable, typed client resolves to 'never'
   let query = db().from('projects').select(fields).limit(opts.limit ?? PROJECT_LIMIT)
+
+  if (opts.orgId) {
+    query = query.eq('org_id', opts.orgId)
+  }
 
   if (opts.pmId) {
     query = query.eq('pm_id', opts.pmId)

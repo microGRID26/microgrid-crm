@@ -76,6 +76,13 @@ interface UseSupabaseQueryOptions {
    * invalidation and refetch. If omitted, all table changes are subscribed to.
    */
   realtimeFilter?: string
+  /**
+   * Organization ID for multi-tenant filtering. When provided, auto-injects
+   * .eq('org_id', orgId) for org-scoped tables (projects, crews, warehouse_stock,
+   * vendors, task_reasons, notification_rules, queue_sections, document_requirements).
+   * Also included in cache key and realtime filter.
+   */
+  orgId?: string | null
 }
 
 interface UseSupabaseQueryResult<T> {
@@ -120,6 +127,13 @@ const CACHE_MAX_AGE = 300_000
 /** Maximum cache entries — LRU eviction when exceeded */
 const MAX_CACHE_ENTRIES = 50
 
+/** Tables that have a direct org_id column for multi-tenant filtering */
+const ORG_SCOPED_TABLES = new Set([
+  'projects', 'crews', 'warehouse_stock', 'vendors',
+  'task_reasons', 'notification_rules', 'queue_sections',
+  'document_requirements',
+])
+
 function addToCache(key: string, entry: CacheEntry) {
   // Evict oldest entry if at capacity
   if (queryCache.size >= MAX_CACHE_ENTRIES && !queryCache.has(key)) {
@@ -147,6 +161,7 @@ function buildCacheKey(table: string, options: UseSupabaseQueryOptions): string 
     page: options.page,
     pageSize: options.pageSize,
     order: options.order,
+    orgId: options.orgId ?? null,
   })
 }
 
@@ -172,6 +187,7 @@ export function useSupabaseQuery<T extends TableName>(
     debounceMs = 300,
     enabled = true,
     realtimeFilter,
+    orgId,
   } = options
 
   const [data, setData] = useState<Row[]>([])
@@ -298,6 +314,15 @@ export function useSupabaseQuery<T extends TableName>(
           } else if ('lte' in value) {
             query = query.lte(field, value.lte)
           }
+        }
+      }
+
+      // Auto-inject org_id filter for org-scoped tables
+      if (orgId && ORG_SCOPED_TABLES.has(table)) {
+        // Only inject if caller didn't already set org_id in filters
+        const hasOrgFilter = filters && ('org_id' in filters)
+        if (!hasOrgFilter) {
+          query = query.eq('org_id', orgId)
         }
       }
 

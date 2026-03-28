@@ -200,11 +200,12 @@ export async function autoGenerateMaterials(
 /**
  * Load warehouse stock, optionally filtered by category and/or location.
  */
-export async function loadWarehouseStock(category?: string, location?: string): Promise<WarehouseStock[]> {
+export async function loadWarehouseStock(category?: string, location?: string, orgId?: string | null): Promise<WarehouseStock[]> {
   const supabase = db()
   let q = supabase.from('warehouse_stock').select('*').order('category').order('name')
   if (category) q = q.eq('category', category)
   if (location) q = q.eq('location', location)
+  if (orgId) q = q.eq('org_id', orgId)
   const { data, error } = await q
   if (error) console.error('[loadWarehouseStock]', error.message)
   return (data ?? []) as WarehouseStock[]
