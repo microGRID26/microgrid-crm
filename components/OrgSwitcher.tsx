@@ -73,6 +73,7 @@ function OrgSwitcherDropdown({
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false)
+        setFocusIndex(-1)
       }
     }
     if (open) {
@@ -84,7 +85,7 @@ function OrgSwitcherDropdown({
   // Escape to close
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') { setOpen(false); setFocusIndex(-1) }
     }
     if (open) {
       document.addEventListener('keydown', handleKeyDown)
@@ -124,6 +125,7 @@ function OrgSwitcherDropdown({
       case 'Escape':
         e.preventDefault()
         setOpen(false)
+        setFocusIndex(-1)
         break
     }
   }, [open, focusIndex, userOrgs, switchOrg, setOpen])
@@ -147,6 +149,7 @@ function OrgSwitcherDropdown({
           className="absolute top-full right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 min-w-[220px] py-1"
           role="listbox"
           aria-label="Organizations"
+          aria-activedescendant={focusIndex >= 0 && focusIndex < userOrgs.length ? `org-option-${userOrgs[focusIndex].orgId}` : undefined}
         >
           <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-medium">
             Organizations
@@ -157,6 +160,7 @@ function OrgSwitcherDropdown({
             return (
               <button
                 key={org.orgId}
+                id={`org-option-${org.orgId}`}
                 onClick={() => { switchOrg(org.orgId); setOpen(false) }}
                 className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
                   isFocused ? 'bg-gray-700' : ''

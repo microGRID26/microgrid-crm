@@ -790,10 +790,39 @@ Foundation for multi-org support. Phase 1 is invisible to end users -- single-or
 - **`switchOrg(orgId)`** — validates orgId is in user's memberships, updates localStorage, clears all query caches
 - **Fallback behavior** — no memberships or auth errors fall back to MicroGRID Energy default with `member` role
 
+### OrgSwitcher (`components/OrgSwitcher.tsx`)
+
+Nav bar dropdown for switching between organizations. Only renders when the user belongs to 2+ orgs.
+
+- **Render logic**: returns `null` when loading or `userOrgs.length <= 1`
+- **Keyboard navigation**: ArrowUp/ArrowDown to navigate, Enter/Space to select, Escape to close
+- **Click outside**: closes dropdown via mousedown listener
+- **Accessibility**: `role="listbox"` with `aria-activedescendant`, `role="option"` with `aria-selected`, `aria-haspopup="listbox"` on trigger button
+- **Focus index**: resets to -1 on close (click outside, Escape, or selection)
+- **Org type badges**: color-coded by type (platform=purple, epc=green, sales=blue, engineering=amber, supply=cyan, customer=gray)
+- **Separated component**: `OrgSwitcherDropdown` is a separate inner component to avoid conditional hook calls (parent returns null early)
+
+### OrgManager (`components/admin/OrgManager.tsx`)
+
+Full CRUD for organizations + membership management. Super admin only (rendered in `/system` page).
+
+- **Organization CRUD**: create, edit, delete with name/slug/type/domains/active fields
+- **Slug auto-generation**: `slugify()` converts name to URL-safe slug (lowercase, max 50 chars). Slug is immutable after creation.
+- **Domain parsing**: comma-separated allowed domains string split into array on save
+- **Delete guard**: checks for assigned projects via `projects.org_id` before allowing deletion. Memberships are cascade-deleted first.
+- **Member management**: expandable rows show org members with role (owner/admin/member/viewer) dropdown, add by email, remove
+- **Duplicate check**: adding a member checks for existing `org_memberships` row
+- **Type filter**: dropdown to filter orgs by type
+- **Search**: text search on org name (uses `escapeIlike`)
+- **Summary cards**: total count, active count, and per-type counts
+
+### System Page (`/system`)
+
+Super admin portal at `/system`. Renders `SYSTEM_SIDEBAR_ITEMS` from `components/admin/shared.tsx`. Default module is `organizations` (OrgManager). Access gated by `useCurrentUser().isSuperAdmin`. Nav bar shows "System" link for super admins only.
+
 ### Phase 2 Roadmap (not yet implemented)
 
 - Org-scoped RLS policies (filter data by `org_id`)
-- Org switcher UI component in nav
 - Per-org settings and branding
 - Cross-org visibility rules for platform users
 

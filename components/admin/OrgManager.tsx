@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { db } from '@/lib/db'
 import { escapeIlike } from '@/lib/utils'
-import { Input, Textarea, Modal, SaveBtn, SearchBar, Badge } from './shared'
+import { Input, Modal, SaveBtn, SearchBar, Badge } from './shared'
 import type { Organization, OrgMembership, OrgType, OrgRole } from '@/types/database'
 import { Building2, Users, ChevronDown, ChevronRight, Trash2, UserPlus, X } from 'lucide-react'
 
@@ -362,6 +362,7 @@ export function OrgManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             value={typeFilter}
             onChange={e => setTypeFilter(e.target.value as OrgType | '')}
             className="bg-gray-800 border border-gray-700 rounded-md px-3 py-1.5 text-xs text-white"
+            aria-label="Filter by organization type"
           >
             <option value="">All Types</option>
             {ORG_TYPES.map(t => (
@@ -414,8 +415,8 @@ export function OrgManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
           </thead>
           <tbody>
             {orgs.map(org => (
-              <>
-                <tr key={org.id}
+              <React.Fragment key={org.id}>
+                <tr
                   className={`border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer transition-colors ${
                     expandedOrg === org.id ? 'bg-gray-800/40' : ''
                   }`}
@@ -463,7 +464,8 @@ export function OrgManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                         Edit
                       </button>
                       <button onClick={() => setConfirmDelete(org)}
-                        className="p-1 text-gray-500 hover:text-red-400 hover:bg-gray-700 rounded transition-colors">
+                        className="p-1 text-gray-500 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
+                        aria-label={`Delete ${org.name}`}>
                         <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
@@ -472,8 +474,8 @@ export function OrgManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
                 {/* Expanded member panel */}
                 {expandedOrg === org.id && (
-                  <tr key={`${org.id}-members`}>
-                    <td colSpan={8} className="bg-gray-850 border-b border-gray-800">
+                  <tr>
+                    <td colSpan={8} className="bg-gray-800/50 border-b border-gray-800">
                       <div className="px-6 py-4 bg-gray-800/20">
                         <div className="flex items-center justify-between mb-3">
                           <h3 className="text-xs font-semibold text-white flex items-center gap-2">
@@ -550,6 +552,7 @@ export function OrgManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                                       className={`px-2 py-0.5 rounded text-[10px] font-medium border-0 cursor-pointer ${
                                         ORG_ROLE_COLORS[m.org_role] ?? 'bg-gray-800 text-gray-400'
                                       }`}
+                                      aria-label={`Role for ${m.user_name ?? 'member'}`}
                                     >
                                       {ORG_ROLES.map(r => (
                                         <option key={r} value={r}>{ORG_ROLE_LABELS[r]}</option>
@@ -561,7 +564,8 @@ export function OrgManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                                   </td>
                                   <td className="px-3 py-2 text-right">
                                     <button onClick={() => removeMember(m.id)}
-                                      className="p-1 text-gray-500 hover:text-red-400 hover:bg-gray-700 rounded transition-colors">
+                                      className="p-1 text-gray-500 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
+                                      aria-label={`Remove ${m.user_name ?? 'member'}`}>
                                       <Trash2 className="w-3 h-3" />
                                     </button>
                                   </td>
@@ -574,7 +578,7 @@ export function OrgManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                     </td>
                   </tr>
                 )}
-              </>
+              </React.Fragment>
             ))}
           </tbody>
         </table>

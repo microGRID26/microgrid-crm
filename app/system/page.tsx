@@ -56,7 +56,7 @@ export default function SystemPage() {
     <div className="min-h-screen bg-gray-950 text-white">
       <Nav active="System" />
 
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-[calc(100vh-41px)] overflow-hidden">
         {/* Sidebar */}
         <aside className="w-52 shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col">
           <div className="px-4 py-4 border-b border-gray-800">
