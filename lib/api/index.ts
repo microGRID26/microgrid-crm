@@ -31,3 +31,5 @@ export { loadVehicles, loadVehicle, addVehicle, updateVehicle, deleteVehicle, lo
 export type { Vehicle, MaintenanceRecord, VehicleStatus, MaintenanceType, VehicleFilters } from './fleet'
 export { loadFieldDefinitions, addFieldDefinition, updateFieldDefinition, deleteFieldDefinition, loadProjectCustomFields, saveProjectCustomField, loadAllCustomFieldValues, FIELD_TYPES } from './custom-fields'
 export type { CustomFieldDefinition, CustomFieldValue, CustomFieldType } from './custom-fields'
+export { loadCalendarSettings, updateCalendarSettings, loadSyncStatus, upsertSyncEntry, deleteSyncEntry, loadRecentSyncEntries, isCalendarConfigured, JOB_TYPE_COLOR_ID } from './calendar'
+export type { CalendarSettings, CalendarSyncEntry, CalendarEvent } from './calendar'

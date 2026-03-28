@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { db } from '@/lib/db'
-import { loadScheduleByDateRange } from '@/lib/api'
+import { loadScheduleByDateRange, loadCalendarSettings, loadSyncStatus } from '@/lib/api'
+import type { CalendarSettings, CalendarSyncEntry } from '@/lib/api/calendar'
 import { Nav } from '@/components/Nav'
 import { ScheduleAssignModal } from '@/components/project/ScheduleAssignModal'
 import { JobBriefPanel } from '@/components/project/JobBriefPanel'
@@ -88,6 +89,47 @@ export default function SchedulePage() {
 
   // ProjectPanel state (opened from Job Brief)
   const [projectPanelProject, setProjectPanelProject] = useState<Project | null>(null)
+
+  // Calendar sync state
+  const [calSettings, setCalSettings] = useState<CalendarSettings[]>([])
+  const [syncEntries, setSyncEntries] = useState<CalendarSyncEntry[]>([])
+  const [calSyncing, setCalSyncing] = useState(false)
+  const syncedIds = useMemo(() => new Set(syncEntries.filter(s => s.sync_status === 'synced').map(s => s.schedule_id)), [syncEntries])
+  const hasAnySyncEnabled = useMemo(() => calSettings.some(s => s.enabled), [calSettings])
+
+  // Load calendar settings on mount
+  useEffect(() => {
+    loadCalendarSettings().then(setCalSettings)
+  }, [])
+
+  // Load sync status when schedule changes
+  useEffect(() => {
+    if (schedule.length === 0) return
+    const ids = schedule.map(s => s.id)
+    loadSyncStatus(ids).then(setSyncEntries)
+  }, [schedule])
+
+  // Sync visible week to Google Calendar
+  async function handleCalendarSync() {
+    const ids = schedule.filter(s => s.status !== 'cancelled').map(s => s.id)
+    if (ids.length === 0) return
+    setCalSyncing(true)
+    try {
+      const res = await fetch('/api/calendar/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schedule_ids: ids }),
+      })
+      if (res.ok) {
+        // Reload sync status
+        const updated = await loadSyncStatus(ids)
+        setSyncEntries(updated)
+      }
+    } catch (err) {
+      console.error('Calendar sync failed:', err)
+    }
+    setCalSyncing(false)
+  }
 
   // Crews via useSupabaseQuery — active is STRING 'TRUE', see CLAUDE.md "Crews Table Quirk"
   const { data: crews, loading: crewsLoading } = useSupabaseQuery('crews', {
@@ -342,6 +384,19 @@ export default function SchedulePage() {
         <button onClick={() => window.print()} className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5">
           Print
         </button>
+        {hasAnySyncEnabled && (
+          <button
+            onClick={handleCalendarSync}
+            disabled={calSyncing}
+            className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-green-600 rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            title="Sync visible week to Google Calendar"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {calSyncing ? 'Syncing...' : 'Sync Calendar'}
+          </button>
+        )}
         {/* Legend */}
         <div className="ml-auto flex items-center gap-3">
           {Object.entries(JOB_LABELS).map(([k, v]) => (
@@ -439,6 +494,13 @@ export default function SchedulePage() {
                           >
                             <div className="flex items-center gap-1.5">
                               <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', statusInfo.dot)} title={statusInfo.label} />
+                              {syncedIds.has(job.id) && (
+                                <span title="Synced to Google Calendar">
+                                  <svg className="w-2.5 h-2.5 text-blue-400 flex-shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                </span>
+                              )}
                               {job.time && <span className="text-xs font-bold opacity-90">{fmtTime(job.time)}</span>}
                               {multiDayLabel && <span className="text-[10px] opacity-60 ml-auto">{multiDayLabel}</span>}
                             </div>

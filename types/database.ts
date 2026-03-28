@@ -680,6 +680,28 @@ export interface Vendor {
   created_at: string
 }
 
+export interface CalendarSettingsRow {
+  id: string
+  crew_id: string
+  calendar_id: string | null
+  enabled: boolean
+  auto_sync: boolean
+  last_full_sync: string | null
+  created_at: string
+}
+
+export interface CalendarSyncRow {
+  id: string
+  schedule_id: string
+  calendar_id: string
+  event_id: string
+  crew_id: string | null
+  last_synced_at: string
+  sync_status: 'synced' | 'pending' | 'error'
+  error_message: string | null
+  created_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -945,6 +967,18 @@ export type Database = {
         Row: WOChecklistItem
         Insert: Omit<WOChecklistItem, 'id' | 'completed' | 'sort_order'> & { id?: string; completed?: boolean; sort_order?: number }
         Update: Partial<WOChecklistItem>
+
+      }
+      calendar_settings: {
+        Row: CalendarSettingsRow
+        Insert: Omit<CalendarSettingsRow, 'id' | 'enabled' | 'auto_sync' | 'created_at'> & { id?: string; enabled?: boolean; auto_sync?: boolean; created_at?: string }
+        Update: Partial<CalendarSettingsRow>
+
+      }
+      calendar_sync: {
+        Row: CalendarSyncRow
+        Insert: Omit<CalendarSyncRow, 'id' | 'sync_status' | 'created_at'> & { id?: string; sync_status?: string; created_at?: string }
+        Update: Partial<CalendarSyncRow>
 
       }
     }
