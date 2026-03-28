@@ -116,7 +116,7 @@ describe('OrgManager', () => {
     })
 
     it('allows deletion when project query returns null', () => {
-      const projData = null
+      const projData = null as { id: string }[] | null
       const hasProjects = projData && projData.length > 0
       expect(hasProjects).toBeFalsy()
     })

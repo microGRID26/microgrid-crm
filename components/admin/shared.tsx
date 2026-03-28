@@ -171,11 +171,13 @@ export type DateRange = 'today' | '7days' | '30days' | 'all'
 export function Input({ id, label, value, onChange, type = 'text', className = '' }: {
   id?: string; label: string; value: string; onChange: (v: string) => void; type?: string; className?: string
 }) {
+  const autoId = React.useId()
+  const inputId = id ?? autoId
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
-      <label htmlFor={id} className="text-xs text-gray-400 font-medium">{label}</label>
+      <label htmlFor={inputId} className="text-xs text-gray-400 font-medium">{label}</label>
       <input
-        id={id}
+        id={inputId}
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -187,11 +189,13 @@ export function Input({ id, label, value, onChange, type = 'text', className = '
 }
 
 export function Textarea({ id, label, value, onChange }: { id?: string; label: string; value: string; onChange: (v: string) => void }) {
+  const autoId = React.useId()
+  const textareaId = id ?? autoId
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-xs text-gray-400 font-medium">{label}</label>
+      <label htmlFor={textareaId} className="text-xs text-gray-400 font-medium">{label}</label>
       <textarea
-        id={id}
+        id={textareaId}
         value={value}
         onChange={e => onChange(e.target.value)}
         rows={3}

@@ -98,6 +98,7 @@ export function OrgManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [memberEmail, setMemberEmail] = useState('')
   const [memberRole, setMemberRole] = useState<OrgRole>('member')
   const [addingMember, setAddingMember] = useState(false)
+  const [confirmRemoveMember, setConfirmRemoveMember] = useState<MemberRow | null>(null)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
@@ -253,7 +254,8 @@ export function OrgManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
     }
 
     // Delete memberships first, then org
-    await db().from('org_memberships').delete().eq('org_id', org.id)
+    const { error: memberError } = await db().from('org_memberships').delete().eq('org_id', org.id)
+    if (memberError) { showToast(`Failed to remove memberships: ${memberError.message}`); setConfirmDelete(null); return }
     const { error } = await db().from('organizations').delete().eq('id', org.id)
     if (error) { showToast(`Delete failed: ${error.message}`); setConfirmDelete(null); return }
 
@@ -324,10 +326,10 @@ export function OrgManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   // ── Remove member ──────────────────────────────────────────────────────────
 
   const removeMember = async (membershipId: string) => {
-    if (!confirm('Remove this member from the organization?')) return
     const { error } = await db().from('org_memberships').delete().eq('id', membershipId)
-    if (error) { showToast('Remove failed'); return }
+    if (error) { showToast('Remove failed'); setConfirmRemoveMember(null); return }
     showToast('Member removed')
+    setConfirmRemoveMember(null)
     if (expandedOrg) { loadMembers(expandedOrg); load() }
   }
 
@@ -563,7 +565,7 @@ export function OrgManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                                     {new Date(m.created_at).toLocaleDateString()}
                                   </td>
                                   <td className="px-3 py-2 text-right">
-                                    <button onClick={() => removeMember(m.id)}
+                                    <button onClick={() => setConfirmRemoveMember(m)}
                                       className="p-1 text-gray-500 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
                                       aria-label={`Remove ${m.user_name ?? 'member'}`}>
                                       <Trash2 className="w-3 h-3" />
@@ -636,6 +638,25 @@ export function OrgManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
           <div className="flex justify-end pt-2">
             <SaveBtn onClick={saveOrg} saving={saving} />
+          </div>
+        </Modal>
+      )}
+
+      {/* Remove Member Confirmation */}
+      {confirmRemoveMember && (
+        <Modal title="Remove Member" onClose={() => setConfirmRemoveMember(null)}>
+          <p className="text-sm text-gray-300">
+            Remove <strong className="text-white">{confirmRemoveMember.user_name ?? 'this member'}</strong> from the organization?
+          </p>
+          <div className="flex justify-end gap-2 pt-3">
+            <button onClick={() => setConfirmRemoveMember(null)}
+              className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors">
+              Cancel
+            </button>
+            <button onClick={() => removeMember(confirmRemoveMember.id)}
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-medium rounded-md transition-colors">
+              Remove
+            </button>
           </div>
         </Modal>
       )}
