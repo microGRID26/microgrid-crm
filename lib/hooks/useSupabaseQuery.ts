@@ -145,10 +145,15 @@ function addToCache(key: string, entry: CacheEntry) {
 
 function getFromCache(key: string): CacheEntry | undefined {
   const entry = queryCache.get(key)
-  if (entry && Date.now() - entry.timestamp > CACHE_MAX_AGE) {
+  if (!entry) return undefined
+  if (Date.now() - entry.timestamp > CACHE_MAX_AGE) {
     queryCache.delete(key)
     return undefined
   }
+  // LRU promotion: delete and re-insert to move to end of Map iteration order.
+  // This ensures frequently-accessed entries survive eviction in addToCache().
+  queryCache.delete(key)
+  queryCache.set(key, entry)
   return entry
 }
 
