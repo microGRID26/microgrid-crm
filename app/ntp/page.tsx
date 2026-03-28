@@ -9,7 +9,7 @@ import { useOrg } from '@/lib/hooks'
 import { useRealtimeSubscription } from '@/lib/hooks'
 import {
   loadNTPRequests, loadNTPQueue, submitNTPRequest, reviewNTPRequest,
-  NTP_STATUSES, NTP_STATUS_LABELS, NTP_STATUS_BADGE,
+  NTP_STATUS_LABELS, NTP_STATUS_BADGE,
 } from '@/lib/api/ntp'
 import type { NTPRequest, NTPStatus } from '@/lib/api/ntp'
 import type { Project } from '@/types/database'
@@ -48,6 +48,15 @@ function SubmitNTPModal({
   const [projectSearch, setProjectSearch] = useState('')
   const [searchResults, setSearchResults] = useState<{ id: string; name: string; stage: string }[]>([])
   const [selectedProject, setSelectedProject] = useState<{ id: string; name: string } | null>(null)
+
+  // Escape key to close
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   // Search projects for autocomplete
   useEffect(() => {
@@ -166,6 +175,15 @@ function ReviewModal({
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Escape key to close
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   async function handleSubmit() {
     if (!reason.trim()) return
     setSaving(true)
@@ -174,9 +192,14 @@ function ReviewModal({
     if (result) {
       // Fire EDGE webhook
       if (action === 'rejected') {
-        void sendToEdge('project.updated' as any, request.project_id, {
+        void sendToEdge('project.updated', request.project_id, {
           event_detail: 'ntp.rejected',
           rejection_reason: reason,
+        })
+      } else if (action === 'revision_required') {
+        void sendToEdge('project.updated', request.project_id, {
+          event_detail: 'ntp.revision_required',
+          revision_notes: reason,
         })
       }
       onComplete()
@@ -363,37 +386,34 @@ export default function NTPPage() {
       : await loadNTPRequests(orgId, statusFilter || undefined)
     setRequests(data)
 
-    // Load project details for all referenced projects
+    // Load project details and org names in parallel
     const projectIds = [...new Set(data.map(r => r.project_id))]
-    if (projectIds.length > 0) {
-      const supabase = db()
-      const { data: projects } = await supabase
-        .from('projects')
-        .select('id, name, stage, pm, financier, systemkw, contract')
-        .in('id', projectIds)
-        .limit(500)
+    const orgIds = isPlatform ? [...new Set(data.map(r => r.requesting_org))] : []
+    const supabase = db()
+
+    const [projectResult, orgResult] = await Promise.all([
+      projectIds.length > 0
+        ? supabase.from('projects').select('id, name, stage, pm, financier, systemkw, contract').in('id', projectIds).limit(500)
+        : Promise.resolve({ data: null }),
+      orgIds.length > 0
+        ? supabase.from('organizations').select('id, name').in('id', orgIds)
+        : Promise.resolve({ data: null }),
+    ])
+
+    if (projectResult.data) {
       const pMap: Record<string, typeof projectMap[string]> = {}
-      for (const p of (projects ?? []) as any[]) {
+      for (const p of projectResult.data as { id: string; name: string; stage: string; pm: string | null; financier: string | null; systemkw: number | null; contract: number | null }[]) {
         pMap[p.id] = p
       }
       setProjectMap(pMap)
     }
 
-    // Load org names for platform view
-    if (isPlatform) {
-      const orgIds = [...new Set(data.map(r => r.requesting_org))]
-      if (orgIds.length > 0) {
-        const supabase = db()
-        const { data: orgs } = await supabase
-          .from('organizations')
-          .select('id, name')
-          .in('id', orgIds)
-        const oMap: Record<string, string> = {}
-        for (const o of (orgs ?? []) as { id: string; name: string }[]) {
-          oMap[o.id] = o.name
-        }
-        setOrgMap(oMap)
+    if (orgResult.data) {
+      const oMap: Record<string, string> = {}
+      for (const o of orgResult.data as { id: string; name: string }[]) {
+        oMap[o.id] = o.name
       }
+      setOrgMap(oMap)
     }
 
     setLoading(false)
@@ -413,16 +433,19 @@ export default function NTPPage() {
     if (!currentUser) return
     const result = await reviewNTPRequest(request.id, 'approved', currentUser.id, currentUser.name)
     if (result) {
-      // Set ntp_date on the project
+      const now = new Date()
+      const today = now.toISOString().split('T')[0]
       const supabase = db()
-      await supabase.from('projects').update({ ntp_date: new Date().toISOString().split('T')[0] }).eq('id', request.project_id)
+
+      // Set ntp_date on the project
+      await supabase.from('projects').update({ ntp_date: today }).eq('id', request.project_id)
 
       // Mark NTP task as Complete
       await supabase.from('task_state').upsert({
         project_id: request.project_id,
         task_id: 'ntp',
         status: 'Complete',
-        completed_date: new Date().toISOString(),
+        completed_date: now.toISOString(),
       })
 
       // Log to audit_log
@@ -436,9 +459,9 @@ export default function NTPPage() {
       })
 
       // Fire EDGE webhook
-      void sendToEdge('project.updated' as any, request.project_id, {
+      void sendToEdge('project.updated', request.project_id, {
         event_detail: 'ntp.approved',
-        ntp_date: new Date().toISOString().split('T')[0],
+        ntp_date: today,
       })
 
       loadData()
@@ -491,9 +514,9 @@ export default function NTPPage() {
 
   // Summary counts
   const counts = useMemo(() => {
-    const c = { total: requests.length, pending: 0, under_review: 0, approved: 0, rejected: 0, revision_required: 0 }
+    const c: Record<string, number> = { total: requests.length, pending: 0, under_review: 0, approved: 0, rejected: 0, revision_required: 0 }
     for (const r of requests) {
-      if (r.status in c) (c as any)[r.status]++
+      if (r.status in c) c[r.status]++
     }
     return c
   }, [requests])
@@ -606,7 +629,7 @@ export default function NTPPage() {
               </thead>
               <tbody>
                 {filtered.map(req => {
-                  const Icon = STATUS_ICON[req.status as NTPStatus] ?? Clock
+                  const Icon = STATUS_ICON[req.status] ?? Clock
                   const project = projectMap[req.project_id]
                   const isExpanded = expandedId === req.id
 
@@ -615,7 +638,12 @@ export default function NTPPage() {
                       <td className="px-4 py-3" colSpan={isPlatform ? 7 : 6}>
                         <div className="flex items-center">
                           {/* Expand toggle */}
-                          <button onClick={() => setExpandedId(isExpanded ? null : req.id)} className="text-gray-500 hover:text-white mr-2">
+                          <button
+                            onClick={() => setExpandedId(isExpanded ? null : req.id)}
+                            className="text-gray-500 hover:text-white mr-2"
+                            aria-label={isExpanded ? `Collapse details for ${req.project_id}` : `Expand details for ${req.project_id}`}
+                            aria-expanded={isExpanded}
+                          >
                             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           </button>
 
@@ -634,9 +662,9 @@ export default function NTPPage() {
 
                             {/* Status */}
                             <div>
-                              <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium', NTP_STATUS_BADGE[req.status as NTPStatus])}>
+                              <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium', NTP_STATUS_BADGE[req.status])}>
                                 <Icon className="w-3 h-3" />
-                                {NTP_STATUS_LABELS[req.status as NTPStatus]}
+                                {NTP_STATUS_LABELS[req.status]}
                               </span>
                             </div>
 
@@ -664,6 +692,7 @@ export default function NTPPage() {
                                       onClick={(e) => { e.stopPropagation(); handleAction(req, 'approve') }}
                                       className="p-1 text-green-400 hover:bg-green-900/30 rounded"
                                       title="Approve"
+                                      aria-label={`Approve NTP request for ${req.project_id}`}
                                     >
                                       <CheckCircle className="w-4 h-4" />
                                     </button>
@@ -671,6 +700,7 @@ export default function NTPPage() {
                                       onClick={(e) => { e.stopPropagation(); handleAction(req, 'reject') }}
                                       className="p-1 text-red-400 hover:bg-red-900/30 rounded"
                                       title="Reject"
+                                      aria-label={`Reject NTP request for ${req.project_id}`}
                                     >
                                       <XCircle className="w-4 h-4" />
                                     </button>
@@ -678,6 +708,7 @@ export default function NTPPage() {
                                       onClick={(e) => { e.stopPropagation(); handleAction(req, 'revision') }}
                                       className="p-1 text-orange-400 hover:bg-orange-900/30 rounded"
                                       title="Request Revision"
+                                      aria-label={`Request revision for NTP ${req.project_id}`}
                                     >
                                       <AlertTriangle className="w-4 h-4" />
                                     </button>
@@ -757,13 +788,13 @@ function SummaryCard({
   onClick: () => void
   active: boolean
 }) {
-  const colorMap: Record<string, string> = {
-    gray: 'border-gray-700',
-    amber: 'border-amber-700',
-    blue: 'border-blue-700',
-    green: 'border-green-700',
-    red: 'border-red-700',
-    orange: 'border-orange-700',
+  const activeMap: Record<string, string> = {
+    gray: 'border-gray-700 ring-1 ring-gray-500/50',
+    amber: 'border-amber-700 ring-1 ring-amber-500/50',
+    blue: 'border-blue-700 ring-1 ring-blue-500/50',
+    green: 'border-green-700 ring-1 ring-green-500/50',
+    red: 'border-red-700 ring-1 ring-red-500/50',
+    orange: 'border-orange-700 ring-1 ring-orange-500/50',
   }
   const textMap: Record<string, string> = {
     gray: 'text-white',
@@ -779,7 +810,7 @@ function SummaryCard({
       onClick={onClick}
       className={cn(
         'bg-gray-900 border rounded-xl px-4 py-3 text-left transition-colors',
-        active ? `${colorMap[color]} ring-1 ring-${color}-500/50` : 'border-gray-800 hover:border-gray-700'
+        active ? activeMap[color] : 'border-gray-800 hover:border-gray-700'
       )}
     >
       <div className="text-xs text-gray-400">{label}</div>

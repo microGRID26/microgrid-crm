@@ -265,14 +265,17 @@ describe('reviewNTPRequest', () => {
 // ── loadNTPQueue ─────────────────────────────────────────────────────────────
 
 describe('loadNTPQueue', () => {
-  it('loads all actionable requests by default', async () => {
+  it('loads all requests by default (no status filter)', async () => {
     const chain = mockChain({ data: [NTP_REQUEST], error: null })
     mockSupabase.from.mockReturnValue(chain)
 
     const { loadNTPQueue } = await import('@/lib/api/ntp')
     const result = await loadNTPQueue()
 
-    expect(chain.in).toHaveBeenCalledWith('status', ['pending', 'under_review', 'revision_required', 'approved', 'rejected'])
+    expect(mockSupabase.from).toHaveBeenCalledWith('ntp_requests')
+    expect(chain.order).toHaveBeenCalledWith('submitted_at', { ascending: false })
+    // No status filter applied when no status specified — returns all
+    expect(chain.eq).not.toHaveBeenCalled()
     expect(result).toEqual([NTP_REQUEST])
   })
 

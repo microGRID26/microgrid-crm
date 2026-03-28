@@ -75,9 +75,10 @@ export function NTPTab({ project }: NTPTabProps) {
   const completedTasks = taskStates.filter(t => t.status === 'Complete').length
   const totalTasks = taskStates.length
 
-  // Determine if there's an active (non-terminal) request
+  // Determine if there's an active (non-terminal) request or an already-approved one
   const hasActiveRequest = currentRequest && !['approved', 'rejected'].includes(currentRequest.status)
-  const canSubmit = !hasActiveRequest && !isPlatform
+  const hasApprovedRequest = history.some(r => r.status === 'approved')
+  const canSubmit = !hasActiveRequest && !hasApprovedRequest && !isPlatform
   const canResubmit = currentRequest?.status === 'revision_required' && !isPlatform
 
   async function handleSubmit() {
@@ -128,14 +129,15 @@ export function NTPTab({ project }: NTPTabProps) {
       const result = await reviewNTPRequest(currentRequest.id, 'approved', currentUser.id, currentUser.name)
       if (result) {
         // Set ntp_date and mark task complete
+        const now = new Date()
+        const today = now.toISOString().split('T')[0]
         const supabase = db()
-        const today = new Date().toISOString().split('T')[0]
         await supabase.from('projects').update({ ntp_date: today }).eq('id', project.id)
         await supabase.from('task_state').upsert({
           project_id: project.id,
           task_id: 'ntp',
           status: 'Complete',
-          completed_date: new Date().toISOString(),
+          completed_date: now.toISOString(),
         })
         await supabase.from('audit_log').insert({
           project_id: project.id,
@@ -145,7 +147,7 @@ export function NTPTab({ project }: NTPTabProps) {
           changed_by: currentUser.name,
           changed_by_id: currentUser.id,
         })
-        void sendToEdge('project.updated' as any, project.id, {
+        void sendToEdge('project.updated', project.id, {
           event_detail: 'ntp.approved',
           ntp_date: today,
         })
@@ -174,9 +176,14 @@ export function NTPTab({ project }: NTPTabProps) {
           status: 'Revision Required',
           reason: reviewReason,
         })
-        void sendToEdge('project.updated' as any, project.id, {
+        void sendToEdge('project.updated', project.id, {
           event_detail: 'ntp.rejected',
           rejection_reason: reviewReason,
+        })
+      } else if (reviewAction === 'revision_required') {
+        void sendToEdge('project.updated', project.id, {
+          event_detail: 'ntp.revision_required',
+          revision_notes: reviewReason,
         })
       }
       setReviewAction(null)
@@ -202,9 +209,9 @@ export function NTPTab({ project }: NTPTabProps) {
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 space-y-3">
             {/* Status badge */}
             <div className="flex items-center justify-between">
-              <span className={cn('inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium', NTP_STATUS_BADGE[currentRequest.status as NTPStatus])}>
-                {(() => { const Icon = STATUS_ICON[currentRequest.status as NTPStatus]; return Icon ? <Icon className="w-4 h-4" /> : null })()}
-                {NTP_STATUS_LABELS[currentRequest.status as NTPStatus]}
+              <span className={cn('inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium', NTP_STATUS_BADGE[currentRequest.status])}>
+                {(() => { const Icon = STATUS_ICON[currentRequest.status]; return Icon ? <Icon className="w-4 h-4" /> : null })()}
+                {NTP_STATUS_LABELS[currentRequest.status]}
               </span>
               <span className="text-xs text-gray-500">
                 Submitted {fmtDate(currentRequest.submitted_at)} ({daysAgo(currentRequest.submitted_at)}d ago)
@@ -251,17 +258,17 @@ export function NTPTab({ project }: NTPTabProps) {
             {isPlatform && (currentRequest.status === 'pending' || currentRequest.status === 'under_review') && (
               <div className="flex gap-2 pt-2 border-t border-gray-700">
                 {currentRequest.status === 'pending' && (
-                  <button onClick={() => handleReview('under_review')} className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-1">
+                  <button onClick={() => handleReview('under_review')} aria-label="Start NTP review" className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-1">
                     <Eye className="w-3 h-3" /> Start Review
                   </button>
                 )}
-                <button onClick={() => handleReview('approved')} className="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-1">
+                <button onClick={() => handleReview('approved')} aria-label="Approve NTP request" className="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" /> Approve
                 </button>
-                <button onClick={() => handleReview('rejected')} className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center gap-1">
+                <button onClick={() => handleReview('rejected')} aria-label="Reject NTP request" className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center gap-1">
                   <XCircle className="w-3 h-3" /> Reject
                 </button>
-                <button onClick={() => handleReview('revision_required')} className="px-3 py-1.5 text-xs bg-orange-600 hover:bg-orange-700 text-white rounded-lg flex items-center gap-1">
+                <button onClick={() => handleReview('revision_required')} aria-label="Request revision on NTP" className="px-3 py-1.5 text-xs bg-orange-600 hover:bg-orange-700 text-white rounded-lg flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" /> Request Revision
                 </button>
               </div>
@@ -270,8 +277,9 @@ export function NTPTab({ project }: NTPTabProps) {
             {/* Review reason form */}
             {reviewAction && (
               <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 space-y-2">
-                <label className="text-xs text-gray-400">{reviewAction === 'rejected' ? 'Rejection Reason' : 'Revision Notes'} *</label>
+                <label htmlFor="ntp-review-reason" className="text-xs text-gray-400">{reviewAction === 'rejected' ? 'Rejection Reason' : 'Revision Notes'} *</label>
                 <textarea
+                  id="ntp-review-reason"
                   value={reviewReason}
                   onChange={e => setReviewReason(e.target.value)}
                   rows={3}
@@ -377,13 +385,13 @@ export function NTPTab({ project }: NTPTabProps) {
           <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Request History</h3>
           <div className="space-y-2">
             {history.map(req => {
-              const Icon = STATUS_ICON[req.status as NTPStatus] ?? Clock
+              const Icon = STATUS_ICON[req.status] ?? Clock
               return (
                 <div key={req.id} className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium', NTP_STATUS_BADGE[req.status as NTPStatus])}>
+                    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium', NTP_STATUS_BADGE[req.status])}>
                       <Icon className="w-3 h-3" />
-                      {NTP_STATUS_LABELS[req.status as NTPStatus]}
+                      {NTP_STATUS_LABELS[req.status]}
                     </span>
                     <span className="text-xs text-gray-500">by {req.submitted_by}</span>
                   </div>

@@ -557,6 +557,22 @@ API endpoint at `/api/webhooks/subhub` (route: `app/api/webhooks/subhub/route.ts
 - **Idempotency** — checks for existing project by ID before creating to prevent duplicates
 - **GET endpoint** — health check returning enabled/disabled status
 
+### NTP Workflow (Notice to Proceed)
+
+Cross-org approval workflow where EPCs submit projects for underwriting review and the EDGE platform team approves or rejects.
+
+**Database:** `ntp_requests` table (migration `045-ntp-workflow.sql`) with statuses: `pending`, `under_review`, `approved`, `rejected`, `revision_required`. RLS policies enforce org-scoped access: requesting org reads/writes own requests, platform users read/write all, delete is platform/super-admin only.
+
+**API:** `lib/api/ntp.ts` — `loadNTPRequests(orgId?, status?)`, `loadNTPRequestByProject(projectId)`, `loadNTPHistory(projectId)`, `submitNTPRequest(...)`, `reviewNTPRequest(...)`, `loadNTPQueue(status?)`, `resubmitNTPRequest(...)`. Constants: `NTP_STATUSES`, `NTP_STATUS_LABELS`, `NTP_STATUS_BADGE`. Types re-exported from `types/database.ts`.
+
+**Pages:**
+- `/ntp` (`app/ntp/page.tsx`) — NTP queue page. Platform users see the approval queue with all requests across orgs. EPC users see their org's requests only. Features: summary stat cards (clickable filters), search, sortable table, expandable row detail with project info and evidence, inline approve/reject/revision actions, submit modal with project search autocomplete, review modal for rejection reason/revision notes. Realtime subscription on `ntp_requests`.
+- `components/project/NTPTab.tsx` — NTP tab in ProjectPanel. Shows current NTP status, evidence summary (tasks complete, docs, stage), submission form (EPC), review actions (platform), resubmission after revision, and request history.
+
+**Automation chain on approval:** Sets `ntp_date` on the project, marks the NTP task as Complete, logs to `audit_log`, fires EDGE webhook (`project.updated` with `event_detail: 'ntp.approved'`).
+
+**On rejection:** Sets NTP task to Revision Required with the rejection reason, fires EDGE webhook with `event_detail: 'ntp.rejected'`.
+
 ### EDGE Integration (MicroGRID ↔ EDGE Portal)
 
 Bidirectional webhook integration between MicroGRID and EDGE Portal for project data and funding event synchronization.

@@ -29,6 +29,7 @@ interface SubHubPayload {
   phone?: string
   street?: string
   city?: string
+  state?: string
   postal_code?: string
   contract_signed_date?: string
   contract_amount?: number
@@ -130,6 +131,7 @@ export async function POST(request: NextRequest) {
       phone: payload.phone ?? null,
       address: payload.street ?? null,
       city: payload.city ?? null,
+      state: payload.state ?? 'TX',
       zip: payload.postal_code ?? null,
       stage: 'evaluation',
       stage_date: new Date().toISOString().slice(0, 10),

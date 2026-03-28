@@ -310,6 +310,39 @@ function WarrantyTracking() {
   )
 }
 
+function NTPWorkflow() {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-3">Notice to Proceed (NTP) is a cross-org approval workflow. EPCs submit projects for underwriting review, and the EDGE platform team approves or rejects.</p>
+      <div className="space-y-2 text-xs">
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-amber-500">
+          <span className="text-amber-400 font-bold">1. Submit</span>
+          <p className="text-gray-400 mt-1">EPC users submit projects for NTP via the NTP page or the NTP tab in ProjectPanel. Evidence (task completion, doc count, stage) is auto-attached.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-blue-500">
+          <span className="text-blue-400 font-bold">2. Review</span>
+          <p className="text-gray-400 mt-1">EDGE platform users see all pending requests in the NTP Approval Queue. They can start review, approve, reject (with reason), or request revision (with notes).</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-green-500">
+          <span className="text-green-400 font-bold">3. Approval</span>
+          <p className="text-gray-400 mt-1">On approval: ntp_date is set, the NTP task is marked Complete, an audit log entry is created, and an EDGE webhook fires.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-orange-500">
+          <span className="text-orange-400 font-bold">4. Revision / Rejection</span>
+          <p className="text-gray-400 mt-1">If revision is required, the EPC can update evidence and resubmit. Rejections set the NTP task to Revision Required with the reason.</p>
+        </div>
+      </div>
+      <div className="mt-3 space-y-1 text-xs">
+        <div className="flex items-center gap-2"><span className="bg-amber-900 text-amber-300 px-2 py-0.5 rounded">Pending</span><span className="text-gray-400">-- Submitted, awaiting review</span></div>
+        <div className="flex items-center gap-2"><span className="bg-blue-900 text-blue-300 px-2 py-0.5 rounded">Under Review</span><span className="text-gray-400">-- Reviewer has started review</span></div>
+        <div className="flex items-center gap-2"><span className="bg-green-900 text-green-300 px-2 py-0.5 rounded">Approved</span><span className="text-gray-400">-- NTP granted</span></div>
+        <div className="flex items-center gap-2"><span className="bg-red-900 text-red-300 px-2 py-0.5 rounded">Rejected</span><span className="text-gray-400">-- NTP denied</span></div>
+        <div className="flex items-center gap-2"><span className="bg-orange-900 text-orange-300 px-2 py-0.5 rounded">Revision Required</span><span className="text-gray-400">-- Needs updates before re-review</span></div>
+      </div>
+    </div>
+  )
+}
+
 export const projectManagementTopics: HelpTopicData[] = [
   {
     id: 'task-statuses',
@@ -409,5 +442,15 @@ export const projectManagementTopics: HelpTopicData[] = [
     tryItLink: '/warranty',
     relatedTopics: ['materials-tab', 'equipment-catalog', 'service-cases'],
     content: WarrantyTracking,
+  },
+  {
+    id: 'ntp-workflow',
+    title: 'NTP Workflow',
+    description: 'Notice to Proceed submission and approval process',
+    category: 'Project Management',
+    keywords: ['ntp', 'notice to proceed', 'underwriting', 'approval', 'submit', 'review', 'reject', 'revision', 'epc', 'platform'],
+    tryItLink: '/ntp',
+    relatedTopics: ['task-statuses', 'stage-advancement', 'funding-overview'],
+    content: NTPWorkflow,
   },
 ]

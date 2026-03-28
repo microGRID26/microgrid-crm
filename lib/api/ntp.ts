@@ -5,27 +5,11 @@ import { db } from '@/lib/db'
 import { escapeIlike } from '@/lib/utils'
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-export type NTPStatus = 'pending' | 'under_review' | 'approved' | 'rejected' | 'revision_required'
-
-export interface NTPRequest {
-  id: string
-  project_id: string
-  requesting_org: string
-  status: NTPStatus
-  submitted_by: string | null
-  submitted_by_id: string | null
-  reviewed_by: string | null
-  reviewed_by_id: string | null
-  submitted_at: string
-  reviewed_at: string | null
-  rejection_reason: string | null
-  revision_notes: string | null
-  evidence: Record<string, unknown>
-  notes: string | null
-  created_at: string
-  updated_at: string
-}
+// Canonical definitions are in types/database.ts — re-export for consumer convenience
+export type { NTPStatusType as NTPStatus } from '@/types/database'
+export type { NTPRequest } from '@/types/database'
+import type { NTPStatusType as NTPStatus } from '@/types/database'
+import type { NTPRequest } from '@/types/database'
 
 export const NTP_STATUSES = ['pending', 'under_review', 'approved', 'rejected', 'revision_required'] as const
 
@@ -180,10 +164,8 @@ export async function loadNTPQueue(status?: NTPStatus | null): Promise<NTPReques
     .limit(500)
   if (status) {
     q = q.eq('status', status)
-  } else {
-    // Default: show actionable items first
-    q = q.in('status', ['pending', 'under_review', 'revision_required', 'approved', 'rejected'])
   }
+  // Without filter, all statuses are returned (all 5 are the only possible values)
   const { data, error } = await q
   if (error) console.error('[loadNTPQueue]', error.message)
   return (data ?? []) as NTPRequest[]
