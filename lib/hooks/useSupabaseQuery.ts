@@ -319,9 +319,13 @@ export function useSupabaseQuery<T extends TableName>(
 
       // Auto-inject org_id filter for org-scoped tables
       if (orgId && ORG_SCOPED_TABLES.has(table)) {
-        // Only inject if caller didn't already set org_id in filters
-        const hasOrgFilter = filters && ('org_id' in filters)
-        if (!hasOrgFilter) {
+        // Only inject if caller didn't already provide a non-null org_id in filters.
+        // Check for key existence AND a truthy value — if caller passes org_id: null
+        // or org_id: undefined, those are skipped by the filter loop above, so we
+        // should still auto-inject.
+        const explicitOrgFilter = filters?.org_id
+        const hasEffectiveOrgFilter = explicitOrgFilter !== null && explicitOrgFilter !== undefined
+        if (!hasEffectiveOrgFilter) {
           query = query.eq('org_id', orgId)
         }
       }

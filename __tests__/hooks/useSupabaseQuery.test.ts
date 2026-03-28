@@ -474,4 +474,182 @@ describe('useSupabaseQuery', () => {
       expect(chain.not).toHaveBeenCalledWith('stage_order', 'in', '(1,2,3)')
     })
   })
+
+  // ── Multi-tenant org_id injection ────────────────────────────────────────
+
+  it('auto-injects org_id filter for org-scoped tables when orgId is provided', async () => {
+    const chain = buildChain({ data: [], error: null })
+    const supabase = mockSupabaseWith(chain)
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useSupabaseQuery } = await import('@/lib/hooks/useSupabaseQuery')
+
+    renderHook(() =>
+      useSupabaseQuery('projects', { orgId: 'org-123' })
+    )
+
+    await waitFor(() => {
+      expect(chain.eq).toHaveBeenCalledWith('org_id', 'org-123')
+    })
+  })
+
+  it('auto-injects org_id for other org-scoped tables (crews)', async () => {
+    const chain = buildChain({ data: [], error: null })
+    const supabase = mockSupabaseWith(chain)
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useSupabaseQuery } = await import('@/lib/hooks/useSupabaseQuery')
+
+    renderHook(() =>
+      useSupabaseQuery('crews', { orgId: 'org-456' })
+    )
+
+    await waitFor(() => {
+      expect(chain.eq).toHaveBeenCalledWith('org_id', 'org-456')
+    })
+  })
+
+  it('does NOT inject org_id for non-org-scoped tables', async () => {
+    const chain = buildChain({ data: [], error: null })
+    const supabase = mockSupabaseWith(chain)
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useSupabaseQuery } = await import('@/lib/hooks/useSupabaseQuery')
+
+    renderHook(() =>
+      useSupabaseQuery('task_state', { orgId: 'org-123' })
+    )
+
+    await waitFor(() => {
+      // task_state is not org-scoped, so org_id should NOT be applied
+      // eq should only be called for explicit filters, not org_id
+      const eqCalls = chain.eq.mock.calls
+      const orgIdCalls = eqCalls.filter((c: any[]) => c[0] === 'org_id')
+      expect(orgIdCalls).toHaveLength(0)
+    })
+  })
+
+  it('does NOT inject org_id when orgId is null', async () => {
+    const chain = buildChain({ data: [], error: null })
+    const supabase = mockSupabaseWith(chain)
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useSupabaseQuery } = await import('@/lib/hooks/useSupabaseQuery')
+
+    renderHook(() =>
+      useSupabaseQuery('projects', { orgId: null })
+    )
+
+    await waitFor(() => {
+      const eqCalls = chain.eq.mock.calls
+      const orgIdCalls = eqCalls.filter((c: any[]) => c[0] === 'org_id')
+      expect(orgIdCalls).toHaveLength(0)
+    })
+  })
+
+  it('does NOT inject org_id when orgId is undefined', async () => {
+    const chain = buildChain({ data: [], error: null })
+    const supabase = mockSupabaseWith(chain)
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useSupabaseQuery } = await import('@/lib/hooks/useSupabaseQuery')
+
+    renderHook(() =>
+      useSupabaseQuery('projects', { orgId: undefined })
+    )
+
+    await waitFor(() => {
+      const eqCalls = chain.eq.mock.calls
+      const orgIdCalls = eqCalls.filter((c: any[]) => c[0] === 'org_id')
+      expect(orgIdCalls).toHaveLength(0)
+    })
+  })
+
+  it('skips org_id injection when caller already provides org_id in filters', async () => {
+    const chain = buildChain({ data: [], error: null })
+    const supabase = mockSupabaseWith(chain)
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useSupabaseQuery } = await import('@/lib/hooks/useSupabaseQuery')
+
+    renderHook(() =>
+      useSupabaseQuery('projects', {
+        orgId: 'org-auto',
+        filters: { org_id: 'org-explicit' },
+      })
+    )
+
+    await waitFor(() => {
+      // Should use the explicit filter value, not auto-injected
+      const eqCalls = chain.eq.mock.calls
+      const orgIdCalls = eqCalls.filter((c: any[]) => c[0] === 'org_id')
+      expect(orgIdCalls).toHaveLength(1)
+      expect(orgIdCalls[0][1]).toBe('org-explicit')
+    })
+  })
+
+  it('cache key includes orgId so different orgs do not share cache', async () => {
+    const rows1 = [{ id: 'PROJ-001', name: 'Org A Project' }]
+    const rows2 = [{ id: 'PROJ-002', name: 'Org B Project' }]
+
+    let callCount = 0
+    const chain: Record<string, any> = {}
+    const methods = ['select', 'eq', 'neq', 'in', 'ilike', 'or', 'order', 'range', 'limit', 'not', 'is', 'gt', 'lt', 'gte', 'lte']
+    for (const m of methods) {
+      chain[m] = vi.fn(() => chain)
+    }
+    chain.then = vi.fn((resolve: any) => {
+      callCount++
+      const data = callCount === 1 ? rows1 : rows2
+      return Promise.resolve({ data, error: null }).then(resolve)
+    })
+    const supabase = mockSupabaseWith(chain)
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useSupabaseQuery } = await import('@/lib/hooks/useSupabaseQuery')
+
+    // First render with orgId A
+    const { result: r1, unmount: u1 } = renderHook(() =>
+      useSupabaseQuery('projects', { orgId: 'org-A' })
+    )
+    await waitFor(() => expect(r1.current.loading).toBe(false))
+    expect(r1.current.data).toEqual(rows1)
+    u1()
+
+    // Second render with orgId B — should miss cache and fetch again
+    const { result: r2 } = renderHook(() =>
+      useSupabaseQuery('projects', { orgId: 'org-B' })
+    )
+    await waitFor(() => expect(r2.current.loading).toBe(false))
+    expect(r2.current.data).toEqual(rows2)
+
+    // Both fetches should have occurred (cache miss due to different orgId)
+    expect(callCount).toBe(2)
+  })
+
+  it('does NOT inject org_id when orgId is empty string', async () => {
+    const chain = buildChain({ data: [], error: null })
+    const supabase = mockSupabaseWith(chain)
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useSupabaseQuery } = await import('@/lib/hooks/useSupabaseQuery')
+
+    renderHook(() =>
+      useSupabaseQuery('projects', { orgId: '' })
+    )
+
+    await waitFor(() => {
+      const eqCalls = chain.eq.mock.calls
+      const orgIdCalls = eqCalls.filter((c: any[]) => c[0] === 'org_id')
+      expect(orgIdCalls).toHaveLength(0)
+    })
+  })
 })

@@ -53,16 +53,16 @@ Key pages: `/command` (morning dashboard — personal stats, action items, pipel
 
 Centralized data access functions live in `lib/api/`:
 
-- `lib/api/projects.ts` — `loadProjects`, `loadProjectFunding`, `updateProject`, `loadUsers`, `loadProjectAdders`, `addProjectAdder`, `deleteProjectAdder`, `loadProjectById`, `loadProjectsByIds`, `searchProjects`
+- `lib/api/projects.ts` — `loadProjects` (accepts `orgId` for multi-tenant filtering), `loadProjectFunding`, `updateProject`, `loadUsers`, `loadProjectAdders`, `addProjectAdder`, `deleteProjectAdder`, `loadProjectById`, `loadProjectsByIds`, `searchProjects`
 - `lib/api/notes.ts` — `loadProjectNotes`, `loadTaskNotes`, `addNote`, `deleteNote`, `createMentionNotification`
 - `lib/api/tasks.ts` — `upsertTaskState`, `loadTaskStates`, `loadTaskHistory`, `insertTaskHistory`
 - `lib/api/schedules.ts` — `loadScheduleByDateRange` (supports multi-day jobs via `.or()` filter on `end_date`)
 - `lib/api/change-orders.ts` — `loadChangeOrders`
-- `lib/api/crews.ts` — `loadCrewsByIds`, `loadActiveCrews`
+- `lib/api/crews.ts` — `loadCrewsByIds` (accepts `orgId`), `loadActiveCrews` (accepts `orgId`)
 - `lib/api/documents.ts` — `loadProjectFiles`, `searchProjectFiles`, `searchAllProjectFiles`, `loadAllProjectFiles`, `loadDocumentRequirements`, `loadProjectDocuments`, `updateDocumentStatus`
 - `lib/api/equipment.ts` — `loadEquipment`, `searchEquipment`, `loadAllEquipment`, `EQUIPMENT_CATEGORIES`
-- `lib/api/inventory.ts` — `loadProjectMaterials`, `addProjectMaterial`, `updateProjectMaterial`, `deleteProjectMaterial`, `autoGenerateMaterials`, `loadWarehouseStock`, `loadAllProjectMaterials`, `generatePONumber`, `loadPurchaseOrders`, `loadPurchaseOrder`, `createPurchaseOrder`, `updatePurchaseOrderStatus`, `updatePurchaseOrder`, `loadPOLineItems`, `addWarehouseStock`, `updateWarehouseStock`, `deleteWarehouseStock`, `checkoutFromWarehouse`, `checkinToWarehouse`, `adjustWarehouseStock`, `loadWarehouseTransactions`, `getLowStockItems`. Constants: `MATERIAL_STATUSES`, `MATERIAL_SOURCES`, `MATERIAL_CATEGORIES`, `PO_STATUSES`, `PO_STATUS_COLORS`. Types: `ProjectMaterial`, `WarehouseStock`, `WarehouseTransaction`
-- `lib/api/vendors.ts` — `loadVendors`, `searchVendors`, `loadVendor`, `addVendor`, `updateVendor`, `deleteVendor`. Constants: `VENDOR_CATEGORIES`, `EQUIPMENT_TYPE_OPTIONS`. Type: `Vendor`, `VendorCategory`
+- `lib/api/inventory.ts` — `loadProjectMaterials`, `addProjectMaterial`, `updateProjectMaterial`, `deleteProjectMaterial`, `autoGenerateMaterials`, `loadWarehouseStock` (accepts `orgId`), `loadAllProjectMaterials`, `generatePONumber`, `loadPurchaseOrders`, `loadPurchaseOrder`, `createPurchaseOrder`, `updatePurchaseOrderStatus`, `updatePurchaseOrder`, `loadPOLineItems`, `addWarehouseStock`, `updateWarehouseStock`, `deleteWarehouseStock`, `checkoutFromWarehouse`, `checkinToWarehouse`, `adjustWarehouseStock`, `loadWarehouseTransactions`, `getLowStockItems`. Constants: `MATERIAL_STATUSES`, `MATERIAL_SOURCES`, `MATERIAL_CATEGORIES`, `PO_STATUSES`, `PO_STATUS_COLORS`. Types: `ProjectMaterial`, `WarehouseStock`, `WarehouseTransaction`
+- `lib/api/vendors.ts` — `loadVendors` (accepts `orgId`), `searchVendors` (accepts `orgId`), `loadVendor`, `addVendor`, `updateVendor`, `deleteVendor`. Constants: `VENDOR_CATEGORIES`, `EQUIPMENT_TYPE_OPTIONS`. Type: `Vendor`, `VendorCategory`
 - `lib/api/work-orders.ts` — `loadWorkOrders`, `loadWorkOrder`, `createWorkOrder`, `updateWorkOrder`, `updateWorkOrderStatus`, `addChecklistItem`, `toggleChecklistItem`, `deleteChecklistItem`, `createWorkOrderFromProject`, `loadProjectWorkOrders`, `generateWONumber`, `getValidTransitions`. Constants: `WO_CHECKLIST_TEMPLATES` (5 type templates). Types: `WorkOrder`, `WOChecklistItem`, `WorkOrderFilters`
 - `lib/api/warranties.ts` — `loadProjectWarranties`, `addWarranty`, `updateWarranty`, `deleteWarranty`, `loadWarrantyClaims`, `addClaim`, `updateClaim`, `loadExpiringWarranties`, `loadAllWarranties`, `loadOpenClaims`. Constants: `WARRANTY_EQUIPMENT_TYPES`, `CLAIM_STATUSES`. Types: `EquipmentWarranty`, `WarrantyClaim`, `WarrantyFilters`
 - `lib/api/fleet.ts` — `loadVehicles`, `loadVehicle`, `addVehicle`, `updateVehicle`, `deleteVehicle`, `loadVehicleMaintenance`, `addMaintenance`, `updateMaintenance`, `loadUpcomingMaintenance`. Constants: `VEHICLE_STATUSES`, `MAINTENANCE_TYPES`, `MAINTENANCE_TYPE_LABELS`, `STATUS_LABELS`. Types: `Vehicle`, `MaintenanceRecord`, `VehicleStatus`, `MaintenanceType`, `VehicleFilters`
@@ -141,6 +141,7 @@ Reusable hooks in `lib/hooks/` (barrel-exported from `lib/hooks/index.ts`):
 - **Typed filters** — supports `eq`, `neq`, `in`, `not_in`, `ilike`, `is` (null), `isNot` (null), `gt`, `lt`, `gte`, `lte`. Shorthand: `{ pm_id: 'abc' }` is equivalent to `{ pm_id: { eq: 'abc' } }`
 - **`.or()` expressions** — pass `or: 'name.ilike.%test%,id.ilike.%test%'` for compound search
 - `clearQueryCache()` — exported function to invalidate all cached data (used after bulk mutations)
+- **Multi-tenant org scoping** — pass `orgId: string | null` to auto-inject `.eq('org_id', orgId)` for org-scoped tables (`projects`, `crews`, `warehouse_stock`, `vendors`, `task_reasons`, `notification_rules`, `queue_sections`, `document_requirements`). Skipped for non-org-scoped tables (e.g., `task_state`, `notes`). Skipped when `orgId` is null, undefined, or empty string. If the caller already provides `org_id` in `filters`, auto-injection is skipped to avoid double-filtering. The `orgId` value is included in the cache key so different orgs get separate cache entries.
 - **Known limitations**: no join support (use `lib/api/` for joins), no views (only typed tables), single filter per field
 
 ```typescript
@@ -152,6 +153,13 @@ const { data, loading, totalCount, hasMore, nextPage, prevPage, currentPage } =
     filters: { field: 'stage', changed_at: { gte: '2026-03-01' } },
     order: { column: 'changed_at', ascending: false },
   })
+
+// Example: org-scoped projects query (auto-injects org_id filter)
+const { orgId } = useOrg()
+const { data: projects } = useSupabaseQuery('projects', {
+  orgId,
+  filters: { stage: 'permit' },
+})
 ```
 
 **`useRealtimeSubscription(table, options)`** — Standalone realtime hook. Manages channel lifecycle, debounces callbacks (default 300ms), cleans up on unmount. Used internally by `useSupabaseQuery` when `subscribe: true`, but can also be used independently.
@@ -554,7 +562,7 @@ API endpoint at `/api/webhooks/subhub` (route: `app/api/webhooks/subhub/route.ts
 Bidirectional webhook integration between MicroGRID and EDGE Portal for project data and funding event synchronization.
 
 **Outbound (MicroGRID → EDGE):**
-- `lib/api/edge-sync.ts` — `sendToEdge()`, `syncProjectToEdge()`, `syncFundingToEdge()`
+- `lib/api/edge-sync.ts` — `sendToEdge()`, `syncProjectToEdge()` (includes `org_id` in payload), `syncFundingToEdge()` (includes `org_id` in payload)
 - HMAC-SHA256 signed payloads sent to `EDGE_WEBHOOK_URL/api/webhooks/nova`
 - Events: `project.created`, `project.stage_changed`, `project.install_complete`, `project.pto_received`, `project.in_service`, `funding.milestone_updated`
 - Integration points: ProjectPanel automation chain (task status changes, stage advances), SubHub webhook (project creation)

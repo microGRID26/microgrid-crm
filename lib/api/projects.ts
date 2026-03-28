@@ -20,7 +20,6 @@ export interface ProjectQuery {
 }
 
 export async function loadProjects(opts: ProjectQuery = {}) {
-  const supabase = createClient()
   const fields = opts.includeFields ?? PROJECT_FIELDS
   // db() needed: select uses a dynamic field string variable, typed client resolves to 'never'
   let query = db().from('projects').select(fields).limit(opts.limit ?? PROJECT_LIMIT)
