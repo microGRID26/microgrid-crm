@@ -83,7 +83,7 @@ function CreateWOModal({
   useEffect(() => {
     async function load() {
       const { data } = await loadActiveCrews()
-      if (data) setCrews(data.map(c => ({ id: c.id, name: c.name })))
+      if (data) setCrews((data as { id: string; name: string }[]).map(c => ({ id: c.id, name: c.name })))
     }
     load()
   }, [])

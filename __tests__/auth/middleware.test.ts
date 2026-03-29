@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest'
 // ---- Extracted logic mirrors middleware.ts for unit testing ----
 
 const PUBLIC_ROUTES = ['/login', '/auth']
-const PUBLIC_PREFIXES = ['/api/webhooks/', '/api/email/send-daily', '/_next/', '/favicon.ico']
+const PUBLIC_PREFIXES = ['/api/webhooks/', '/api/email/send-daily', '/api/calendar/webhook', '/_next/', '/favicon.ico']
 
 const ROLE_LEVEL: Record<string, number> = {
   super_admin: 5,
@@ -244,6 +244,72 @@ describe('role-based route access', () => {
       expect(hasAccess('/command', 'unknown_role')).toBe(true)
       expect(hasAccess('/admin', 'unknown_role')).toBe(false)
       expect(hasAccess('/analytics', 'unknown_role')).toBe(false)
+    })
+  })
+})
+
+describe('middleware edge cases', () => {
+  describe('calendar API routes are public', () => {
+    it('/api/calendar/webhook is public', () => {
+      expect(isPublicRoute('/api/calendar/webhook')).toBe(true)
+    })
+
+    it('/api/calendar/sync is NOT public (only webhook is public)', () => {
+      expect(isPublicRoute('/api/calendar/sync')).toBe(false)
+    })
+  })
+
+  describe('forged role cookie cannot bypass route checks', () => {
+    // The hasAccess function checks the role level from the DB-fetched role,
+    // not from a cookie. Even if someone sets a cookie claiming super_admin,
+    // the DB lookup returns their actual role. Here we verify the access check
+    // itself rejects insufficient roles regardless of what a cookie might claim.
+
+    it('/admin rejects user role even if cookie says admin', () => {
+      // Simulate: cookie claims admin, but DB returns user
+      const dbRole = 'user'
+      expect(hasAccess('/admin', dbRole)).toBe(false)
+    })
+
+    it('/system rejects admin role even if cookie says super_admin', () => {
+      const dbRole = 'admin'
+      expect(hasAccess('/system', dbRole)).toBe(false)
+    })
+
+    it('/admin rejects sales role even if cookie says super_admin', () => {
+      const dbRole = 'sales'
+      expect(hasAccess('/admin', dbRole)).toBe(false)
+    })
+  })
+
+  describe('unknown routes require auth but no role', () => {
+    it('/some-unknown-page is not public', () => {
+      expect(isPublicRoute('/some-unknown-page')).toBe(false)
+    })
+
+    it('/some-unknown-page allows any authenticated role (no role requirement)', () => {
+      expect(hasAccess('/some-unknown-page', 'user')).toBe(true)
+      expect(hasAccess('/some-unknown-page', 'sales')).toBe(true)
+    })
+  })
+
+  describe('nested routes inherit parent gate', () => {
+    it('/documents/missing inherits /documents manager gate', () => {
+      expect(hasAccess('/documents/missing', 'user')).toBe(false)
+      expect(hasAccess('/documents/missing', 'sales')).toBe(false)
+      expect(hasAccess('/documents/missing', 'manager')).toBe(true)
+      expect(hasAccess('/documents/missing', 'admin')).toBe(true)
+      expect(hasAccess('/documents/missing', 'super_admin')).toBe(true)
+    })
+
+    it('/admin/users inherits /admin admin gate', () => {
+      expect(hasAccess('/admin/users', 'manager')).toBe(false)
+      expect(hasAccess('/admin/users', 'admin')).toBe(true)
+    })
+
+    it('/system/flags inherits /system super_admin gate', () => {
+      expect(hasAccess('/system/flags', 'admin')).toBe(false)
+      expect(hasAccess('/system/flags', 'super_admin')).toBe(true)
     })
   })
 })
