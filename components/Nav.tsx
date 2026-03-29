@@ -213,9 +213,6 @@ export function Nav({ active, right, onNewProject }: NavProps) {
           {/* Notification bell — hidden for sales users */}
           {!isSales && !loading && currentUser && <NotificationBell />}
 
-          {/* Org switcher — only renders for multi-org users */}
-          {!loading && currentUser && <OrgSwitcher />}
-
           {(!loading && currentUser?.isAdmin) && (
             <a href="/admin"
               className={`text-xs px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
@@ -267,11 +264,14 @@ export function Nav({ active, right, onNewProject }: NavProps) {
           </div>
         )}
 
-        {/* Desktop sign out */}
-        <button onClick={signOut}
-          className="hidden md:block ml-auto text-xs px-3 py-1.5 rounded-md transition-colors text-gray-500 hover:text-white hover:bg-gray-800">
-          Sign out
-        </button>
+        {/* Org switcher + sign out (right side) */}
+        <div className="hidden md:flex ml-auto items-center gap-2">
+          {!loading && currentUser && <OrgSwitcher />}
+          <button onClick={signOut}
+            className="text-xs px-3 py-1.5 rounded-md transition-colors text-gray-500 hover:text-white hover:bg-gray-800">
+            Sign out
+          </button>
+        </div>
 
         {/* Mobile hamburger button */}
         <button
