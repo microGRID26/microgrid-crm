@@ -629,7 +629,7 @@ const templates: Record<number, TemplateFactory> = {
         <div style="margin-bottom:4px;"><span style="color:#6b7280;">&#9744;</span> <span style="color:#e5e7eb;font-size:13px;">Equipment (Module, Inverter, Battery)</span></div>
         <div><span style="color:#6b7280;">&#9744;</span> <span style="color:#e5e7eb;font-size:13px;">Dates (Sale, Survey, Install, PTO)</span></div>
       `)}
-      <p>Export is available on the Command Center. Select your fields, click Export, and get a clean CSV instantly.</p>
+      <p>CSV export is available on Command Center, NTP, Work Orders, Inventory, Warranty, Fleet, Service, and more. Select your fields, click Export, and get a clean CSV instantly.</p>
       ${ctaButton('Try CSV Export →', '/command')}
     `),
   }),
@@ -691,10 +691,10 @@ const templates: Record<number, TemplateFactory> = {
   }),
 
   29: (name) => ({
-    subject: 'Help Center — 55 Visual Guides',
+    subject: 'Help Center — 67+ Visual Guides',
     html: layout(29, `
       <h2 style="color:#ffffff;font-size:18px;margin:0 0 12px;">Stuck? The Help Center has you covered.</h2>
-      <p>55 searchable help topics organized by category: Getting Started, Daily Workflow, Project Management, Financial, Inventory, and more. Each topic includes step-by-step instructions.</p>
+      <p>67+ searchable help topics organized by category: Getting Started, Daily Workflow, Project Management, Financial, Inventory, and more. Each topic includes step-by-step instructions.</p>
       ${visualBox(`
         <div style="color:#9ca3af;font-size:12px;margin-bottom:10px;">HELP CATEGORIES</div>
         <div style="margin-bottom:4px;">${sectionBadge('Getting Started', '#1D9E75')} <span style="color:#6b7280;font-size:11px;">First login, navigation, basics</span></div>

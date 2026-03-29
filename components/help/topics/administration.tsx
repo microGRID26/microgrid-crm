@@ -43,24 +43,27 @@ function PermissionMatrix() {
         <div className="grid grid-cols-4 gap-0 px-3 py-2 bg-gray-800/50 border-b border-gray-700">
           <span className="text-gray-500 font-medium">Action</span>
           <span className="text-gray-500 font-medium text-center">User</span>
-          <span className="text-gray-500 font-medium text-center">Admin</span>
-          <span className="text-gray-500 font-medium text-center">Super</span>
+          <span className="text-gray-500 font-medium text-center">Mgr+</span>
+          <span className="text-gray-500 font-medium text-center">Admin+</span>
         </div>
         {[
-          { action: 'Create/edit projects', user: true, admin: true, superA: true },
-          { action: 'Update tasks & notes', user: true, admin: true, superA: true },
-          { action: 'Admin portal', user: false, admin: true, superA: true },
-          { action: 'Delete projects', user: false, admin: false, superA: true },
-          { action: 'Manage users', user: false, admin: true, superA: true },
+          { action: 'Create/edit projects', user: true, mgr: true, admin: true },
+          { action: 'Update tasks & notes', user: true, mgr: true, admin: true },
+          { action: 'Operational pages*', user: false, mgr: true, admin: true },
+          { action: 'Permits (credentials)', user: false, mgr: true, admin: true },
+          { action: 'Atlas AI Reports', user: false, mgr: true, admin: true },
+          { action: 'Admin portal', user: false, mgr: false, admin: true },
+          { action: 'Delete projects', user: false, mgr: false, admin: false },
         ].map(r => (
           <div key={r.action} className="grid grid-cols-4 gap-0 px-3 py-1.5 border-b border-gray-800/50">
             <span className="text-gray-300">{r.action}</span>
             <span className="text-center">{r.user ? <span className="text-green-400">&#10003;</span> : <span className="text-gray-600">--</span>}</span>
+            <span className="text-center">{r.mgr ? <span className="text-green-400">&#10003;</span> : <span className="text-gray-600">--</span>}</span>
             <span className="text-center">{r.admin ? <span className="text-green-400">&#10003;</span> : <span className="text-gray-600">--</span>}</span>
-            <span className="text-center">{r.superA ? <span className="text-green-400">&#10003;</span> : <span className="text-gray-600">--</span>}</span>
           </div>
         ))}
       </div>
+      <p className="text-xs text-gray-500 mt-2">*Operational pages (Service, Inventory, Vendors, Analytics, etc.) require Manager+ role. Server-side route protection enforces access even with direct URLs. Super Admin can delete projects.</p>
     </div>
   )
 }
@@ -246,7 +249,7 @@ function CustomFieldsHelp() {
 function PermitPortal() {
   return (
     <div>
-      <p className="text-xs text-gray-400 mb-3">Centralized permit portal showing all 1,633 AHJ records with portal URLs, phone numbers, and masked credentials. Filters by submission method, county, and whether the AHJ has a portal.</p>
+      <p className="text-xs text-gray-400 mb-3">Centralized permit portal showing all 1,633 AHJ records with portal URLs, phone numbers, and masked credentials. Manager+ access required due to credential sensitivity. Filters by submission method, county, and whether the AHJ has a portal.</p>
       <div className="space-y-2 text-xs">
         <div className="bg-gray-800 rounded-md px-3 py-2">
           <span className="text-green-400 font-medium">Portal URLs:</span>

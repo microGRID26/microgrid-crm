@@ -50,7 +50,7 @@ function UnderstandingRoles() {
       {[
         { role: 'Sales', desc: 'Energy consultants. View only their own projects. No financial data, no editing, no Atlas.', color: 'text-purple-300' },
         { role: 'User', desc: 'Standard access. Create/edit projects, update tasks, add notes.', color: 'text-gray-300' },
-        { role: 'Manager', desc: 'Same as User with additional visibility and Atlas access.', color: 'text-blue-300' },
+        { role: 'Manager', desc: 'Unlocks operational pages (Service, Inventory, Vendors, Analytics, Permits, Atlas). Required for most non-core pages.', color: 'text-blue-300' },
         { role: 'Finance', desc: 'Access to funding pages and financial data.', color: 'text-amber-300' },
         { role: 'Admin', desc: 'Full access including Admin portal, user/crew management.', color: 'text-green-300' },
         { role: 'Super Admin', desc: 'Everything Admin can do, plus project deletion.', color: 'text-red-300' },
@@ -87,8 +87,26 @@ function NavigatingApp() {
           <span className="text-gray-400"> Command, Queue, Pipeline, Schedule, Funding, Inventory, Analytics</span>
         </div>
         <div>
-          <span className="text-gray-300 font-medium">More dropdown:</span>
-          <span className="text-gray-400"> Service, Change Orders, Documents, Atlas, Redesign, Legacy, Audit Trail</span>
+          <span className="text-gray-300 font-medium">More dropdown</span>
+          <span className="text-gray-400"> (organized into 4 sections):</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 ml-2">
+          <div className="bg-gray-800 rounded-md px-3 py-2">
+            <span className="text-green-400 font-medium block mb-1">Operations</span>
+            <span className="text-gray-400">Service, Work Orders, Change Orders</span>
+          </div>
+          <div className="bg-gray-800 rounded-md px-3 py-2">
+            <span className="text-blue-400 font-medium block mb-1">Supply Chain</span>
+            <span className="text-gray-400">Vendors, Documents</span>
+          </div>
+          <div className="bg-gray-800 rounded-md px-3 py-2">
+            <span className="text-purple-400 font-medium block mb-1">Tools</span>
+            <span className="text-gray-400">Atlas, Permits, Warranty, Fleet</span>
+          </div>
+          <div className="bg-gray-800 rounded-md px-3 py-2">
+            <span className="text-amber-400 font-medium block mb-1">Design</span>
+            <span className="text-gray-400">Redesign, Legacy</span>
+          </div>
         </div>
         <div>
           <span className="text-gray-300 font-medium">Icons:</span>

@@ -82,6 +82,33 @@ function BlockerDetection() {
   )
 }
 
+function OrgSwitcher() {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-3">If you belong to more than one organization, the Org Switcher appears in the nav bar. Click it to switch between orgs -- all data reloads automatically.</p>
+      <div className="space-y-2 text-xs">
+        <div className="bg-gray-800 rounded-md px-3 py-2">
+          <span className="text-green-400 font-medium">Switching:</span>
+          <span className="text-gray-400 ml-1">Click the org name in the nav bar, select a different org. All cached data clears and reloads for the new org.</span>
+        </div>
+        <div className="bg-gray-800 rounded-md px-3 py-2">
+          <span className="text-blue-400 font-medium">Org Types:</span>
+          <span className="text-gray-400 ml-1">Platform (purple), EPC (green), Sales (blue), Engineering (amber), Supply (cyan), Customer (gray)</span>
+        </div>
+        <div className="bg-gray-800 rounded-md px-3 py-2">
+          <span className="text-purple-400 font-medium">Data Isolation:</span>
+          <span className="text-gray-400 ml-1">Each org sees only its own projects, crews, vendors, and warehouse stock. Platform users can see across all orgs.</span>
+        </div>
+        <div className="bg-gray-800 rounded-md px-3 py-2">
+          <span className="text-amber-400 font-medium">Keyboard Navigation:</span>
+          <span className="text-gray-400 ml-1">Arrow keys to navigate, Enter/Space to select, Escape to close</span>
+        </div>
+      </div>
+      <p className="text-xs text-gray-500 mt-3">Only visible when you belong to 2+ organizations. Your selection is saved in localStorage.</p>
+    </div>
+  )
+}
+
 export const systemFeaturesTopics: HelpTopicData[] = [
   {
     id: 'automations',
@@ -118,5 +145,14 @@ export const systemFeaturesTopics: HelpTopicData[] = [
     keywords: ['blocker', 'auto', 'detect', 'set', 'clear', 'pending', 'resolution'],
     relatedTopics: ['automations', 'stuck-tasks'],
     content: BlockerDetection,
+  },
+  {
+    id: 'org-switcher',
+    title: 'Organization Switching',
+    description: 'Switch between organizations for multi-org users',
+    category: 'System Features',
+    keywords: ['org', 'organization', 'switch', 'multi-tenant', 'company', 'epc', 'platform'],
+    relatedTopics: ['system-page', 'permission-matrix'],
+    content: OrgSwitcher,
   },
 ]

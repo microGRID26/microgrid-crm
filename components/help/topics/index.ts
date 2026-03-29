@@ -27,6 +27,10 @@ export const CATEGORIES = [
 ]
 
 export const WHATS_NEW = [
+  { date: 'Mar 2026', title: 'Organization Switching', topicId: 'org-switcher' },
+  { date: 'Mar 2026', title: 'NTP Workflow', topicId: 'ntp-workflow' },
+  { date: 'Mar 2026', title: 'Manager+ Access Controls', topicId: 'permission-matrix' },
+  { date: 'Mar 2026', title: 'Nav Reorganization', topicId: 'navigating-app' },
   { date: 'Mar 2026', title: 'Permit Portal', topicId: 'permit-portal' },
   { date: 'Mar 2026', title: 'Feature Flags', topicId: 'feature-flags' },
   { date: 'Mar 2026', title: 'System Page', topicId: 'system-page' },

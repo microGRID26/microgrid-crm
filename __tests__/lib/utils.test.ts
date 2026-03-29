@@ -74,6 +74,19 @@ describe('daysAgo', () => {
     expect(Math.abs(bareDays - tsDays)).toBeLessThanOrEqual(1)
   })
 
+  it('handles negative timezone offset', () => {
+    // Supabase can return timestamps with negative offsets: 2026-03-28T23:50:55-05:00
+    const d = new Date()
+    d.setDate(d.getDate() - 4)
+    const bare = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    const ts = `${bare}T23:50:55-05:00`
+    const result = daysAgo(ts)
+    // The -05:00 offset shifts the effective UTC time forward by 5 hours
+    // So the result should still be approximately 4 days (within 1 day of rounding)
+    expect(result).toBeGreaterThanOrEqual(3)
+    expect(result).toBeLessThanOrEqual(5)
+  })
+
   it('handles Supabase-style timestamptz format', () => {
     // Supabase returns timestamps like: 2026-03-28T23:50:55+00:00
     const d = new Date()
@@ -162,6 +175,30 @@ describe('fmtDate', () => {
     expect(result).toContain('Jan')
     expect(result).toContain('1')
     expect(result).toContain('2026')
+  })
+
+  it('formats Supabase timestamptz with microseconds and full offset (+00:00)', () => {
+    const result = fmtDate('2026-03-28T23:50:55.236187+00:00')
+    expect(result).toContain('Mar')
+    expect(result).toContain('2026')
+    expect(result).toMatch(/28|29/) // timezone-dependent
+  })
+
+  it('returns em dash for Supabase short offset format (+00) which JS cannot parse', () => {
+    // Supabase can return timestamps like "2026-03-28 23:50:55.236187+00"
+    // JavaScript Date constructor cannot parse the abbreviated +00 offset
+    // fmtDate should gracefully return em dash rather than crashing
+    expect(fmtDate('2026-03-28T23:50:55.236187+00')).toBe('—')
+  })
+
+  it('returns em dash for string containing T but not a valid date: "This is Text"', () => {
+    // The string contains 'T' which triggers the timestamp branch,
+    // but it is not a valid date — should return em dash
+    expect(fmtDate('This is Text')).toBe('—')
+  })
+
+  it('returns em dash for tricky non-date with T: "Total"', () => {
+    expect(fmtDate('Total')).toBe('—')
   })
 
   it('handles late-night timestamp without timezone shift', () => {

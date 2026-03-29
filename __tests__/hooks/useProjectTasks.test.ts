@@ -603,6 +603,154 @@ describe('useProjectTasks', () => {
     expect(keys).toContain('setTaskReasons')
   })
 
+  // ── cancelCascade — reverts taskStates to previousStatus ────────────────
+
+  it('cancelCascade reverts taskStates to previousStatus', async () => {
+    const { supabase } = buildTrackedSupabase()
+    supabase.from = vi.fn(() => buildChain({ data: [], error: null }))
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useProjectTasks } = await import('@/lib/hooks/useProjectTasks')
+    const opts = makeOpts()
+    const { result } = renderHook(() => useProjectTasks(opts))
+
+    // Set a task to Complete first
+    await act(async () => {
+      await result.current.updateTaskStatus('welcome', 'Complete')
+    })
+    expect(result.current.taskStates.welcome).toBe('Complete')
+
+    // Simulate a cascade confirm scenario: set cascadeConfirm with previousStatus
+    await act(async () => {
+      result.current.setCascadeConfirm({
+        taskId: 'welcome',
+        taskName: 'Welcome Call',
+        resets: [],
+        previousStatus: 'Complete',
+      })
+    })
+    expect(result.current.cascadeConfirm).not.toBeNull()
+
+    // Now cancel the cascade — should revert welcome back to Complete
+    // First, set the status to Revision Required (simulating the optimistic update)
+    await act(async () => {
+      await result.current.updateTaskStatus('welcome', 'Revision Required')
+    })
+    expect(result.current.taskStates.welcome).toBe('Revision Required')
+
+    // Re-set cascadeConfirm since updateTaskStatus may have modified it
+    await act(async () => {
+      result.current.setCascadeConfirm({
+        taskId: 'welcome',
+        taskName: 'Welcome Call',
+        resets: [],
+        previousStatus: 'Complete',
+      })
+    })
+
+    // Cancel should revert
+    await act(async () => {
+      result.current.cancelCascade()
+    })
+
+    expect(result.current.taskStates.welcome).toBe('Complete')
+    expect(result.current.cascadeConfirm).toBeNull()
+  })
+
+  it('cancelCascade with undefined previousStatus does not crash', async () => {
+    const { supabase } = buildTrackedSupabase()
+    supabase.from = vi.fn(() => buildChain({ data: [], error: null }))
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useProjectTasks } = await import('@/lib/hooks/useProjectTasks')
+    const opts = makeOpts()
+    const { result } = renderHook(() => useProjectTasks(opts))
+
+    // Set cascadeConfirm without previousStatus (undefined)
+    await act(async () => {
+      result.current.setCascadeConfirm({
+        taskId: 'welcome',
+        taskName: 'Welcome Call',
+        resets: [],
+        // no previousStatus
+      })
+    })
+
+    // Should not throw
+    await act(async () => {
+      result.current.cancelCascade()
+    })
+
+    expect(result.current.cascadeConfirm).toBeNull()
+  })
+
+  it('cancelCascade with null cascadeConfirm is a no-op', async () => {
+    const { supabase } = buildTrackedSupabase()
+    supabase.from = vi.fn(() => buildChain({ data: [], error: null }))
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useProjectTasks } = await import('@/lib/hooks/useProjectTasks')
+    const opts = makeOpts()
+    const { result } = renderHook(() => useProjectTasks(opts))
+
+    // cascadeConfirm is already null — should not throw
+    await act(async () => {
+      result.current.cancelCascade()
+    })
+
+    expect(result.current.cascadeConfirm).toBeNull()
+  })
+
+  // ── Multiple rapid updateTaskStatus calls ──────────────────────────────
+
+  it('multiple rapid updateTaskStatus calls do not corrupt state', async () => {
+    const { supabase } = buildTrackedSupabase()
+    supabase.from = vi.fn(() => buildChain({ data: [], error: null }))
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useProjectTasks } = await import('@/lib/hooks/useProjectTasks')
+    const opts = makeOpts()
+    const { result } = renderHook(() => useProjectTasks(opts))
+
+    // Fire two rapid status updates on different tasks
+    await act(async () => {
+      await Promise.all([
+        result.current.updateTaskStatus('welcome', 'In Progress'),
+        result.current.updateTaskStatus('ia', 'Complete'),
+      ])
+    })
+
+    // Both should be set without one overwriting the other
+    expect(result.current.taskStates.welcome).toBe('In Progress')
+    expect(result.current.taskStates.ia).toBe('Complete')
+  })
+
+  it('multiple rapid updateTaskStatus calls on the same task keeps last value', async () => {
+    const { supabase } = buildTrackedSupabase()
+    supabase.from = vi.fn(() => buildChain({ data: [], error: null }))
+
+    vi.doMock('@/lib/supabase/client', () => ({ createClient: () => supabase }))
+
+    const { useProjectTasks } = await import('@/lib/hooks/useProjectTasks')
+    const opts = makeOpts()
+    const { result } = renderHook(() => useProjectTasks(opts))
+
+    // Rapid updates on the same task
+    await act(async () => {
+      await result.current.updateTaskStatus('welcome', 'In Progress')
+    })
+    await act(async () => {
+      await result.current.updateTaskStatus('welcome', 'Complete')
+    })
+
+    // Last write wins
+    expect(result.current.taskStates.welcome).toBe('Complete')
+  })
+
   // ── canAdvance helper (internal, tested indirectly) ────────────────────
 
   it('auto-advances stage when all required tasks are Complete', async () => {

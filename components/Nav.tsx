@@ -46,16 +46,16 @@ const MORE_SECTIONS: LinkSection[] = [
     section: 'Supply Chain',
     links: [
       { label: 'Vendors',       href: '/vendors'  },
-      { label: 'Documents',     href: '/documents' },
     ],
   },
   {
     section: 'Tools',
     links: [
-      { label: 'Atlas',   href: '/reports'  },
-      { label: 'Permits', href: '/permits'  },
-      { label: 'Warranty', href: '/warranty' },
-      { label: 'Fleet',   href: '/fleet',   flagKey: 'fleet_management' },
+      { label: 'Atlas',     href: '/reports'  },
+      { label: 'Permits',   href: '/permits'  },
+      { label: 'Documents', href: '/documents' },
+      { label: 'Warranty',  href: '/warranty' },
+      { label: 'Fleet',     href: '/fleet',   flagKey: 'fleet_management' },
     ],
   },
   {
