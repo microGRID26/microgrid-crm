@@ -48,6 +48,7 @@ export async function loadProjectAdders(projectId: string) {
     .select('*')
     .eq('project_id', projectId)
     .order('created_at', { ascending: true })
+    .limit(500)
   if (error) console.error('adders load failed:', error)
   return { data: data ?? [], error }
 }

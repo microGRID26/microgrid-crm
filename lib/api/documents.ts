@@ -46,6 +46,7 @@ export async function loadProjectFiles(projectId: string): Promise<ProjectFile[]
     .eq('project_id', projectId)
     .order('folder_name')
     .order('file_name')
+    .limit(2000)
   if (error) { console.error('loadProjectFiles error:', error); return [] }
   return (data ?? []) as ProjectFile[]
 }
@@ -97,7 +98,7 @@ export async function loadAllProjectFiles(
 }
 
 export async function loadDocumentRequirements(stage?: string): Promise<DocumentRequirement[]> {
-  let query = db().from('document_requirements').select('*').eq('active', true).order('sort_order')
+  let query = db().from('document_requirements').select('*').eq('active', true).order('sort_order').limit(500)
   if (stage) query = query.eq('stage', stage)
   const { data, error } = await query
   if (error) { console.error('loadDocumentRequirements error:', error); return [] }
@@ -109,6 +110,7 @@ export async function loadProjectDocuments(projectId: string): Promise<ProjectDo
     .from('project_documents')
     .select('*')
     .eq('project_id', projectId)
+    .limit(500)
   if (error) { console.error('loadProjectDocuments error:', error); return [] }
   return (data ?? []) as ProjectDocument[]
 }

@@ -33,7 +33,7 @@ export const EQUIPMENT_CATEGORIES: { value: EquipmentCategory; label: string }[]
  */
 export async function loadEquipment(category?: string): Promise<Equipment[]> {
   const supabase = db()
-  let q = supabase.from('equipment').select('*').eq('active', true).order('sort_order').order('name')
+  let q = supabase.from('equipment').select('*').eq('active', true).order('sort_order').order('name').limit(5000)
   if (category) q = q.eq('category', category)
   const { data, error } = await q
   if (error) console.error('[loadEquipment]', error.message)
@@ -72,6 +72,7 @@ export async function loadAllEquipment(): Promise<Equipment[]> {
     .order('category')
     .order('sort_order')
     .order('name')
+    .limit(5000)
   if (error) console.error('[loadAllEquipment]', error.message)
   return (data ?? []) as Equipment[]
 }

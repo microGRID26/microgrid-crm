@@ -470,13 +470,13 @@ export default function FleetPage() {
                     <tr className="border-b border-gray-700 bg-gray-800/50">
                       <SortHeader field="vehicle_number" label="Vehicle #" />
                       <SortHeader field="make" label="Make / Model" />
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">Year</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 hidden lg:table-cell">Year</th>
                       <SortHeader field="assigned_crew" label="Crew" />
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">Driver</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 hidden lg:table-cell">Driver</th>
                       <SortHeader field="status" label="Status" />
-                      <SortHeader field="odometer" label="Odometer" />
-                      <SortHeader field="next_inspection_date" label="Next Service" />
-                      <SortHeader field="insurance_expiry" label="Insurance" />
+                      <SortHeader field="odometer" label="Odometer" className="hidden lg:table-cell" />
+                      <SortHeader field="next_inspection_date" label="Next Service" className="hidden md:table-cell" />
+                      <SortHeader field="insurance_expiry" label="Insurance" className="hidden md:table-cell" />
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">Alerts</th>
                     </tr>
                   </thead>
@@ -715,22 +715,22 @@ function ExpandableRow({
       >
         <td className="px-3 py-2.5 font-medium text-white">{v.vehicle_number}</td>
         <td className="px-3 py-2.5 text-gray-300">{[v.make, v.model].filter(Boolean).join(' ') || '—'}</td>
-        <td className="px-3 py-2.5 text-gray-400">{v.year ?? '—'}</td>
+        <td className="px-3 py-2.5 text-gray-400 hidden lg:table-cell">{v.year ?? '—'}</td>
         <td className="px-3 py-2.5 text-gray-300">{v.assigned_crew ?? '—'}</td>
-        <td className="px-3 py-2.5 text-gray-300">{v.assigned_driver ?? '—'}</td>
+        <td className="px-3 py-2.5 text-gray-300 hidden lg:table-cell">{v.assigned_driver ?? '—'}</td>
         <td className="px-3 py-2.5">
           <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium', STATUS_COLORS[v.status])}>
             {STATUS_LABELS[v.status]}
           </span>
         </td>
-        <td className="px-3 py-2.5 text-gray-400">{v.odometer ? v.odometer.toLocaleString() : '—'}</td>
-        <td className="px-3 py-2.5 text-gray-400">
+        <td className="px-3 py-2.5 text-gray-400 hidden lg:table-cell">{v.odometer ? v.odometer.toLocaleString() : '—'}</td>
+        <td className="px-3 py-2.5 text-gray-400 hidden md:table-cell">
           {v.next_inspection_date ? fmtDate(v.next_inspection_date) : '—'}
           {inspDays !== null && inspDays <= 30 && inspDays >= 0 && (
             <span className="ml-1 text-[10px] text-amber-400">({inspDays}d)</span>
           )}
         </td>
-        <td className="px-3 py-2.5 text-gray-400">
+        <td className="px-3 py-2.5 text-gray-400 hidden md:table-cell">
           {v.insurance_expiry ? fmtDate(v.insurance_expiry) : '—'}
         </td>
         <td className="px-3 py-2.5">

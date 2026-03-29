@@ -77,7 +77,7 @@ export interface VehicleFilters {
  */
 export async function loadVehicles(filters?: VehicleFilters): Promise<Vehicle[]> {
   const supabase = db()
-  let q = supabase.from('vehicles').select('*').order('vehicle_number')
+  let q = supabase.from('vehicles').select('*').order('vehicle_number').limit(500)
   if (filters?.status) q = q.eq('status', filters.status)
   if (filters?.crew) q = q.eq('assigned_crew', filters.crew)
   if (filters?.search) {

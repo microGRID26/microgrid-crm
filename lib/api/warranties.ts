@@ -62,6 +62,7 @@ export async function loadProjectWarranties(projectId: string): Promise<Equipmen
     .select('*')
     .eq('project_id', projectId)
     .order('equipment_type')
+    .limit(500)
   if (error) console.error('[loadProjectWarranties]', error.message)
   return (data ?? []) as EquipmentWarranty[]
 }
@@ -132,6 +133,7 @@ export async function loadWarrantyClaims(warrantyId: string): Promise<WarrantyCl
     .select('*')
     .eq('warranty_id', warrantyId)
     .order('created_at', { ascending: false })
+    .limit(500)
   if (error) console.error('[loadWarrantyClaims]', error.message)
   return (data ?? []) as WarrantyClaim[]
 }
@@ -189,6 +191,7 @@ export async function loadExpiringWarranties(daysAhead: number = 90): Promise<Eq
     .gte('warranty_end_date', today)
     .lte('warranty_end_date', future)
     .order('warranty_end_date')
+    .limit(2000)
   if (error) console.error('[loadExpiringWarranties]', error.message)
   return (data ?? []) as EquipmentWarranty[]
 }

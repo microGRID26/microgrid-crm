@@ -13,7 +13,7 @@ import {
 import type { ProjectMaterial, WarehouseStock, PurchaseOrder, POLineItem } from '@/lib/api/inventory'
 import { loadProjects } from '@/lib/api'
 import { escapeIlike, fmtDate, fmt$ } from '@/lib/utils'
-import { Package, Search, Warehouse, ShoppingCart, ChevronDown, ChevronUp, Truck, CheckCircle2, X, AlertTriangle } from 'lucide-react'
+import { Package, Search, Warehouse, ShoppingCart, ChevronDown, ChevronUp, Truck, CheckCircle2, X, AlertTriangle, Download } from 'lucide-react'
 import { searchVendors } from '@/lib/api/vendors'
 import type { Vendor } from '@/lib/api/vendors'
 import { useCurrentUser } from '@/lib/useCurrentUser'
@@ -265,6 +265,32 @@ export default function InventoryPage() {
     return sort.dir === 'asc' ? ' \u25B2' : ' \u25BC'
   }
 
+  // ── CSV Export (materials tab) ──────────────────────────────────────────────
+  function exportMaterialsCSV() {
+    const headers = ['Project ID', 'Item Name', 'Category', 'Quantity', 'Unit', 'Source', 'Vendor', 'Status', 'PO Number', 'Expected Date', 'Delivered Date']
+    const rows = filtered.map(m => [
+      m.project_id,
+      m.name,
+      m.category ?? '',
+      m.quantity ?? '',
+      m.unit ?? '',
+      m.source ?? '',
+      m.vendor ?? '',
+      m.status ?? '',
+      m.po_number ?? '',
+      m.expected_date ?? '',
+      m.delivered_date ?? '',
+    ])
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `project-materials-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // ── Auth gate: Manager+ required ──────────────────────────────────────────
   const isManager = authUser?.isManager ?? false
 
@@ -407,6 +433,10 @@ export default function InventoryPage() {
                   <option key={s} value={s}>{s === 'tbd' ? 'TBD' : s.charAt(0).toUpperCase() + s.slice(1)}</option>
                 ))}
               </select>
+              <button onClick={exportMaterialsCSV} aria-label="Export materials to CSV"
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors shrink-0 ml-auto">
+                <Download className="w-3.5 h-3.5" /> Export CSV
+              </button>
             </div>
 
             {/* Table */}

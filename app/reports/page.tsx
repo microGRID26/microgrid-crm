@@ -6,7 +6,7 @@ import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { fmt$, fmtDate, cn } from '@/lib/utils'
 import type { Project } from '@/types/database'
-import { createClient } from '@/lib/supabase/client'
+import { loadProjectById } from '@/lib/api'
 import {
   Send,
   Download,
@@ -322,9 +322,8 @@ export default function ReportsPage() {
 
   // Load a project by ID for ProjectPanel
   const handleClickProject = useCallback(async (id: string) => {
-    const supabase = createClient()
-    const { data } = await supabase.from('projects').select('*').eq('id', id).single()
-    if (data) setSelectedProject(data as Project)
+    const data = await loadProjectById(id)
+    if (data) setSelectedProject(data)
   }, [])
 
   const sendMessage = useCallback(async (text: string) => {

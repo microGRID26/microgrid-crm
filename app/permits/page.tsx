@@ -224,6 +224,14 @@ export default function PermitsPage() {
     )
   }
 
+  if (!authUser.isManager) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-400 text-sm">You don&apos;t have permission to view this page.</div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
       <Nav active="Permits" />

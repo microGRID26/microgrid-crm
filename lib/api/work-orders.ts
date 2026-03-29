@@ -179,7 +179,7 @@ export async function loadWorkOrder(id: string): Promise<{ wo: WorkOrder; checkl
   const supabase = createClient()
   const [woRes, checkRes] = await Promise.all([
     supabase.from('work_orders').select('*').eq('id', id).maybeSingle(),
-    supabase.from('wo_checklist_items').select('*').eq('work_order_id', id).order('sort_order', { ascending: true }),
+    supabase.from('wo_checklist_items').select('*').eq('work_order_id', id).order('sort_order', { ascending: true }).limit(500),
   ])
 
   if (woRes.error || !woRes.data) {

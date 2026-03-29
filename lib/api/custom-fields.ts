@@ -43,7 +43,7 @@ export const FIELD_TYPES: { value: CustomFieldType; label: string }[] = [
  */
 export async function loadFieldDefinitions(activeOnly?: boolean): Promise<CustomFieldDefinition[]> {
   const supabase = db()
-  let q = supabase.from('custom_field_definitions').select('*').order('sort_order').order('created_at')
+  let q = supabase.from('custom_field_definitions').select('*').order('sort_order').order('created_at').limit(500)
   if (activeOnly) q = q.eq('active', true)
   const { data, error } = await q
   if (error) console.error('[loadFieldDefinitions]', error.message)
@@ -96,7 +96,7 @@ export async function deleteFieldDefinition(id: string): Promise<boolean> {
  */
 export async function loadProjectCustomFields(projectId: string): Promise<CustomFieldValue[]> {
   const supabase = db()
-  const { data, error } = await supabase.from('custom_field_values').select('*').eq('project_id', projectId)
+  const { data, error } = await supabase.from('custom_field_values').select('*').eq('project_id', projectId).limit(500)
   if (error) console.error('[loadProjectCustomFields]', error.message)
   return (data ?? []) as CustomFieldValue[]
 }

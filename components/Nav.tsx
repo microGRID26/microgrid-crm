@@ -30,21 +30,47 @@ const SALES_LINKS = [
   { label: 'Schedule', href: '/schedule' },
 ]
 
-const MORE_LINKS: { label: string; href: string; flagKey?: string }[] = [
-  { label: 'Service',       href: '/service'  },
-  { label: 'Change Orders', href: '/change-orders' },
-  { label: 'Work Orders',   href: '/work-orders' },
-  { label: 'Warranty',      href: '/warranty' },
-  { label: 'Vendors',       href: '/vendors'  },
-  { label: 'Atlas',          href: '/reports'  },
-  { label: 'Permits',       href: '/permits'   },
-  { label: 'Documents',     href: '/documents' },
-  { label: 'Fleet',         href: '/fleet',    flagKey: 'fleet_management' },
-  { label: 'Redesign',      href: '/redesign' },
-  { label: 'Legacy',        href: '/legacy'   },
+type LinkItem = { label: string; href: string; flagKey?: string }
+type LinkSection = { section: string; links: LinkItem[] }
+
+const MORE_SECTIONS: LinkSection[] = [
+  {
+    section: 'Operations',
+    links: [
+      { label: 'Service',       href: '/service'  },
+      { label: 'Work Orders',   href: '/work-orders' },
+      { label: 'Change Orders', href: '/change-orders' },
+    ],
+  },
+  {
+    section: 'Supply Chain',
+    links: [
+      { label: 'Vendors',       href: '/vendors'  },
+      { label: 'Documents',     href: '/documents' },
+    ],
+  },
+  {
+    section: 'Tools',
+    links: [
+      { label: 'Atlas',   href: '/reports'  },
+      { label: 'Permits', href: '/permits'  },
+      { label: 'Warranty', href: '/warranty' },
+      { label: 'Fleet',   href: '/fleet',   flagKey: 'fleet_management' },
+    ],
+  },
+  {
+    section: 'Design',
+    links: [
+      { label: 'Redesign', href: '/redesign' },
+      { label: 'Legacy',   href: '/legacy'   },
+    ],
+  },
 ]
 
-const ALL_LINKS = [...PRIMARY_LINKS, ...MORE_LINKS]
+/** Flat list of all More links (for active detection and mobile drawer) */
+const MORE_LINKS_FLAT: LinkItem[] = MORE_SECTIONS.flatMap(s => s.links)
+
+const ALL_LINKS = [...PRIMARY_LINKS, ...MORE_LINKS_FLAT]
 
 const GEAR_ICON = (
   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,17 +95,20 @@ const HELP_ICON = (
   </svg>
 )
 
-/** "More" dropdown for secondary nav links */
+/** "More" dropdown for secondary nav links — grouped by section */
 function MoreDropdown({ active, isAdmin, userId, userRole }: { active: string; isAdmin: boolean; userId?: string; userRole?: string }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const { flags } = useFeatureFlags()
-  const isMoreActive = MORE_LINKS.some(l => l.label === active) || active === 'Audit Trail'
+  const isMoreActive = MORE_LINKS_FLAT.some(l => l.label === active) || active === 'Audit Trail'
 
-  // Filter links by feature flags — links without flagKey are always shown
-  const visibleLinks = MORE_LINKS.filter(link =>
-    !link.flagKey || isFeatureEnabled(flags, link.flagKey, userId, userRole)
-  )
+  // Filter sections by feature flags — links without flagKey are always shown
+  const visibleSections = MORE_SECTIONS.map(section => ({
+    ...section,
+    links: section.links.filter(link =>
+      !link.flagKey || isFeatureEnabled(flags, link.flagKey, userId, userRole)
+    ),
+  })).filter(section => section.links.length > 0)
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -103,21 +132,29 @@ function MoreDropdown({ active, isAdmin, userId, userRole }: { active: string; i
       </button>
       {open && (
         <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 min-w-[180px] py-1">
-          {visibleLinks.map(v => (
-            <a key={v.label} href={v.href} onClick={() => setOpen(false)}
-              className={`block px-4 py-2 text-xs transition-colors ${
-                v.label === active
-                  ? 'text-green-400 bg-gray-700/50'
-                  : 'text-gray-300 hover:text-white hover:bg-gray-700'
-              }`}>
-              {v.label}
-            </a>
+          {visibleSections.map((section, si) => (
+            <div key={section.section}>
+              {si > 0 && <div className="border-t border-gray-700/50 my-1" />}
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium px-3 py-1 mt-1">
+                {section.section}
+              </div>
+              {section.links.map(v => (
+                <a key={v.label} href={v.href} onClick={() => setOpen(false)}
+                  className={`block px-4 py-1.5 text-xs transition-colors ${
+                    v.label === active
+                      ? 'text-green-400 bg-gray-700/50'
+                      : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                  }`}>
+                  {v.label}
+                </a>
+              ))}
+            </div>
           ))}
           {isAdmin && (
             <>
-              <div className="border-t border-gray-700 my-1" />
+              <div className="border-t border-gray-700/50 my-1" />
               <a href="/audit-trail" onClick={() => setOpen(false)}
-                className={`block px-4 py-2 text-xs transition-colors ${
+                className={`block px-4 py-1.5 text-xs transition-colors ${
                   active === 'Audit Trail'
                     ? 'text-green-400 bg-gray-700/50'
                     : 'text-gray-300 hover:text-white hover:bg-gray-700'
@@ -276,20 +313,61 @@ export function Nav({ active, right, onNewProject }: NavProps) {
                 </button>
               )}
 
-              {(isSales ? [...SALES_LINKS, { label: 'Help', href: '/help' }] : ALL_LINKS.filter(link => {
-                const fk = (link as { flagKey?: string }).flagKey
-                return !fk || isFeatureEnabled(flags, fk, currentUser?.id, currentUser?.role)
-              })).map(v => (
-                <a key={v.label} href={v.href}
-                  onClick={() => setDrawerOpen(false)}
-                  className={`block py-3 px-4 text-base font-medium transition-colors ${
-                    v.label === active
-                      ? 'text-green-400 bg-gray-900'
-                      : 'text-gray-300 active:bg-gray-800'
-                  }`}>
-                  {v.label}
-                </a>
-              ))}
+              {isSales ? (
+                [...SALES_LINKS, { label: 'Help', href: '/help' }].map(v => (
+                  <a key={v.label} href={v.href}
+                    onClick={() => setDrawerOpen(false)}
+                    className={`block py-3 px-4 text-base font-medium transition-colors ${
+                      v.label === active
+                        ? 'text-green-400 bg-gray-900'
+                        : 'text-gray-300 active:bg-gray-800'
+                    }`}>
+                    {v.label}
+                  </a>
+                ))
+              ) : (
+                <>
+                  {/* Primary links */}
+                  {PRIMARY_LINKS.map(v => (
+                    <a key={v.label} href={v.href}
+                      onClick={() => setDrawerOpen(false)}
+                      className={`block py-3 px-4 text-base font-medium transition-colors ${
+                        v.label === active
+                          ? 'text-green-400 bg-gray-900'
+                          : 'text-gray-300 active:bg-gray-800'
+                      }`}>
+                      {v.label}
+                    </a>
+                  ))}
+
+                  {/* Grouped More sections */}
+                  {MORE_SECTIONS.map(section => {
+                    const sectionLinks = section.links.filter(link =>
+                      !link.flagKey || isFeatureEnabled(flags, link.flagKey, currentUser?.id, currentUser?.role)
+                    )
+                    if (sectionLinks.length === 0) return null
+                    return (
+                      <div key={section.section}>
+                        <div className="border-t border-gray-800 my-1" />
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium px-4 pt-2 pb-1">
+                          {section.section}
+                        </div>
+                        {sectionLinks.map(v => (
+                          <a key={v.label} href={v.href}
+                            onClick={() => setDrawerOpen(false)}
+                            className={`block py-3 px-4 text-base font-medium transition-colors ${
+                              v.label === active
+                                ? 'text-green-400 bg-gray-900'
+                                : 'text-gray-300 active:bg-gray-800'
+                            }`}>
+                            {v.label}
+                          </a>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </>
+              )}
 
               {/* Divider */}
               <div className="border-t border-gray-800 my-2" />

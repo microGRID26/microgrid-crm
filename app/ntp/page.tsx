@@ -13,9 +13,10 @@ import {
 } from '@/lib/api/ntp'
 import type { NTPRequest, NTPStatus } from '@/lib/api/ntp'
 import type { Project } from '@/types/database'
+import { loadProjectById } from '@/lib/api'
 import { db } from '@/lib/db'
 import { sendToEdge } from '@/lib/api/edge-sync'
-import { ClipboardCheck, CheckCircle, XCircle, AlertTriangle, Clock, Search, Plus, ChevronDown, ChevronUp, X, Eye } from 'lucide-react'
+import { ClipboardCheck, CheckCircle, XCircle, AlertTriangle, Clock, Search, Plus, ChevronDown, ChevronUp, X, Eye, Download } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -484,9 +485,8 @@ export default function NTPPage() {
 
   // Open project panel
   async function openProjectPanel(projectId: string) {
-    const supabase = db()
-    const { data } = await supabase.from('projects').select('*').eq('id', projectId).single()
-    if (data) setOpenProject(data as Project)
+    const data = await loadProjectById(projectId)
+    if (data) setOpenProject(data)
   }
 
   // Filter + sort
@@ -526,11 +526,43 @@ export default function NTPPage() {
     else { setSortCol(col); setSortAsc(false) }
   }
 
+  // ── CSV Export ──────────────────────────────────────────────────────────────
+  function exportCSV() {
+    const headers = ['Project ID', 'Project Name', 'EPC', 'Status', 'Submitted By', 'Submitted Date', 'Reviewer', 'Reviewed Date', 'Notes']
+    const rows = filtered.map(r => [
+      r.project_id,
+      projectMap[r.project_id]?.name ?? '',
+      orgMap[r.requesting_org] ?? r.requesting_org ?? '',
+      NTP_STATUS_LABELS[r.status] ?? r.status,
+      r.submitted_by ?? '',
+      r.submitted_at ? r.submitted_at.slice(0, 10) : '',
+      r.reviewed_by ?? '',
+      r.reviewed_at ? r.reviewed_at.slice(0, 10) : '',
+      r.notes ?? '',
+    ])
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `ntp-requests-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (userLoading || orgLoading) {
     return (
       <div className="min-h-screen bg-gray-950">
         <Nav active="NTP" />
         <div className="flex items-center justify-center h-64 text-gray-500">Loading...</div>
+      </div>
+    )
+  }
+
+  if (currentUser && !currentUser.isManager) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-400 text-sm">You don&apos;t have permission to view this page.</div>
       </div>
     )
   }
@@ -583,20 +615,26 @@ export default function NTPPage() {
           )}
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by project ID, name, or submitter..."
-            className="w-full bg-gray-900 text-white border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-green-500"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
-              <X className="w-4 h-4" />
-            </button>
-          )}
+        {/* Search + Export */}
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by project ID, name, or submitter..."
+              className="w-full bg-gray-900 text-white border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-green-500"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button onClick={exportCSV} aria-label="Export NTP requests to CSV"
+            className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors shrink-0">
+            <Download className="w-3.5 h-3.5" /> Export CSV
+          </button>
         </div>
 
         {/* Table */}

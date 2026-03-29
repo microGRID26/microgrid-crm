@@ -119,7 +119,7 @@ export async function searchProjects(query: string, limit = 10): Promise<Pick<Pr
 
 export async function loadUsers(domainFilter?: string) {
   const supabase = createClient()
-  let query = supabase.from('users').select('id, name, email, role').eq('active', true).order('name')
+  let query = supabase.from('users').select('id, name, email, role').eq('active', true).order('name').limit(500)
   if (domainFilter) {
     query = query.like('email', `%@${domainFilter}`)
   }

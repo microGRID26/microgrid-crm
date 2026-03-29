@@ -157,7 +157,7 @@ const HARDCODED_SECTIONS: QueueSectionConfig[] = [
 ]
 
 export default function QueuePage() {
-  const { user: currentUser } = useCurrentUser()
+  const { user: currentUser, loading: userLoading } = useCurrentUser()
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [showNewProject, setShowNewProject] = useState(false)
   const [userPm, setUserPm] = useState<string>(() => {
@@ -507,6 +507,14 @@ export default function QueuePage() {
   // Ref for scrolling to follow-ups section
   const followUpsRef = useRef<HTMLDivElement>(null)
 
+  if (!userLoading && currentUser && !currentUser.isManager) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-400 text-sm">You don&apos;t have permission to view this page.</div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -556,7 +564,7 @@ export default function QueuePage() {
         </>} />
 
       {/* ── Smart Filters Toolbar ─────────────────────────────────────── */}
-      <div className="bg-gray-900 border-b border-gray-800 px-6 py-3 space-y-2">
+      <div className="bg-gray-900 border-b border-gray-800 px-3 sm:px-6 py-3 space-y-2">
         {/* Stage chips */}
         <div className="flex items-center gap-2 flex-wrap">
           {FILTER_STAGES.map(stage => (
@@ -630,12 +638,12 @@ export default function QueuePage() {
       </div>
 
       {/* ── Stat Cards ────────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border-b border-gray-800 px-6 py-3">
-        <div className="flex items-stretch gap-3 flex-wrap">
+      <div className="bg-gray-900 border-b border-gray-800 px-3 sm:px-6 py-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {/* Total */}
           <button
             onClick={clearAllFilters}
-            className={`flex-1 min-w-[100px] max-w-[160px] rounded-lg px-4 py-2.5 text-left transition-colors border ${
+            className={`rounded-lg px-4 py-2.5 text-left transition-colors border ${
               !hasActiveFilters ? 'border-green-600 bg-green-950/30' : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
             }`}
           >
@@ -645,7 +653,7 @@ export default function QueuePage() {
           {/* Blocked */}
           <button
             onClick={() => setFilters(prev => ({ ...prev, blockedOnly: !prev.blockedOnly }))}
-            className={`flex-1 min-w-[100px] max-w-[160px] rounded-lg px-4 py-2.5 text-left transition-colors border ${
+            className={`rounded-lg px-4 py-2.5 text-left transition-colors border ${
               filters.blockedOnly ? 'border-red-600 bg-red-950/30' : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
             }`}
           >
@@ -658,13 +666,13 @@ export default function QueuePage() {
               if (collapsed.followups) toggleBucket('followups')
               followUpsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }}
-            className="flex-1 min-w-[100px] max-w-[160px] rounded-lg px-4 py-2.5 text-left transition-colors border border-gray-700 bg-gray-800/50 hover:border-amber-600"
+            className="rounded-lg px-4 py-2.5 text-left transition-colors border border-gray-700 bg-gray-800/50 hover:border-amber-600"
           >
             <div className="text-[10px] text-gray-500 uppercase tracking-wider">Follow-ups</div>
             <div className={`text-xl font-bold font-mono ${followUps.length ? 'text-amber-400' : 'text-white'}`}>{followUps.length}</div>
           </button>
           {/* Portfolio Value */}
-          <div className="flex-1 min-w-[120px] max-w-[180px] rounded-lg px-4 py-2.5 text-left border border-gray-700 bg-gray-800/50">
+          <div className="rounded-lg px-4 py-2.5 text-left border border-gray-700 bg-gray-800/50">
             <div className="text-[10px] text-gray-500 uppercase tracking-wider">Portfolio</div>
             <div className="text-xl font-bold text-white font-mono">{fmt$(portfolioValue)}</div>
           </div>
@@ -871,6 +879,18 @@ export default function QueuePage() {
           <div className="text-center py-16 text-gray-500">
             <div className="text-3xl mb-3">&#10003;</div>
             <div>No projects assigned to you.</div>
+          </div>
+        )}
+
+        {projects.length > 0 && filtered.length === 0 && hasActiveFilters && (
+          <div className="text-center py-12 text-gray-500 text-sm">
+            No projects found matching your filters.
+          </div>
+        )}
+
+        {projects.length > 0 && filtered.length > 0 && blocked.length === 0 && active.length === 0 && complete.length === 0 && filteredLoyalty.length === 0 && followUps.length === 0 && dynamicSections.every(s => s.items.length === 0) && (
+          <div className="text-center py-12 text-gray-500 text-sm">
+            No projects in any section{hasActiveFilters ? ' matching your filters' : ''}.
           </div>
         )}
       </div>

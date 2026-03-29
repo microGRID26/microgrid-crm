@@ -32,7 +32,7 @@ export const EQUIPMENT_TYPE_OPTIONS = ['modules', 'inverters', 'batteries', 'rac
  */
 export async function loadVendors(activeOnly?: boolean, orgId?: string | null): Promise<Vendor[]> {
   const supabase = db()
-  let q = supabase.from('vendors').select('*').order('name')
+  let q = supabase.from('vendors').select('*').order('name').limit(2000)
   if (activeOnly) q = q.eq('active', true)
   if (orgId) q = q.eq('org_id', orgId)
   const { data, error } = await q

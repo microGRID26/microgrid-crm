@@ -52,6 +52,7 @@ export async function loadCalendarSettings(): Promise<CalendarSettings[]> {
     .from('calendar_settings')
     .select('*')
     .order('crew_id', { ascending: true })
+    .limit(500)
   if (error) console.error('loadCalendarSettings failed:', error)
   return (data as CalendarSettings[]) ?? []
 }
@@ -82,6 +83,7 @@ export async function loadSyncStatus(scheduleIds: string[]): Promise<CalendarSyn
     .from('calendar_sync')
     .select('*')
     .in('schedule_id', scheduleIds)
+    .limit(2000)
   if (error) console.error('loadSyncStatus failed:', error)
   return (data as CalendarSyncEntry[]) ?? []
 }

@@ -12,7 +12,7 @@ import {
   WARRANTY_EQUIPMENT_TYPES,
 } from '@/lib/api/warranties'
 import type { EquipmentWarranty, WarrantyClaim } from '@/lib/api/warranties'
-import { createClient } from '@/lib/supabase/client'
+import { loadProjectById } from '@/lib/api'
 import type { Project } from '@/types/database'
 import { Shield, Search, Download, ChevronLeft, ChevronRight, AlertTriangle, LogIn } from 'lucide-react'
 
@@ -162,9 +162,8 @@ export default function WarrantyPage() {
 
   // ── Open ProjectPanel ───────────────────────────────────────────────────
   async function openProject(projectId: string) {
-    const supabase = createClient()
-    const { data } = await supabase.from('projects').select('*').eq('id', projectId).single()
-    if (data) setPanelProject(data as Project)
+    const data = await loadProjectById(projectId)
+    if (data) setPanelProject(data)
   }
 
   // ── CSV Export ──────────────────────────────────────────────────────────
@@ -221,6 +220,14 @@ export default function WarrantyPage() {
           <LogIn className="w-8 h-8 text-gray-500 mx-auto mb-2" />
           <div className="text-gray-400 text-sm">Sign in to view warranty tracking</div>
         </div>
+      </div>
+    )
+  }
+
+  if (!currentUser.isManager) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-400 text-sm">You don&apos;t have permission to view this page.</div>
       </div>
     )
   }

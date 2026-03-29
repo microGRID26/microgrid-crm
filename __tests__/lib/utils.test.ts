@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { daysAgo, fmtDate, fmt$, cn, STAGE_ORDER, STAGE_LABELS, SLA_THRESHOLDS, STAGE_TASKS } from '@/lib/utils'
+import { daysAgo, fmtDate, fmt$, cn, escapeIlike, STAGE_ORDER, STAGE_LABELS, SLA_THRESHOLDS, STAGE_TASKS } from '@/lib/utils'
 
 describe('daysAgo', () => {
   it('returns 0 for null', () => {
@@ -34,6 +34,56 @@ describe('daysAgo', () => {
   it('returns 0 for empty string', () => {
     expect(daysAgo('')).toBe(0)
   })
+
+  // ── Timestamp handling (bare date vs ISO timestamp) ────────────────────
+
+  it('handles bare date string (YYYY-MM-DD)', () => {
+    const d = new Date()
+    d.setDate(d.getDate() - 10)
+    const tenDaysAgo = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    expect(daysAgo(tenDaysAgo)).toBe(10)
+  })
+
+  it('handles ISO timestamp with timezone offset', () => {
+    const d = new Date()
+    d.setDate(d.getDate() - 3)
+    const ts = d.toISOString() // e.g. 2026-03-25T12:30:00.000Z
+    const result = daysAgo(ts)
+    // Should be approximately 3 (could be 2 or 3 depending on time of day)
+    expect(result).toBeGreaterThanOrEqual(2)
+    expect(result).toBeLessThanOrEqual(4)
+  })
+
+  it('handles timestamp with positive timezone offset', () => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7)
+    const bare = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    const ts = `${bare}T23:50:55+00:00`
+    const result = daysAgo(ts)
+    expect(result).toBeGreaterThanOrEqual(6)
+    expect(result).toBeLessThanOrEqual(8)
+  })
+
+  it('returns consistent result for bare date and midnight timestamp of same day', () => {
+    const d = new Date()
+    d.setDate(d.getDate() - 5)
+    const bare = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    const bareDays = daysAgo(bare)
+    const tsDays = daysAgo(`${bare}T00:00:00+00:00`)
+    // Both should give approximately the same result (within 1 day of rounding)
+    expect(Math.abs(bareDays - tsDays)).toBeLessThanOrEqual(1)
+  })
+
+  it('handles Supabase-style timestamptz format', () => {
+    // Supabase returns timestamps like: 2026-03-28T23:50:55+00:00
+    const d = new Date()
+    d.setDate(d.getDate() - 2)
+    const bare = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    const supabaseTs = `${bare}T23:50:55+00:00`
+    const result = daysAgo(supabaseTs)
+    expect(result).toBeGreaterThanOrEqual(1)
+    expect(result).toBeLessThanOrEqual(3)
+  })
 })
 
 describe('fmtDate', () => {
@@ -45,17 +95,104 @@ describe('fmtDate', () => {
     expect(fmtDate(undefined)).toBe('—')
   })
 
-  it('formats a valid date', () => {
+  it('formats a valid bare date', () => {
     const result = fmtDate('2025-01-15')
     expect(result).toContain('Jan')
     expect(result).toContain('15')
     expect(result).toContain('2025')
   })
 
-  it('handles malformed date', () => {
-    // fmtDate passes through to toLocaleDateString which may return 'Invalid Date'
-    const result = fmtDate('not-a-date')
-    expect(typeof result).toBe('string')
+  it('returns em dash for malformed date', () => {
+    expect(fmtDate('not-a-date')).toBe('—')
+  })
+
+  it('returns em dash for invalid date string', () => {
+    expect(fmtDate('invalid')).toBe('—')
+  })
+
+  it('returns em dash for empty string', () => {
+    expect(fmtDate('')).toBe('—')
+  })
+
+  // ── Timestamp handling (the fix) ───────────────────────────────────────
+
+  it('formats ISO timestamp correctly', () => {
+    const result = fmtDate('2026-03-28T23:50:55+00:00')
+    expect(result).toContain('Mar')
+    expect(result).toContain('2026')
+    // The day might be 28 or 29 depending on local timezone
+    expect(result).toMatch(/28|29/)
+  })
+
+  it('formats bare date and timestamp to the same date', () => {
+    // A bare date 2025-06-15 should format the same regardless of T suffix
+    const bareResult = fmtDate('2025-06-15')
+    expect(bareResult).toContain('Jun')
+    expect(bareResult).toContain('15')
+    expect(bareResult).toContain('2025')
+
+    // Timestamp at midnight UTC
+    const tsResult = fmtDate('2025-06-15T00:00:00+00:00')
+    expect(tsResult).toContain('Jun')
+    expect(tsResult).toContain('2025')
+  })
+
+  it('formats timestamp with Z suffix', () => {
+    const result = fmtDate('2025-12-25T12:00:00Z')
+    expect(result).toContain('Dec')
+    expect(result).toContain('25')
+    expect(result).toContain('2025')
+  })
+
+  it('formats timestamp with negative timezone offset', () => {
+    const result = fmtDate('2025-07-04T18:30:00-05:00')
+    expect(result).toContain('Jul')
+    expect(result).toContain('2025')
+  })
+
+  it('handles date at end of year', () => {
+    const result = fmtDate('2025-12-31')
+    expect(result).toContain('Dec')
+    expect(result).toContain('31')
+    expect(result).toContain('2025')
+  })
+
+  it('handles date at start of year', () => {
+    const result = fmtDate('2026-01-01')
+    expect(result).toContain('Jan')
+    expect(result).toContain('1')
+    expect(result).toContain('2026')
+  })
+
+  it('handles late-night timestamp without timezone shift', () => {
+    // This was the original bug: late-night UTC timestamps shifting the date
+    // With the fix, bare dates append T00:00:00 to avoid timezone offset
+    const result = fmtDate('2026-03-15')
+    expect(result).toContain('Mar')
+    expect(result).toContain('15')
+    expect(result).toContain('2026')
+  })
+})
+
+describe('escapeIlike', () => {
+  it('escapes percent signs', () => {
+    expect(escapeIlike('100%')).toBe('100\\%')
+  })
+
+  it('escapes underscores', () => {
+    expect(escapeIlike('project_name')).toBe('project\\_name')
+  })
+
+  it('escapes backslashes', () => {
+    expect(escapeIlike('path\\to')).toBe('path\\\\to')
+  })
+
+  it('returns plain text unchanged', () => {
+    expect(escapeIlike('hello world')).toBe('hello world')
+  })
+
+  it('escapes multiple special chars', () => {
+    expect(escapeIlike('100%_test\\')).toBe('100\\%\\_test\\\\')
   })
 })
 

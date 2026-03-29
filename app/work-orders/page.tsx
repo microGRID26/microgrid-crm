@@ -12,9 +12,9 @@ import {
 } from '@/lib/api/work-orders'
 import type { WorkOrder, WOChecklistItem, WorkOrderFilters } from '@/lib/api/work-orders'
 import type { Project } from '@/types/database'
-import { createClient } from '@/lib/supabase/client'
+import { loadProjectById, loadActiveCrews } from '@/lib/api'
 import { useRealtimeSubscription } from '@/lib/hooks'
-import { ClipboardList, Plus, ChevronDown, ChevronUp, X, Check, Trash2 } from 'lucide-react'
+import { ClipboardList, Plus, ChevronDown, ChevronUp, X, Check, Trash2, Download } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -82,9 +82,8 @@ function CreateWOModal({
   // Load crews
   useEffect(() => {
     async function load() {
-      const supabase = createClient()
-      const { data } = await supabase.from('crews').select('id, name').eq('active', 'TRUE').order('name')
-      if (data) setCrews(data as { id: string; name: string }[])
+      const { data } = await loadActiveCrews()
+      if (data) setCrews(data.map(c => ({ id: c.id, name: c.name })))
     }
     load()
   }, [])
@@ -606,9 +605,8 @@ export default function WorkOrdersPage() {
 
   // Open project panel
   async function handleOpenProject(projectId: string) {
-    const supabase = createClient()
-    const { data } = await supabase.from('projects').select('*').eq('id', projectId).maybeSingle()
-    if (data) setProjectPanel(data as Project)
+    const data = await loadProjectById(projectId)
+    if (data) setProjectPanel(data)
   }
 
   // Filter + search
@@ -639,10 +637,44 @@ export default function WorkOrdersPage() {
     total: workOrders.length,
   }), [workOrders])
 
+  // ── CSV Export ──────────────────────────────────────────────────────────────
+  function exportCSV() {
+    const headers = ['WO Number', 'Project ID', 'Type', 'Status', 'Assigned Crew', 'Assigned To', 'Scheduled Date', 'Priority', 'Started At', 'Completed At', 'Time On Site (min)']
+    const rows = filtered.map(wo => [
+      wo.wo_number,
+      wo.project_id,
+      TYPE_LABEL[wo.type] ?? wo.type,
+      STATUS_LABEL[wo.status] ?? wo.status,
+      wo.assigned_crew ?? '',
+      wo.assigned_to ?? '',
+      wo.scheduled_date ?? '',
+      wo.priority ?? '',
+      wo.started_at ? wo.started_at.slice(0, 19).replace('T', ' ') : '',
+      wo.completed_at ? wo.completed_at.slice(0, 19).replace('T', ' ') : '',
+      wo.time_on_site_minutes ?? '',
+    ])
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `work-orders-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (userLoading || loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-green-400 text-sm animate-pulse">Loading work orders...</div>
+      </div>
+    )
+  }
+
+  if (currentUser && !currentUser.isManager) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-400 text-sm">You don&apos;t have permission to view this page.</div>
       </div>
     )
   }
@@ -652,8 +684,8 @@ export default function WorkOrdersPage() {
       <Nav active="Work Orders" />
 
       {/* Header */}
-      <div className="bg-gray-950 border-b border-gray-800 px-6 py-5">
-        <div className="flex items-center justify-between mb-1">
+      <div className="bg-gray-950 border-b border-gray-800 px-4 sm:px-6 py-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
           <div>
             <h1 className="text-xl font-bold text-white flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-green-400" />
@@ -669,7 +701,7 @@ export default function WorkOrdersPage() {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-4 gap-4 mt-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
           {[
             { label: 'Open', value: stats.open, color: 'text-blue-400' },
             { label: 'In Progress', value: stats.inProgress, color: 'text-amber-400' },
@@ -685,7 +717,7 @@ export default function WorkOrdersPage() {
       </div>
 
       {/* Filter bar */}
-      <div className="bg-gray-950 border-b border-gray-800 flex items-center gap-3 px-6 py-2">
+      <div className="bg-gray-950 border-b border-gray-800 flex flex-wrap items-center gap-3 px-4 sm:px-6 py-2">
         <input
           type="text"
           value={search}
@@ -704,16 +736,26 @@ export default function WorkOrdersPage() {
           {WO_TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
         </select>
         <span className="text-xs text-gray-500 ml-auto">{filtered.length} work order{filtered.length !== 1 ? 's' : ''}</span>
+        <button onClick={exportCSV} aria-label="Export work orders to CSV"
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors shrink-0">
+          <Download className="w-3 h-3" /> Export
+        </button>
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto px-6 py-4">
+      <div className="flex-1 overflow-auto px-3 sm:px-6 py-4">
         {filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-500">
             <ClipboardList className="w-10 h-10 mx-auto mb-3 text-gray-700" />
-            <div className="text-sm">No work orders found</div>
-            <button onClick={() => setShowCreate(true)}
-              className="mt-3 text-sm text-green-400 hover:text-green-300">Create your first work order</button>
+            <div className="text-sm">
+              {workOrders.length === 0
+                ? 'No work orders yet. Create one to get started.'
+                : 'No work orders found matching your filters.'}
+            </div>
+            {workOrders.length === 0 && (
+              <button onClick={() => setShowCreate(true)}
+                className="mt-3 text-sm text-green-400 hover:text-green-300">Create your first work order</button>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
@@ -743,13 +785,13 @@ export default function WorkOrdersPage() {
                     <div className="w-24 flex-shrink-0">
                       <span className="text-xs text-gray-400">{TYPE_LABEL[wo.type] ?? wo.type}</span>
                     </div>
-                    <div className="w-28 flex-shrink-0">
+                    <div className="w-28 flex-shrink-0 hidden lg:block">
                       <span className="text-xs text-gray-400">{wo.assigned_crew ?? '---'}</span>
                     </div>
-                    <div className="w-24 flex-shrink-0">
+                    <div className="w-24 flex-shrink-0 hidden lg:block">
                       <span className="text-xs text-gray-400">{wo.scheduled_date ? fmtDate(wo.scheduled_date) : '---'}</span>
                     </div>
-                    <div className="w-20 flex-shrink-0">
+                    <div className="w-20 flex-shrink-0 hidden lg:block">
                       <span className={cn('text-xs px-2 py-0.5 rounded-full', PRIORITY_BADGE[wo.priority])}>
                         {wo.priority}
                       </span>

@@ -6,6 +6,7 @@ import { Pagination } from '@/components/Pagination'
 import { fmt$, daysAgo, STAGE_LABELS, SLA_THRESHOLDS, STAGE_TASKS } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { useSupabaseQuery } from '@/lib/hooks'
+import { useCurrentUser } from '@/lib/useCurrentUser'
 import type { Project } from '@/types/database'
 
 const ALL_TASKS = Object.values(STAGE_TASKS).flat()
@@ -22,6 +23,7 @@ type AuditFilter = 'stuck' | 'active' | 'incomplete' | 'missing'
 type AuditSort = 'count' | 'contract' | 'sla' | 'name'
 
 export default function AuditPage() {
+  const { user: currentUser, loading: userLoading } = useCurrentUser()
   const [selected, setSelected] = useState<Project | null>(null)
 
   const [filter, setFilter] = useState<AuditFilter>('stuck')
@@ -132,6 +134,14 @@ export default function AuditPage() {
   })
 
   const totalFlagged = rows.reduce((s, r) => s + r.flagged.length, 0)
+
+  if (!userLoading && currentUser && !currentUser.isManager) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-400 text-sm">You don&apos;t have permission to view this page.</div>
+      </div>
+    )
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">

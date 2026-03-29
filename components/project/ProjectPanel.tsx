@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { db } from '@/lib/db'
 import { daysAgo, STAGE_LABELS, STAGE_ORDER, escapeIlike } from '@/lib/utils'
-import { TASKS, ALL_TASKS_MAP, ALL_TASKS_FLAT, TASK_TO_STAGE, TASK_DATE_FIELDS, getSameStageDownstream, isTaskRequired } from '@/lib/tasks'
+import { TASKS, isTaskRequired } from '@/lib/tasks'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { useEdgeSync } from '@/lib/hooks/useEdgeSync'
+import { useProjectTasks } from '@/lib/hooks/useProjectTasks'
 import type { Project, Note } from '@/types/database'
 import { BomTab } from './BomTab'
 import { TasksTab } from './TasksTab'
@@ -40,11 +41,6 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
   const [project, setProject] = useState<Project>(initialProject)
   const [tab, setTab] = useState<'tasks' | 'notes' | 'info' | 'bom' | 'files' | 'materials' | 'warranty' | 'ntp'>(initialTab ?? 'tasks')
   useEffect(() => { if (initialTab) setTab(initialTab) }, [initialTab])
-  const [taskStates, setTaskStates] = useState<Record<string, string>>({})
-  const [taskReasons, setTaskReasons] = useState<Record<string, string>>({})
-  const [taskNotes, setTaskNotes] = useState<Record<string, { id: string; text: string; time: string; pm: string | null }[]>>({})
-  const [taskFollowUps, setTaskFollowUps] = useState<Record<string, string>>({})
-  const [taskStatesRaw, setTaskStatesRaw] = useState<{task_id: string; status: string; reason?: string; completed_date?: string | null; started_date?: string | null; notes?: string | null; follow_up_date?: string | null}[]>([])
   const [notes, setNotes] = useState<Note[]>([])
   const [newNote, setNewNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -70,26 +66,10 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
   const [serviceCalls, setServiceCalls] = useState<any[]>([])
   const [stageHistory, setStageHistory] = useState<any[]>([])
   const [adders, setAdders] = useState<any[]>([])
-  // ── task_history ─────────────────────────────────────────────────────────────
-  const [taskHistory, setTaskHistory] = useState<any[]>([])
-  const [taskHistoryLoaded, setTaskHistoryLoaded] = useState(false)
-  // ── revision cascade confirmation ──────────────────────────────────────────
-  const [cascadeConfirm, setCascadeConfirm] = useState<{
-    taskId: string
-    taskName: string
-    resets: { id: string; name: string; currentStatus: string }[]
-  } | null>(null)
-  const [changeOrderCount, setChangeOrderCount] = useState(0)
-  const [changeOrderSuggest, setChangeOrderSuggest] = useState<{
-    taskName: string; reason: string; stage: string
-  } | null>(null)
-  const [coSaving, setCoSaving] = useState(false)
   const [scheduleModal, setScheduleModal] = useState<{ jobType: string; crews: any[] } | null>(null)
   const [showWOCreate, setShowWOCreate] = useState(false)
   const [woType, setWoType] = useState('install')
   const [woCreating, setWoCreating] = useState(false)
-  // ── Notification rules (loaded once per panel mount) ──────────────────────
-  const [notificationRules, setNotificationRules] = useState<{ id: string; task_id: string; trigger_status: string; trigger_reason: string | null; action_type: string; action_message: string; notify_role: string | null }[]>([])
 
   // Lock background scroll when panel is open
   useEffect(() => {
@@ -110,36 +90,29 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
   }
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
 
-  const loadTasks = useCallback(async () => {
-    const [taskRes, noteRes] = await Promise.all([
-      supabase.from('task_state').select('task_id, status, reason, completed_date, started_date, follow_up_date').eq('project_id', pid),
-      supabase.from('notes').select('id, task_id, text, time, pm').eq('project_id', pid).not('task_id', 'is', null).order('time', { ascending: true }),
-    ])
-    if (taskRes.error) console.error('loadTasks: task_state query failed', taskRes.error)
-    if (noteRes.error) console.error('loadTasks: notes query failed', noteRes.error)
-    if (taskRes.data) {
-      const statusMap: Record<string, string> = {}
-      const reasonMap: Record<string, string> = {}
-      const followUpMap: Record<string, string> = {}
-      taskRes.data.forEach((t: any) => {
-        statusMap[t.task_id] = t.status
-        if (t.reason) reasonMap[t.task_id] = t.reason
-        if (t.follow_up_date) followUpMap[t.task_id] = t.follow_up_date
-      })
-      setTaskStates(statusMap)
-      setTaskReasons(reasonMap)
-      setTaskFollowUps(followUpMap)
-      setTaskStatesRaw(taskRes.data)
-    }
-    if (noteRes.data) {
-      const notesMap: Record<string, { id: string; text: string; time: string; pm: string | null }[]> = {}
-      noteRes.data.forEach((n: any) => {
-        if (!notesMap[n.task_id]) notesMap[n.task_id] = []
-        notesMap[n.task_id].push({ id: n.id, text: n.text, time: n.time, pm: n.pm })
-      })
-      setTaskNotes(notesMap)
-    }
-  }, [pid])
+  // ── Task state management (extracted hook) ──────────────────────────────────
+  const {
+    taskStates, taskReasons, taskNotes, taskFollowUps, taskStatesRaw,
+    taskHistory, taskHistoryLoaded,
+    cascadeConfirm, setCascadeConfirm, cancelCascade,
+    changeOrderSuggest, setChangeOrderSuggest,
+    coSaving, setCoSaving,
+    changeOrderCount, setChangeOrderCount,
+    loadTasks, loadTaskHistory,
+    updateTaskStatus, applyTaskStatus,
+    updateTaskReason, addTaskNote, updateTaskFollowUp,
+    isLocked,
+  } = useProjectTasks({
+    project,
+    setProject,
+    setBlockerInput,
+    setNotes,
+    onProjectUpdated,
+    showToast,
+    currentUser: currentUser ? { id: currentUser.id, name: currentUser.name, isAdmin: currentUser.isAdmin, isSuperAdmin: currentUser.isSuperAdmin, isSales: currentUser.isSales } : null,
+    userEmail,
+    edgeSync,
+  })
 
   const loadNotes = useCallback(async () => {
     const { data, error } = await supabase.from('notes').select('*').eq('project_id', pid).is('task_id', null).order('time', { ascending: false })
@@ -151,22 +124,6 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     const { data, error } = await supabase.from('stage_history').select('*').eq('project_id', pid).order('entered', { ascending: false })
     if (error) console.error('loadStageHistory: query failed', error)
     if (data) setStageHistory(data)
-  }, [pid])
-
-  // Lazy — only called when user navigates to History view
-  // Indexes on project_id + changed_at keep this fast at 20k+ projects
-  const loadTaskHistory = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('task_history')
-      .select('task_id, status, reason, changed_by, changed_at')
-      .eq('project_id', pid)
-      .order('changed_at', { ascending: false })
-      .limit(200)
-    if (error) console.error('loadTaskHistory: query failed', error)
-    if (data) {
-      setTaskHistory(data)
-      setTaskHistoryLoaded(true)
-    }
   }, [pid])
 
   const loadServiceCalls = useCallback(async () => {
@@ -324,12 +281,9 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
   }, [initialProject.id])
 
   useEffect(() => {
-    let mounted = true
     setAhjInfo(null)
     setUtilityInfo(null)
     setHoaInfo(null)
-    setTaskHistory([])
-    setTaskHistoryLoaded(false)
     // Parallelize all data loading
     Promise.all([
       loadTasks(),
@@ -340,392 +294,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       loadStageHistory(),
       loadAdders(),
     ]).catch(() => { /* individual loaders handle errors */ })
-    // Load notification rules (cached for panel lifetime)
-    ;supabase.from('notification_rules').select('id, task_id, trigger_status, trigger_reason, action_type, action_message, notify_role').eq('active', true).then(({ data: rulesData }: { data: { id: string; task_id: string; trigger_status: string; trigger_reason: string | null; action_type: string; action_message: string; notify_role: string | null }[] | null }) => {
-      if (mounted && rulesData) setNotificationRules(rulesData)
-    }).catch(() => { /* non-critical */ })
-    // Load change order count for this project
-    ;supabase.from('change_orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('project_id', initialProject.id)
-      .not('status', 'in', '("Complete","Cancelled")')
-      .then(({ count }: any) => { if (mounted) setChangeOrderCount(count ?? 0) })
-      .catch(() => { /* non-critical */ })
-    return () => { mounted = false }
   }, [initialProject.id])
-
-  // Eager-load task history for inline expansion in stage view
-  useEffect(() => {
-    if (!taskHistoryLoaded) {
-      loadTaskHistory()
-    }
-  }, [taskHistoryLoaded, loadTaskHistory])
-
-  async function updateTaskStatus(taskId: string, status: string) {
-    // ── Revision Required cascade check ──────────────────────────────────────
-    if (status === 'Revision Required') {
-      const downstream = getSameStageDownstream(taskId)
-      const resets = downstream
-        .filter(id => {
-          const s = taskStates[id] ?? 'Not Ready'
-          return s !== 'Not Ready'
-        })
-        .map(id => ({
-          id,
-          name: ALL_TASKS_FLAT[id]?.name ?? id,
-          currentStatus: taskStates[id] ?? 'Not Ready',
-        }))
-
-      if (resets.length > 0) {
-        // Show confirmation — don't save yet
-        setCascadeConfirm({ taskId, taskName: ALL_TASKS_FLAT[taskId]?.name ?? taskId, resets })
-        // Optimistically update UI for the revised task only
-        setTaskStates(prev => ({ ...prev, [taskId]: status }))
-        return
-      }
-    }
-
-    await applyTaskStatus(taskId, status)
-  }
-
-  // Executes the actual save + optional cascade resets
-  async function applyTaskStatus(taskId: string, status: string, cascadeResets?: string[]) {
-    setTaskStates(prev => ({ ...prev, [taskId]: status }))
-    const needsReason = status === 'Pending Resolution' || status === 'Revision Required'
-    if (!needsReason) {
-      setTaskReasons(prev => { const n = { ...prev }; delete n[taskId]; return n })
-    }
-    const today = new Date().toISOString().slice(0, 10)
-    // Set started_date when task first moves to In Progress (don't overwrite if already set)
-    const existingRaw = taskStatesRaw.find(t => t.task_id === taskId)
-    const startedDate = status === 'In Progress' && !existingRaw?.started_date
-      ? today : undefined
-
-    const upsertPayload: Record<string, any> = {
-      project_id: pid,
-      task_id: taskId,
-      status,
-      reason: needsReason ? (taskReasons[taskId] ?? null) : null,
-      completed_date: status === 'Complete' ? today : null,
-    }
-    if (startedDate) upsertPayload.started_date = startedDate
-
-    const { error: upsertErr } = await supabase.from('task_state').upsert(upsertPayload, { onConflict: 'project_id,task_id' })
-    if (upsertErr) console.error('task_state upsert failed:', upsertErr)
-
-    const changedBy = currentUser?.name
-      ?? userEmail.split('@')[0]
-      ?? 'unknown'
-    // Log to task_history — await to ensure it completes
-    const { error: histError } = await supabase.from('task_history').insert({
-      project_id: pid,
-      task_id: taskId,
-      status,
-      reason: needsReason ? (taskReasons[taskId] ?? null) : null,
-      changed_by: changedBy,
-    })
-    if (histError) console.error('task_history insert failed:', histError)
-
-    // ── Cascade resets — reset downstream tasks to Not Ready ────────────────
-    if (cascadeResets && cascadeResets.length > 0) {
-      const resetUpdates = cascadeResets.map(id => ({
-        project_id: pid,
-        task_id: id,
-        status: 'Not Ready',
-        reason: null,
-        completed_date: null,
-        started_date: null,
-      }))
-      const { error: cascadeErr } = await supabase.from('task_state').upsert(resetUpdates, { onConflict: 'project_id,task_id' })
-      if (cascadeErr) console.error('cascade reset upsert failed:', cascadeErr)
-
-      // Log each reset to history
-      const historyInserts = cascadeResets.map(id => ({
-        project_id: pid,
-        task_id: id,
-        status: 'Not Ready',
-        reason: null,
-        changed_by: `${changedBy} (cascade)`,
-      }))
-      const { error: cascadeHistErr } = await supabase.from('task_history').insert(historyInserts)
-      if (cascadeHistErr) console.error('cascade history insert failed:', cascadeHistErr)
-
-      // Update local state
-      setTaskStates(prev => {
-        const next = { ...prev }
-        for (const id of cascadeResets) next[id] = 'Not Ready'
-        return next
-      })
-      setTaskReasons(prev => {
-        const next = { ...prev }
-        for (const id of cascadeResets) delete next[id]
-        return next
-      })
-
-      // ── Cascade: also clear project dates for reset tasks ──────────────
-      const dateClearUpdates: Record<string, null> = {}
-      for (const id of cascadeResets) {
-        const df = TASK_DATE_FIELDS[id]
-        if (df && (project as unknown as Record<string, unknown>)[df]) dateClearUpdates[df] = null
-      }
-      if (Object.keys(dateClearUpdates).length > 0) {
-        const { error: dateClearErr } = await supabase.from('projects').update(dateClearUpdates).eq('id', pid)
-        if (dateClearErr) console.error('cascade date clear failed:', dateClearErr)
-        setProject(p => ({ ...p, ...dateClearUpdates }))
-      }
-
-      showToast(`Reset ${cascadeResets.length} downstream task${cascadeResets.length > 1 ? 's' : ''}`)
-    }
-
-    // ── Auto-set dependent tasks to Ready To Start ─────────────────────
-    if (status === 'Complete') {
-      const updatedStates = { ...taskStates, [taskId]: 'Complete' }
-      if (cascadeResets) cascadeResets.forEach(id => { updatedStates[id] = 'Not Ready' })
-      const autoReadyUpdates: { project_id: string; task_id: string; status: string }[] = []
-      for (const stageTasks of Object.values(TASKS)) {
-        for (const t of stageTasks) {
-          if (updatedStates[t.id] && updatedStates[t.id] !== 'Not Ready') continue
-          if (t.pre.length === 0) continue
-          const allPresMet = t.pre.every(preId => updatedStates[preId] === 'Complete')
-          if (allPresMet) {
-            autoReadyUpdates.push({ project_id: pid, task_id: t.id, status: 'Ready To Start' })
-            updatedStates[t.id] = 'Ready To Start'
-          }
-        }
-      }
-      if (autoReadyUpdates.length > 0) {
-        for (const u of autoReadyUpdates) {
-          await supabase.from('task_state').upsert(u, { onConflict: 'project_id,task_id' })
-        }
-        setTaskStates(prev => {
-          const next = { ...prev }
-          autoReadyUpdates.forEach(u => { next[u.task_id] = 'Ready To Start' })
-          return next
-        })
-      }
-    }
-
-    // Invalidate cache so History view reloads fresh on next open
-    setTaskHistoryLoaded(false)
-
-    // ── Suggest change order after Revision Required ────────────────────
-    if (status === 'Revision Required') {
-      const reason = taskReasons[taskId] ?? ''
-      const stage = TASK_TO_STAGE[taskId] ?? project.stage
-      const taskName = ALL_TASKS_MAP[taskId] ?? taskId
-      setChangeOrderSuggest({ taskName, reason, stage })
-    }
-
-    // ── Auto-populate project date when task is marked Complete ────────────
-    // Only set if the field is currently empty — never overwrite manual entries
-    if (status === 'Complete') {
-      const dateField = TASK_DATE_FIELDS[taskId]
-      if (dateField && !(project as unknown as Record<string, unknown>)[dateField]) {
-        const { error: dateSetErr } = await supabase.from('projects').update({ [dateField]: today }).eq('id', pid)
-        if (dateSetErr) console.error('auto-populate date failed:', dateSetErr)
-        setProject(p => ({ ...p, [dateField]: today }))
-      }
-    }
-
-    // ── Auto-clear project date when task is un-completed ────────────────
-    if (status !== 'Complete' && !cascadeResets) {
-      const dateField = TASK_DATE_FIELDS[taskId]
-      if (dateField && (project as unknown as Record<string, unknown>)[dateField]) {
-        const { error: dateClearErr2 } = await supabase.from('projects').update({ [dateField]: null }).eq('id', pid)
-        if (dateClearErr2) console.error('auto-clear date failed:', dateClearErr2)
-        setProject(p => ({ ...p, [dateField]: null }))
-      }
-    }
-
-    // ── Auto-detect blocker from Pending Resolution ─────────────────────
-    // Prefix auto-set blockers with ⏸ so we can distinguish from manual blockers
-    if (status === 'Pending Resolution') {
-      const taskName = ALL_TASKS_MAP[taskId] ?? taskId
-      const reason = needsReason ? (taskReasons[taskId] ?? '') : ''
-      const blockerText = `⏸ ${taskName}${reason ? ': ' + reason : ''}`
-      // Only auto-set if no blocker currently exists
-      if (!project.blocker) {
-        const { error: blockerSetErr } = await supabase.from('projects').update({ blocker: blockerText }).eq('id', pid)
-        if (blockerSetErr) console.error('auto-set blocker failed:', blockerSetErr)
-        setProject(p => ({ ...p, blocker: blockerText }))
-        setBlockerInput(blockerText)
-        onProjectUpdated()
-      }
-    }
-
-    // ── Auto-clear blocker when task resolves (only if auto-set) ─────────
-    if (status !== 'Pending Resolution' && status !== 'Revision Required' && !cascadeResets) {
-      // Only clear blockers that were auto-set (prefixed with ⏸)
-      if (project.blocker && project.blocker.startsWith('⏸')) {
-        // Check if any OTHER tasks in current stage are still stuck
-        const otherStuck = (TASKS[project.stage] ?? []).some(t =>
-          t.id !== taskId && (taskStates[t.id] === 'Pending Resolution' || taskStates[t.id] === 'Revision Required')
-        )
-        if (!otherStuck) {
-          const { error: blockerClearErr } = await supabase.from('projects').update({ blocker: null }).eq('id', pid)
-          if (blockerClearErr) console.error('auto-clear blocker failed:', blockerClearErr)
-          setProject(p => ({ ...p, blocker: null }))
-          setBlockerInput('')
-          onProjectUpdated()
-        }
-      }
-    }
-
-    // ── Database-driven notification rules ──────────────────────────────
-    const currentReason = taskReasons[taskId] ?? ''
-    const matchingRules = notificationRules.filter(r =>
-      r.task_id === taskId &&
-      r.trigger_status === status &&
-      (!r.trigger_reason || r.trigger_reason === currentReason)
-    )
-    for (const rule of matchingRules) {
-      if (rule.action_type === 'note') {
-        const { error: noteErr } = await supabase.from('notes').insert({
-          project_id: pid,
-          text: rule.action_message,
-          time: new Date().toISOString(),
-          pm: 'System',
-          pm_id: null,
-        })
-        if (noteErr) console.error('notification rule note insert failed:', noteErr)
-        else setNotes(prev => [{ id: crypto.randomUUID(), project_id: pid, task_id: null, text: rule.action_message, time: new Date().toISOString(), pm: 'System', pm_id: null }, ...prev])
-      }
-      showToast(rule.action_message.slice(0, 80))
-    }
-
-    // ── Auto-flip disposition when In Service task status changes ─────────
-    if (taskId === 'in_service') {
-      if (status === 'Complete') {
-        const { error: dispErr } = await supabase.from('projects').update({ disposition: 'In Service' }).eq('id', pid)
-        if (dispErr) { console.error('disposition update failed:', dispErr); showToast('Update failed'); return }
-        setProject(p => ({ ...p, disposition: 'In Service' }))
-        onProjectUpdated()
-        edgeSync.notifyInService(pid)
-        showToast('Project marked In Service ✓')
-        return // skip auto-advance toast below
-      } else if (project.disposition === 'In Service') {
-        const { error: dispErr2 } = await supabase.from('projects').update({ disposition: 'Sale' }).eq('id', pid)
-        if (dispErr2) { console.error('disposition revert failed:', dispErr2); showToast('Update failed'); return }
-        setProject(p => ({ ...p, disposition: 'Sale' }))
-        onProjectUpdated()
-        showToast('Disposition reverted to Sale')
-      }
-    }
-
-    // ── Auto-trigger funding milestone eligibility ───────────────────────
-    if (status === 'Complete') {
-      // install_done → M2 eligible, pto → M3 eligible
-      const milestoneField = taskId === 'install_done' ? 'm2_status' : taskId === 'pto' ? 'm3_status' : null
-      if (milestoneField) {
-        // Only update if status is currently null/empty (not already submitted/funded)
-        const { data: fundingRow } = await supabase
-          .from('project_funding')
-          .select(milestoneField)
-          .eq('project_id', pid)
-          .maybeSingle()
-        const currentMsStatus = fundingRow?.[milestoneField]
-        if (!currentMsStatus || currentMsStatus === 'Not Submitted') {
-          const { error: fundingErr } = await supabase.from('project_funding').upsert(
-            { project_id: pid, [milestoneField]: 'Eligible' },
-            { onConflict: 'project_id' }
-          )
-          if (fundingErr) console.error('funding milestone upsert failed:', fundingErr)
-          const msLabel = taskId === 'install_done' ? 'M2' : 'M3'
-          showToast(`${msLabel} milestone now Eligible`)
-          // ── Notify EDGE of funding milestone + install/PTO events ──
-          if (taskId === 'install_done') {
-            edgeSync.notifyInstallComplete(pid, today)
-          } else if (taskId === 'pto') {
-            edgeSync.notifyPTOReceived(pid, today)
-          }
-        }
-      }
-    }
-
-    // ── Auto-advance stage when all required tasks are Complete ───────────
-    if (status === 'Complete' && !cascadeResets) {
-      const updatedStates = { ...taskStates, [taskId]: status }
-      const { ok } = canAdvance(project.stage, updatedStates, project.ahj)
-      if (ok && nextStage) {
-        const { error: advErr } = await supabase.from('projects').update({ stage: nextStage, stage_date: today }).eq('id', pid)
-        if (advErr) { console.error('auto stage advance failed:', advErr); showToast('Failed to auto-advance stage'); return }
-        const { error: histErr } = await supabase.from('stage_history').insert({ project_id: pid, stage: nextStage, entered: today })
-        if (histErr) { console.error('stage_history insert failed:', histErr); showToast('Failed to log stage history') }
-        const { error: auditErr } = await supabase.from('audit_log').insert({
-          project_id: pid, field: 'stage',
-          old_value: project.stage, new_value: nextStage,
-          changed_by: currentUser?.name ?? null, changed_by_id: currentUser?.id ?? null,
-        })
-        if (auditErr) console.error('audit_log insert failed:', auditErr)
-        setProject(p => ({ ...p, stage: nextStage as Project['stage'], stage_date: today }))
-        onProjectUpdated()
-        edgeSync.notifyStageChanged(pid, project.stage, nextStage)
-        showToast(`All tasks done — advanced to ${STAGE_LABELS[nextStage]}`)
-      }
-    }
-  }
-
-  async function updateTaskReason(taskId: string, reason: string) {
-    setTaskReasons(prev => ({ ...prev, [taskId]: reason }))
-    await supabase.from('task_state').upsert({
-      project_id: pid,
-      task_id: taskId,
-      status: taskStates[taskId] ?? 'Not Ready',
-      reason: reason || null,
-    }, { onConflict: 'project_id,task_id' })
-
-    const changedBy = currentUser?.name
-      ?? userEmail.split('@')[0]
-      ?? 'unknown'
-    const { error: histError2 } = await supabase.from('task_history').insert({
-      project_id: pid,
-      task_id: taskId,
-      status: taskStates[taskId] ?? 'Not Ready',
-      reason: reason || null,
-      changed_by: changedBy,
-    })
-    if (histError2) console.error('task_history reason insert failed:', histError2)
-    setTaskHistoryLoaded(false)
-  }
-
-  async function addTaskNote(taskId: string, text: string) {
-    const note = {
-      project_id: pid,
-      task_id: taskId,
-      text,
-      time: new Date().toISOString(),
-      pm: currentUser?.name ?? null,
-      pm_id: currentUser?.id ?? null,
-    }
-    const { data } = await supabase.from('notes').insert(note).select('id, task_id, text, time, pm').single()
-    if (data) {
-      setTaskNotes(prev => {
-        const next = { ...prev }
-        if (!next[taskId]) next[taskId] = []
-        next[taskId] = [...next[taskId], { id: data.id, text: data.text, time: data.time, pm: data.pm }]
-        return next
-      })
-    }
-  }
-
-  async function updateTaskFollowUp(taskId: string, date: string | null) {
-    setTaskFollowUps(prev => {
-      const next = { ...prev }
-      if (date) next[taskId] = date; else delete next[taskId]
-      return next
-    })
-    const { error } = await supabase.from('task_state').upsert({
-      project_id: pid,
-      task_id: taskId,
-      status: taskStates[taskId] ?? 'Not Ready',
-      follow_up_date: date,
-    }, { onConflict: 'project_id,task_id' })
-    if (error) showToast('Failed to save follow-up date')
-  }
-
-  function isLocked(task: { pre: string[] }): boolean {
-    return task.pre.some(preId => taskStates[preId] !== 'Complete')
-  }
 
   async function addNote() {
     if (!newNote.trim()) return
@@ -796,7 +365,6 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       setEditSaving(false)
       return
     }
-
     // Audit log: record each changed field
     const auditEntries = Object.entries(editDraft)
       .filter(([key, val]) => String(val ?? '') !== String((project as unknown as Record<string, unknown>)[key] ?? ''))
@@ -1229,9 +797,8 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       {/* Revision Cascade Confirmation */}
       {cascadeConfirm && (
         <div className="fixed inset-0 bg-black/60 z-[120] flex items-center justify-center" onClick={() => {
-          // Cancel — reload task states from DB to ensure clean state
-          setCascadeConfirm(null)
-          loadTasks()
+          // Cancel — revert optimistic update to previous status
+          cancelCascade()
         }}>
           <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-3">
@@ -1258,9 +825,8 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => {
-                  // Cancel — reload task states from DB to ensure clean state
-                  setCascadeConfirm(null)
-                  loadTasks()
+                  // Cancel — revert optimistic update to previous status
+                  cancelCascade()
                 }}
                 className="px-4 py-1.5 text-xs text-gray-400 hover:text-white border border-gray-700 rounded-md"
               >

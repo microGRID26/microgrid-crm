@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { loadScheduleByDateRange } from '@/lib/api'
 import { Nav } from '@/components/Nav'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { daysAgo, fmt$, fmtDate, cn, STAGE_LABELS, STAGE_ORDER, SLA_THRESHOLDS } from '@/lib/utils'
@@ -74,17 +74,12 @@ export default function DashboardPage() {
     enabled: isReady,
   })
 
-  // Schedule for next 7 days — manual query since we need gte+lte on same field
+  // Schedule for next 7 days — uses centralized API layer
   const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([])
   const [schedLoading, setSchedLoading] = useState(true)
-  const supabase = createClient()
 
   const loadSchedule = useCallback(async () => {
-    const { data } = await supabase.from('schedule')
-      .select('id, project_id, crew_id, job_type, date, time, status')
-      .gte('date', todayStr)
-      .lte('date', nextWeekStr)
-      .order('date', { ascending: true })
+    const { data } = await loadScheduleByDateRange(todayStr, nextWeekStr)
     if (data) setScheduleRows(data as ScheduleRow[])
     setSchedLoading(false)
   }, [todayStr, nextWeekStr])
@@ -238,6 +233,14 @@ export default function DashboardPage() {
         <div className="flex items-center justify-center h-[60vh]">
           <div className="text-gray-400 text-sm">Unable to load user profile.</div>
         </div>
+      </div>
+    )
+  }
+
+  if (!currentUser.isManager) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-400 text-sm">You don&apos;t have permission to view this page.</div>
       </div>
     )
   }

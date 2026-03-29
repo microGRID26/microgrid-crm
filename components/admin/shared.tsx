@@ -1,40 +1,21 @@
 'use client'
 
 import React from 'react'
+import type {
+  AHJ,
+  Utility,
+  HOA,
+  UserRole,
+  User,
+  Crew,
+  SLAThreshold,
+  NotificationRule,
+  QueueSection,
+} from '@/types/database'
+
+export type { AHJ, Utility, HOA, UserRole, User, Crew, SLAThreshold, NotificationRule, QueueSection }
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-export interface AHJ {
-  id: number
-  name: string
-  permit_phone: string | null
-  permit_website: string | null
-  max_duration: number | null
-  electric_code: string | null
-  permit_notes: string | null
-  username: string | null
-  password: string | null
-}
-
-export interface Utility {
-  id: number
-  name: string
-  phone: string | null
-  website: string | null
-  notes: string | null
-}
-
-export interface HOA {
-  id: number
-  name: string
-  phone: string | null
-  website: string | null
-  contact_name: string | null
-  contact_email: string | null
-  notes: string | null
-}
-
-export type UserRole = 'super_admin' | 'admin' | 'finance' | 'manager' | 'user' | 'sales'
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: 'Super Admin',
@@ -52,43 +33,6 @@ export const ROLE_COLORS: Record<UserRole, string> = {
   manager: 'bg-purple-900/40 text-purple-400 border-purple-800',
   user: 'bg-gray-800 text-gray-400 border-gray-700',
   sales: 'bg-emerald-900/40 text-emerald-400 border-emerald-800',
-}
-
-export interface User {
-  id: string
-  name: string
-  email: string
-  department: string | null
-  position: string | null
-  role: UserRole
-  admin: boolean
-  active: boolean
-  color: string | null
-  crew?: string | null
-}
-
-export interface Crew {
-  id: string
-  name: string
-  warehouse: string | null
-  active: string
-  license_holder: string | null
-  electrician: string | null
-  solar_lead: string | null
-  battery_lead: string | null
-  installer1: string | null
-  installer2: string | null
-  battery_tech1: string | null
-  battery_tech2: string | null
-  battery_apprentice: string | null
-  mpu_electrician: string | null
-}
-
-export interface SLAThreshold {
-  stage: string
-  target: number
-  risk: number
-  crit: number
 }
 
 export interface CRMStats {
@@ -129,28 +73,6 @@ export const AVATAR_COLORS = [
   '#3b82f6','#8b5cf6','#ec4899','#64748b',
 ]
 
-export interface NotificationRule {
-  id: string
-  task_id: string
-  trigger_status: string
-  trigger_reason: string | null
-  action_type: string
-  action_message: string
-  notify_role: string | null
-  active: boolean
-  created_by: string | null
-}
-
-export interface QueueSection {
-  id: string
-  label: string
-  task_id: string
-  match_status: string
-  color: string
-  icon: string
-  sort_order: number
-  active: boolean
-}
 
 export interface AuditChange {
   id: string

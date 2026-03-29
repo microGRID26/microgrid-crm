@@ -11,6 +11,7 @@ export async function loadScheduleByDateRange(startDate: string, endDate: string
     .select('*, project:projects(name, city)')
     .lte('date', endDate)
     .or(`end_date.gte.${startDate},and(end_date.is.null,date.gte.${startDate})`)
+    .limit(2000)
   if (error) console.error('schedule load failed:', error)
   return { data: data ?? [], error }
 }

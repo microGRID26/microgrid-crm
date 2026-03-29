@@ -8,6 +8,7 @@ export async function loadProjectNotes(projectId: string) {
     .eq('project_id', projectId)
     .is('task_id', null)
     .order('time', { ascending: false })
+    .limit(2000)
   if (error) console.error('notes load failed:', error)
   return { data: data ?? [], error }
 }
@@ -19,6 +20,7 @@ export async function loadTaskNotes(projectId: string) {
     .eq('project_id', projectId)
     .not('task_id', 'is', null)
     .order('time', { ascending: true })
+    .limit(5000)
   if (error) console.error('task notes load failed:', error)
   return { data: data ?? [], error }
 }

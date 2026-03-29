@@ -9,6 +9,7 @@ export async function loadCrewsByIds(crewIds: string[], orgId?: string | null): 
   let query = supabase.from('crews')
     .select('id, name')
     .in('id', crewIds)
+    .limit(500)
   if (orgId) query = query.eq('org_id', orgId)
   const { data, error } = await query
   if (error) console.error('crews batch load failed:', error)
@@ -22,6 +23,7 @@ export async function loadActiveCrews(orgId?: string | null) {
     .select('*')
     .eq('active', 'TRUE')
     .order('name')
+    .limit(500)
   if (orgId) query = query.eq('org_id', orgId)
   const { data, error } = await query
   if (error) console.error('active crews load failed:', error)

@@ -235,7 +235,7 @@ export default function PipelinePage() {
   const [showNewProject, setShowNewProject] = useState(false)
   const [sort, setSort] = useState<'name' | 'sla' | 'contract' | 'cycle'>('sla')
 
-  const { user: currentUser } = useCurrentUser()
+  const { user: currentUser, loading: userLoading } = useCurrentUser()
 
   // View mode: compact vs detailed
   const [viewMode, setViewMode] = useState<'compact' | 'detailed'>(() => {
@@ -591,6 +591,14 @@ export default function PipelinePage() {
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], [])
 
   // ── Loading state ────────────────────────────────────────────────────────
+
+  if (!userLoading && currentUser && !currentUser.isManager) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-400 text-sm">You don&apos;t have permission to view this page.</div>
+      </div>
+    )
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">

@@ -61,6 +61,7 @@ export async function loadProjectMaterials(projectId: string): Promise<ProjectMa
     .eq('project_id', projectId)
     .order('category')
     .order('name')
+    .limit(1000)
   if (error) console.error('[loadProjectMaterials]', error.message)
   return (data ?? []) as ProjectMaterial[]
 }
@@ -202,7 +203,7 @@ export async function autoGenerateMaterials(
  */
 export async function loadWarehouseStock(category?: string, location?: string, orgId?: string | null): Promise<WarehouseStock[]> {
   const supabase = db()
-  let q = supabase.from('warehouse_stock').select('*').order('category').order('name')
+  let q = supabase.from('warehouse_stock').select('*').order('category').order('name').limit(2000)
   if (category) q = q.eq('category', category)
   if (location) q = q.eq('location', location)
   if (orgId) q = q.eq('org_id', orgId)
@@ -356,6 +357,7 @@ export async function loadPurchaseOrder(id: string): Promise<{ po: PurchaseOrder
     .select('*')
     .eq('po_id', id)
     .order('name')
+    .limit(500)
   if (itemsErr) console.error('[loadPurchaseOrder items]', itemsErr.message)
   return { po: po as PurchaseOrder, items: (items ?? []) as POLineItem[] }
 }
@@ -494,6 +496,7 @@ export async function loadPOLineItems(poId: string): Promise<POLineItem[]> {
     .select('*')
     .eq('po_id', poId)
     .order('name')
+    .limit(500)
   if (error) console.error('[loadPOLineItems]', error.message)
   return (data ?? []) as POLineItem[]
 }
@@ -798,6 +801,7 @@ export async function getLowStockItems(): Promise<WarehouseStock[]> {
     .from('warehouse_stock')
     .select('*')
     .order('name')
+    .limit(2000)
   if (error) {
     console.error('[getLowStockItems]', error.message)
     return []
