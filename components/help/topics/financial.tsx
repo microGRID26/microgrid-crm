@@ -174,6 +174,55 @@ function EarningsDashboard() {
   )
 }
 
+function SalesTeamsPersonnel() {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-3">The Sales Teams page is your central hub for managing sales team structure, pay scales, override distribution, and personnel. Admin access required.</p>
+      <div className="space-y-2 text-xs">
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-green-500">
+          <span className="text-green-400 font-bold">Teams Tab</span>
+          <p className="text-gray-400 mt-1">Create teams with leadership assignments (VP, Regional, Manager, Asst. Manager). Each team has a stack rate ($/W) that determines the override pool. Expand a team card to see its members, pay scales, and statuses.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-blue-500">
+          <span className="text-blue-400 font-bold">Personnel Tab</span>
+          <p className="text-gray-400 mt-1">Add, filter, and sort sales reps. Assign each rep to a team, pay scale tier, and role. Track status (Onboarding, Active, Inactive, Terminated). Expandable rows show onboarding document progress. CSV export available.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-amber-500">
+          <span className="text-amber-400 font-bold">Pay Scales Tab</span>
+          <p className="text-gray-400 mt-1">Define named pay tiers (e.g., Consultant at $0.20/W, Pro at $0.25/W, Elite at $0.30/W). Each tier has a per-watt rate, adder percentage, and referral bonus. Visual comparison cards show all active tiers side by side.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-purple-500">
+          <span className="text-purple-400 font-bold">Distribution Tab</span>
+          <p className="text-gray-400 mt-1">Configure how the override pool is split across roles (Energy Consultant 40%, Energy Advisor 40%, PM 3%, etc.). A validation banner warns if active percentages do not sum to 100%. Visual bar chart shows the split.</p>
+        </div>
+      </div>
+      <p className="text-xs text-gray-500 mt-3">Override = (Team Stack Rate - Rep Pay Scale Rate) x System Watts. The override amount is then distributed across leadership per the distribution percentages.</p>
+    </div>
+  )
+}
+
+function RepOnboarding() {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-3">When a new sales rep is added, their onboarding document checklist is automatically created from the active requirements list.</p>
+      <div className="space-y-2 text-xs">
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-green-500">
+          <span className="text-green-400 font-bold">Onboarding Tab</span>
+          <p className="text-gray-400 mt-1">The Onboarding tab on the Sales page shows all reps currently in onboarding status. Each rep has a document checklist with progress tracking. Filter by team or search by name.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-blue-500">
+          <span className="text-blue-400 font-bold">Document Status Flow</span>
+          <p className="text-gray-400 mt-1">Each document progresses through: Pending, Sent, Viewed, Signed, Uploaded, Verified (or Rejected). Lifecycle timestamps are auto-set at each transition -- for example, sent_at is recorded when marked Sent.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-amber-500">
+          <span className="text-amber-400 font-bold">Default Requirements</span>
+          <p className="text-gray-400 mt-1">Seven default documents are seeded: Offer Letter, W9, Background Check Authorization, Driver License (Front &amp; Back), Profile Photo, and Independent Contractor Agreement. Admins can add or modify requirements.</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export const financialTopics: HelpTopicData[] = [
   {
     id: 'funding-overview',
@@ -241,5 +290,25 @@ export const financialTopics: HelpTopicData[] = [
     tryItLink: '/commissions',
     relatedTopics: ['commission-calculator', 'funding-overview'],
     content: EarningsDashboard,
+  },
+  {
+    id: 'sales-teams',
+    title: 'Sales Teams & Personnel',
+    description: 'Team structure, pay scales, override distribution, and rep management',
+    category: 'Financial',
+    keywords: ['sales', 'team', 'personnel', 'rep', 'pay scale', 'stack', 'override', 'distribution', 'consultant', 'advisor', 'vp', 'regional', 'manager', 'per-watt'],
+    tryItLink: '/sales',
+    relatedTopics: ['commission-calculator', 'rep-onboarding'],
+    content: SalesTeamsPersonnel,
+  },
+  {
+    id: 'rep-onboarding',
+    title: 'Rep Onboarding',
+    description: 'Document checklist, status tracking, and auto-initialization for new reps',
+    category: 'Financial',
+    keywords: ['onboarding', 'document', 'checklist', 'offer letter', 'w9', 'background check', 'license', 'rep', 'new hire', 'sent', 'signed', 'verified'],
+    tryItLink: '/sales',
+    relatedTopics: ['sales-teams', 'commission-calculator'],
+    content: RepOnboarding,
   },
 ]

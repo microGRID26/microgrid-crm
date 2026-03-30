@@ -68,6 +68,7 @@ export async function loadPayScales(orgId?: string | null): Promise<PayScale[]> 
     .select('*')
     .eq('active', true)
     .order('sort_order')
+    .limit(200)
 
   if (orgId) {
     query = query.or(`org_id.eq.${orgId},org_id.is.null`)
@@ -123,6 +124,7 @@ export async function loadPayDistribution(orgId?: string | null): Promise<PayDis
     .select('*')
     .eq('active', true)
     .order('sort_order')
+    .limit(200)
 
   if (orgId) {
     query = query.or(`org_id.eq.${orgId},org_id.is.null`)
@@ -176,6 +178,7 @@ export async function loadSalesTeams(orgId?: string | null): Promise<SalesTeam[]
     .from('sales_teams')
     .select('*')
     .order('name')
+    .limit(200)
 
   if (orgId) {
     query = query.or(`org_id.eq.${orgId},org_id.is.null`)
@@ -326,6 +329,7 @@ export async function loadOnboardingRequirements(orgId?: string | null): Promise
     .select('*')
     .eq('active', true)
     .order('sort_order')
+    .limit(200)
 
   if (orgId) {
     query = query.or(`org_id.eq.${orgId},org_id.is.null`)
@@ -345,6 +349,7 @@ export async function loadRepDocuments(repId: string): Promise<OnboardingDocumen
     .select('*')
     .eq('rep_id', repId)
     .order('created_at')
+    .limit(200)
   if (error) { console.error('loadRepDocuments error:', error); return [] }
   return (data ?? []) as OnboardingDocument[]
 }

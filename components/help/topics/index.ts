@@ -27,6 +27,8 @@ export const CATEGORIES = [
 ]
 
 export const WHATS_NEW = [
+  { date: 'Mar 2026', title: 'Sales Teams & Pay Scales', topicId: 'sales-teams' },
+  { date: 'Mar 2026', title: 'Rep Onboarding', topicId: 'rep-onboarding' },
   { date: 'Mar 2026', title: 'Rush Auto-Routing', topicId: 'engineering-assignments' },
   { date: 'Mar 2026', title: 'Invoice Rule Templates', topicId: 'invoice-management' },
   { date: 'Mar 2026', title: 'Earnings Dashboard & Leaderboard', topicId: 'earnings-dashboard' },
