@@ -8,7 +8,7 @@ import { useRealtimeSubscription } from '@/lib/hooks'
 import { fmt$, fmtDate } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { Pagination } from '@/components/Pagination'
-import { Download, Calculator, DollarSign, TrendingUp, Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import { Download, Calculator, DollarSign, TrendingUp, Clock, CheckCircle, Trophy, ChevronDown, ChevronUp } from 'lucide-react'
 import {
   loadCommissionRates,
   updateCommissionRate,
@@ -19,12 +19,14 @@ import {
   createCommissionRecord,
   updateCommissionRecord,
   loadEarningsSummary,
+  loadUsers,
   COMMISSION_STATUSES,
   COMMISSION_STATUS_LABELS,
   COMMISSION_STATUS_BADGE,
   DEFAULT_ROLES,
 } from '@/lib/api'
 import type { CommissionRate, CommissionRecord, Project } from '@/types/database'
+import type { EarningsSummary } from '@/lib/api'
 
 // Build a lookup map from the DEFAULT_ROLES array
 const ROLE_LABELS: Record<string, string> = Object.fromEntries(
@@ -33,8 +35,9 @@ const ROLE_LABELS: Record<string, string> = Object.fromEntries(
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'calculator' | 'earnings' | 'rates'
+type Tab = 'calculator' | 'earnings' | 'leaderboard' | 'rates'
 type Period = 'month' | 'quarter' | 'year' | 'all'
+type LeaderboardMetric = 'commission' | 'deals' | 'kw'
 type SortCol = 'project_id' | 'user_name' | 'system_watts' | 'role_key' | 'solar_commission' | 'adder_commission' | 'referral_commission' | 'total_commission' | 'status' | 'created_at'
 
 const PERIOD_LABELS: Record<Period, string> = {
@@ -55,6 +58,46 @@ function getPeriodStart(period: Period): string | null {
     return new Date(now.getFullYear(), q, 1).toISOString()
   }
   return new Date(now.getFullYear(), 0, 1).toISOString()
+}
+
+// ── Leaderboard entry type ──────────────────────────────────────────────────
+
+interface LeaderboardEntry {
+  userId: string | null
+  userName: string
+  deals: number
+  totalKw: number
+  totalCommission: number
+  avgPerDeal: number
+}
+
+// ── Hero Stat Card ──────────────────────────────────────────────────────────
+
+function HeroCard({ label, value, icon, accent, subtitle }: {
+  label: string
+  value: string
+  icon: React.ReactNode
+  accent: 'green' | 'blue' | 'amber' | 'emerald'
+  subtitle?: string
+}) {
+  const colors = {
+    green: { bg: 'bg-green-900/30', border: 'border-green-700/50', text: 'text-green-400', icon: 'text-green-500' },
+    blue: { bg: 'bg-blue-900/30', border: 'border-blue-700/50', text: 'text-blue-400', icon: 'text-blue-500' },
+    amber: { bg: 'bg-amber-900/30', border: 'border-amber-700/50', text: 'text-amber-400', icon: 'text-amber-500' },
+    emerald: { bg: 'bg-emerald-900/30', border: 'border-emerald-700/50', text: 'text-emerald-400', icon: 'text-emerald-500' },
+  }
+  const c = colors[accent]
+
+  return (
+    <div className={`${c.bg} border ${c.border} rounded-xl p-4 md:p-6`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-gray-400 font-medium">{label}</span>
+        <span className={c.icon}>{icon}</span>
+      </div>
+      <p className={`text-2xl md:text-3xl font-bold ${c.text} tracking-tight`}>{value}</p>
+      {subtitle && <p className="text-[10px] text-gray-500 mt-1">{subtitle}</p>}
+    </div>
+  )
 }
 
 // ── Calculator Tab ───────────────────────────────────────────────────────────
@@ -83,10 +126,8 @@ function CalculatorTab({ rates }: { rates: CommissionRate[] }) {
     const adders = parseFloat(adderRevenue || '0')
     const referrals = parseInt(referralCount || '0', 10)
 
-    // Use the shared calculateCommission() function instead of manual math
     const breakdown = calculateCommission(watts, adders, referrals, selectedRole, rates)
 
-    // Look up rates for display purposes
     const roleRate = activeRates.find(r => r.role_key === selectedRole)
     const adderRate = activeRates.find(r => r.role_key === 'adder' && r.active)
     const referralRate = activeRates.find(r => r.role_key === 'referral' && r.active)
@@ -232,7 +273,7 @@ function CalculatorTab({ rates }: { rates: CommissionRate[] }) {
                      r.rate_type === 'percentage' ? `${r.rate}%` :
                      fmt$(r.rate)}
                   </td>
-                  <td className="px-3 py-2 text-gray-500">{r.description || '—'}</td>
+                  <td className="px-3 py-2 text-gray-500">{r.description || '\u2014'}</td>
                 </tr>
               ))}
               {activeRates.length === 0 && (
@@ -264,8 +305,12 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const pageSize = 50
 
-  // Summary
-  const [summary, setSummary] = useState({ totalEarned: 0, totalPending: 0, totalPaid: 0, deals: 0 })
+  // Summary (enhanced with all-time + month)
+  const [allTimeSummary, setAllTimeSummary] = useState<EarningsSummary | null>(null)
+  const [monthSummary, setMonthSummary] = useState<EarningsSummary | null>(null)
+
+  // 6-month trend data
+  const [monthlyTrend, setMonthlyTrend] = useState<{ label: string; amount: number }[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -279,13 +324,39 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
       })
       setRecords(data)
 
-      const s = await loadEarningsSummary(userId, orgId, periodStart ? { from: periodStart } : undefined)
-      setSummary({
-        totalEarned: s.totalEarned,
-        totalPending: s.totalPending,
-        totalPaid: s.totalPaid,
-        deals: s.byRole.reduce((acc, r) => acc + r.count, 0),
+      // Load all-time summary
+      const ats = await loadEarningsSummary(userId, orgId)
+      setAllTimeSummary(ats)
+
+      // Load current month summary
+      const now = new Date()
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      const ms = await loadEarningsSummary(userId, orgId, { from: monthStart })
+      setMonthSummary(ms)
+
+      // Build 6-month trend
+      const trendStart = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+      const trendRecs = await loadCommissionRecords({
+        userId,
+        orgId,
+        dateFrom: trendStart.toISOString(),
       })
+      const trend: { label: string; amount: number }[] = []
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const label = d.toLocaleDateString('en-US', { month: 'short' })
+        const mStart = d.getTime()
+        const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).getTime()
+        const monthTotal = trendRecs
+          .filter(r => {
+            if (r.status === 'cancelled') return false
+            const t = new Date(r.created_at).getTime()
+            return t >= mStart && t <= mEnd
+          })
+          .reduce((sum, r) => sum + (r.total_commission ?? 0), 0)
+        trend.push({ label, amount: Math.round(monthTotal * 100) / 100 })
+      }
+      setMonthlyTrend(trend)
     } catch (err) {
       console.error('Failed to load commission records:', err)
     }
@@ -368,6 +439,8 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
     URL.revokeObjectURL(url)
   }
 
+  const maxTrend = Math.max(...monthlyTrend.map(m => m.amount), 1)
+
   return (
     <div className="space-y-4">
       {/* Period toggle */}
@@ -400,25 +473,69 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
         )}
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Total Earned</p>
-          <p className="text-lg font-bold text-green-400 mt-1">{fmt$(summary.totalEarned)}</p>
-        </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Pending</p>
-          <p className="text-lg font-bold text-amber-400 mt-1">{fmt$(summary.totalPending)}</p>
-        </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Paid</p>
-          <p className="text-lg font-bold text-white mt-1">{fmt$(summary.totalPaid)}</p>
-        </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Deals</p>
-          <p className="text-lg font-bold text-white mt-1">{summary.deals}</p>
-        </div>
+      {/* Hero Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <HeroCard
+          label="Total Earned"
+          value={fmt$(allTimeSummary?.totalEarned ?? 0)}
+          icon={<DollarSign className="w-6 h-6" />}
+          accent="green"
+          subtitle="All time"
+        />
+        <HeroCard
+          label="This Month"
+          value={fmt$(monthSummary?.totalEarned ?? 0)}
+          icon={<TrendingUp className="w-6 h-6" />}
+          accent="blue"
+          subtitle={`${(monthSummary?.byRole ?? []).reduce((s, r) => s + r.count, 0)} deals`}
+        />
+        <HeroCard
+          label="Pending"
+          value={fmt$(allTimeSummary?.totalPending ?? 0)}
+          icon={<Clock className="w-6 h-6" />}
+          accent="amber"
+          subtitle="Awaiting approval"
+        />
+        <HeroCard
+          label="Paid"
+          value={fmt$(allTimeSummary?.totalPaid ?? 0)}
+          icon={<CheckCircle className="w-6 h-6" />}
+          accent="emerald"
+          subtitle="In your pocket"
+        />
       </div>
+
+      {/* Earnings Trend Chart (last 6 months) */}
+      {monthlyTrend.length > 0 && (
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-green-400" />
+            Earnings Trend (Last 6 Months)
+          </h3>
+          <div className="flex items-end gap-3 h-40">
+            {monthlyTrend.map((m, i) => {
+              const pct = maxTrend > 0 ? (m.amount / maxTrend) * 100 : 0
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                  <span className="text-[10px] text-green-400 font-medium">
+                    {m.amount > 0 ? fmt$(m.amount) : ''}
+                  </span>
+                  <div className="w-full flex items-end justify-center" style={{ height: '120px' }}>
+                    <div
+                      className="w-full max-w-[48px] rounded-t-md transition-all duration-500"
+                      style={{
+                        height: `${Math.max(pct, 2)}%`,
+                        background: `linear-gradient(to top, #065f46, #10b981)`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-400">{m.label}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Search + export */}
       <div className="flex items-center gap-3">
@@ -482,8 +599,8 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
                         {r.project_id}
                       </button>
                     </td>
-                    <td className="px-3 py-2 text-white">{r.user_name || '—'}</td>
-                    <td className="px-3 py-2 text-gray-400">{r.system_watts ? (r.system_watts / 1000).toFixed(2) : '—'}</td>
+                    <td className="px-3 py-2 text-white">{r.user_name || '\u2014'}</td>
+                    <td className="px-3 py-2 text-gray-400">{r.system_watts ? (r.system_watts / 1000).toFixed(2) : '\u2014'}</td>
                     <td className="px-3 py-2 text-gray-400">{ROLE_LABELS[r.role_key] ?? r.role_key}</td>
                     <td className="px-3 py-2 text-gray-300 font-mono">{fmt$(r.solar_commission)}</td>
                     <td className="px-3 py-2 text-gray-300 font-mono">{fmt$(r.adder_commission)}</td>
@@ -521,7 +638,7 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
                             </div>
                             <div>
                               <p className="text-gray-500">Milestone</p>
-                              <p className="text-white">{r.milestone || '—'}</p>
+                              <p className="text-white">{r.milestone || '\u2014'}</p>
                             </div>
                           </div>
                           {r.notes && (
@@ -565,6 +682,193 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
       {selectedProject && (
         <ProjectPanel project={selectedProject} onClose={() => setSelectedProject(null)} onProjectUpdated={() => {}} />
       )}
+    </div>
+  )
+}
+
+// ── Leaderboard Tab ─────────────────────────────────────────────────────────
+
+function LeaderboardTab({ orgId, currentUserId }: { orgId: string | null; currentUserId: string | null }) {
+  const [lbPeriod, setLbPeriod] = useState<Period>('month')
+  const [lbMetric, setLbMetric] = useState<LeaderboardMetric>('commission')
+  const [allRecords, setAllRecords] = useState<CommissionRecord[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Load all records for leaderboard (no user filter)
+  const loadLbData = useCallback(async () => {
+    setLoading(true)
+    const lbRange = getPeriodStart(lbPeriod)
+    const allRecs = await loadCommissionRecords({
+      orgId,
+      dateFrom: lbRange ?? undefined,
+    })
+    setAllRecords(allRecs)
+    setLoading(false)
+  }, [orgId, lbPeriod])
+
+  useEffect(() => { loadLbData() }, [loadLbData])
+
+  // Build leaderboard
+  const leaderboard = useMemo((): LeaderboardEntry[] => {
+    const map = new Map<string, LeaderboardEntry>()
+
+    for (const r of allRecords) {
+      if (r.status === 'cancelled') continue
+      const key = r.user_name ?? r.user_id ?? 'Unknown'
+      const existing = map.get(key) ?? {
+        userId: r.user_id,
+        userName: r.user_name ?? 'Unknown',
+        deals: 0,
+        totalKw: 0,
+        totalCommission: 0,
+        avgPerDeal: 0,
+      }
+      existing.deals += 1
+      existing.totalKw += (r.system_watts ?? 0) / 1000
+      existing.totalCommission += r.total_commission ?? 0
+      map.set(key, existing)
+    }
+
+    const entries = Array.from(map.values()).map(e => ({
+      ...e,
+      totalKw: Math.round(e.totalKw * 100) / 100,
+      totalCommission: Math.round(e.totalCommission * 100) / 100,
+      avgPerDeal: e.deals > 0 ? Math.round((e.totalCommission / e.deals) * 100) / 100 : 0,
+    }))
+
+    if (lbMetric === 'commission') entries.sort((a, b) => b.totalCommission - a.totalCommission)
+    else if (lbMetric === 'deals') entries.sort((a, b) => b.deals - a.deals)
+    else entries.sort((a, b) => b.totalKw - a.totalKw)
+
+    return entries
+  }, [allRecords, lbMetric])
+
+  // Summary cards
+  const lbSummary = useMemo(() => {
+    const topEarner = leaderboard[0]
+    const totalEarnings = leaderboard.reduce((s, e) => s + e.totalCommission, 0)
+    const totalDeals = leaderboard.reduce((s, e) => s + e.deals, 0)
+    const avgCommission = leaderboard.length > 0 ? totalEarnings / leaderboard.length : 0
+    return { topEarner, totalEarnings, totalDeals, avgCommission }
+  }, [leaderboard])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-gray-500 text-sm">Loading leaderboard...</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Period + Metric selectors */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-1">
+          {(['month', 'quarter', 'year'] as Period[]).map(p => (
+            <button key={p} onClick={() => setLbPeriod(p)}
+              className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
+                lbPeriod === p ? 'bg-green-700 text-white' : 'text-gray-400 hover:text-white border border-gray-700'
+              }`}>
+              {PERIOD_LABELS[p]}
+            </button>
+          ))}
+        </div>
+        <div className="h-4 w-px bg-gray-700" />
+        <div className="flex gap-1">
+          {([['commission', 'Total Commission'], ['deals', 'Deal Count'], ['kw', 'Total kW']] as [LeaderboardMetric, string][]).map(([m, label]) => (
+            <button key={m} onClick={() => setLbMetric(m)}
+              className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
+                lbMetric === m ? 'bg-blue-700 text-white' : 'text-gray-400 hover:text-white border border-gray-700'
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-gray-800 border border-yellow-700/30 rounded-xl p-4">
+          <p className="text-xs text-gray-400 mb-1">Top Earner</p>
+          <p className="text-sm font-semibold text-yellow-400">{lbSummary.topEarner?.userName ?? '--'}</p>
+          <p className="text-xs text-gray-500">{fmt$(lbSummary.topEarner?.totalCommission ?? 0)}</p>
+        </div>
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
+          <p className="text-xs text-gray-400 mb-1">Avg Commission</p>
+          <p className="text-lg font-bold text-white">{fmt$(lbSummary.avgCommission)}</p>
+        </div>
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
+          <p className="text-xs text-gray-400 mb-1">Total Team Earnings</p>
+          <p className="text-lg font-bold text-green-400">{fmt$(lbSummary.totalEarnings)}</p>
+        </div>
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
+          <p className="text-xs text-gray-400 mb-1">Total Deals</p>
+          <p className="text-lg font-bold text-white">{lbSummary.totalDeals}</p>
+        </div>
+      </div>
+
+      {/* Leaderboard Table */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-700">
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-amber-400" />
+            Rankings
+          </h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-gray-400 border-b border-gray-700/50">
+                <th className="px-3 py-2 font-medium w-12">#</th>
+                <th className="px-3 py-2 font-medium">Name</th>
+                <th className="px-3 py-2 font-medium text-right">Deals</th>
+                <th className="px-3 py-2 font-medium text-right">Total kW</th>
+                <th className="px-3 py-2 font-medium text-right">Commission</th>
+                <th className="px-3 py-2 font-medium text-right">Avg/Deal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboard.length === 0 && (
+                <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-500">No data for this period.</td></tr>
+              )}
+              {leaderboard.map((entry, i) => {
+                const rank = i + 1
+                const isMe = entry.userId === currentUserId
+                const rankBg = rank === 1
+                  ? 'bg-yellow-900/20'
+                  : rank === 2
+                    ? 'bg-gray-700/20'
+                    : rank === 3
+                      ? 'bg-amber-900/20'
+                      : ''
+                const rankBorder = isMe ? 'border-l-2 border-l-green-400' : ''
+
+                return (
+                  <tr key={entry.userName} className={`border-b border-gray-700/30 hover:bg-gray-700/20 transition-colors ${rankBg} ${rankBorder}`}>
+                    <td className="px-3 py-2.5">
+                      {rank === 1 && <span className="text-yellow-400 font-bold">1</span>}
+                      {rank === 2 && <span className="text-gray-400 font-bold">2</span>}
+                      {rank === 3 && <span className="text-amber-600 font-bold">3</span>}
+                      {rank > 3 && <span className="text-gray-500">{rank}</span>}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={`font-medium ${isMe ? 'text-green-400' : 'text-white'}`}>
+                        {entry.userName}
+                      </span>
+                      {isMe && <span className="text-[10px] text-green-500 ml-1.5">(you)</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-gray-300">{entry.deals}</td>
+                    <td className="px-3 py-2.5 text-right text-gray-300">{entry.totalKw.toFixed(1)}</td>
+                    <td className="px-3 py-2.5 text-right font-medium text-green-400">{fmt$(entry.totalCommission)}</td>
+                    <td className="px-3 py-2.5 text-right text-gray-400">{fmt$(entry.avgPerDeal)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
@@ -685,7 +989,7 @@ function RateCardTab({ rates, onReload, orgId }: { rates: CommissionRate[]; onRe
                    r.rate_type === 'percentage' ? `${r.rate}%` :
                    fmt$(r.rate)}
                 </td>
-                <td className="px-3 py-2 text-gray-500 max-w-[200px] truncate">{r.description || '—'}</td>
+                <td className="px-3 py-2 text-gray-500 max-w-[200px] truncate">{r.description || '\u2014'}</td>
                 <td className="px-3 py-2">
                   <span className={`inline-block w-2 h-2 rounded-full ${r.active ? 'bg-green-400' : 'bg-gray-600'}`} />
                 </td>
@@ -715,7 +1019,7 @@ function RateCardTab({ rates, onReload, orgId }: { rates: CommissionRate[]; onRe
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setEditing(null); setShowNew(false) }} />
           <div className="relative bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-              <h2 className="text-sm font-semibold text-white">{editing ? `Edit Rate — ${editing.label}` : 'New Commission Rate'}</h2>
+              <h2 className="text-sm font-semibold text-white">{editing ? `Edit Rate \u2014 ${editing.label}` : 'New Commission Rate'}</h2>
               <button onClick={() => { setEditing(null); setShowNew(false) }} className="text-gray-400 hover:text-white">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
@@ -818,7 +1122,7 @@ export default function CommissionsPage() {
     )
   }
 
-  // Auth gate: any authenticated user can access (Calculator + Earnings)
+  // Auth gate: any authenticated user can access (Calculator + Earnings + Leaderboard)
   // Rate Card tab is admin-only (gated below in tab list)
   if (!currentUser) {
     return (
@@ -831,6 +1135,7 @@ export default function CommissionsPage() {
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'calculator', label: 'Calculator', icon: <Calculator className="w-3.5 h-3.5" /> },
     { key: 'earnings', label: 'Earnings', icon: <DollarSign className="w-3.5 h-3.5" /> },
+    { key: 'leaderboard', label: 'Leaderboard', icon: <Trophy className="w-3.5 h-3.5" /> },
     ...(isAdmin ? [{ key: 'rates' as Tab, label: 'Rate Card', icon: <TrendingUp className="w-3.5 h-3.5" /> }] : []),
   ]
 
@@ -868,6 +1173,7 @@ export default function CommissionsPage() {
         {/* Tab content */}
         {tab === 'calculator' && <CalculatorTab rates={rates} />}
         {tab === 'earnings' && <EarningsTab orgId={orgId} rates={rates} />}
+        {tab === 'leaderboard' && <LeaderboardTab orgId={orgId} currentUserId={currentUser.id} />}
         {tab === 'rates' && isAdmin && <RateCardTab rates={rates} onReload={loadRates} orgId={orgId} />}
       </div>
     </div>

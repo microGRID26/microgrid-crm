@@ -238,7 +238,7 @@ export const financialTopics: HelpTopicData[] = [
     description: 'Personal earnings, monthly trends, and team leaderboard',
     category: 'Financial',
     keywords: ['earnings', 'dashboard', 'leaderboard', 'trend', 'ranking', 'commission', 'monthly', 'tier', 'geo', 'modifier', 'accelerator'],
-    tryItLink: '/earnings',
+    tryItLink: '/commissions',
     relatedTopics: ['commission-calculator', 'funding-overview'],
     content: EarningsDashboard,
   },
