@@ -41,8 +41,14 @@ export function useNotifications() {
   const { user } = useCurrentUser()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
-  // Track IDs of ephemeral notifications (blocked/revision) dismissed this session
-  const dismissedEphemeralRef = useRef<Set<string>>(new Set())
+  // Track IDs of ephemeral notifications (blocked/revision) dismissed across sessions
+  const DISMISSED_KEY = 'mg_dismissed_notifs'
+  const [dismissedInit] = useState(() => {
+    if (typeof window === 'undefined') return new Set<string>()
+    const stored: string[] = JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? '[]')
+    return new Set(stored.slice(-200))
+  })
+  const dismissedEphemeralRef = useRef<Set<string>>(dismissedInit)
 
   const load = useCallback(async () => {
     if (!user) return
@@ -172,8 +178,11 @@ export function useNotifications() {
           }
         })
     } else {
-      // Ephemeral notification (blocked/revision) — track dismissal in session memory
+      // Ephemeral notification (blocked/revision) — persist dismissal across sessions
       dismissedEphemeralRef.current.add(id)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissedEphemeralRef.current]))
+      }
     }
   }, [])
 
@@ -184,12 +193,15 @@ export function useNotifications() {
         .filter(n => !n.read && n.id.startsWith('mention-'))
         .map(n => n.id.replace('mention-', ''))
 
-      // Track all ephemeral IDs as dismissed
+      // Track all ephemeral IDs as dismissed (persisted across sessions)
       prev.forEach(n => {
         if (!n.read && !n.id.startsWith('mention-')) {
           dismissedEphemeralRef.current.add(n.id)
         }
       })
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissedEphemeralRef.current]))
+      }
 
       // Fire DB update for mention notifications
       if (unreadMentionDbIds.length > 0) {
