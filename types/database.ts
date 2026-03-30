@@ -893,6 +893,103 @@ export interface InvoiceRule {
   updated_at: string
 }
 
+// ── Pay Scales & Sales Teams ────────────────────────────────────────────────
+
+export type RepStatus = 'onboarding' | 'active' | 'inactive' | 'terminated'
+export type OnboardingDocStatus = 'pending' | 'sent' | 'viewed' | 'signed' | 'uploaded' | 'verified' | 'rejected'
+
+export interface PayScale {
+  id: string
+  name: string
+  description: string | null
+  per_watt_rate: number
+  adder_percentage: number
+  referral_bonus: number
+  sort_order: number
+  active: boolean
+  org_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PayDistribution {
+  id: string
+  role_key: string
+  label: string
+  percentage: number
+  sort_order: number
+  active: boolean
+  org_id: string | null
+  created_at: string
+}
+
+export interface SalesTeam {
+  id: string
+  name: string
+  vp_user_id: string | null
+  vp_name: string | null
+  regional_user_id: string | null
+  regional_name: string | null
+  manager_user_id: string | null
+  manager_name: string | null
+  assistant_manager_user_id: string | null
+  assistant_manager_name: string | null
+  stack_per_watt: number
+  active: boolean
+  org_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SalesRep {
+  id: string
+  user_id: string | null
+  auth_user_id: string | null
+  first_name: string
+  last_name: string
+  email: string
+  phone: string | null
+  team_id: string | null
+  pay_scale_id: string | null
+  role_key: string
+  hire_date: string | null
+  status: RepStatus
+  split_percentage: number
+  split_partner_id: string | null
+  notes: string | null
+  org_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface OnboardingRequirement {
+  id: string
+  name: string
+  description: string | null
+  required: boolean
+  sort_order: number
+  active: boolean
+  org_id: string | null
+  created_at: string
+}
+
+export interface OnboardingDocument {
+  id: string
+  rep_id: string
+  requirement_id: string
+  status: OnboardingDocStatus
+  sent_at: string | null
+  viewed_at: string | null
+  signed_at: string | null
+  uploaded_at: string | null
+  verified_at: string | null
+  verified_by: string | null
+  file_url: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type OrgType = 'platform' | 'epc' | 'sales' | 'engineering' | 'supply' | 'customer'
 export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer'
 
@@ -1267,6 +1364,42 @@ export type Database = {
         Row: CommissionHierarchy
         Insert: Omit<CommissionHierarchy, 'id' | 'active' | 'created_at' | 'updated_at'> & { id?: string; active?: boolean; created_at?: string; updated_at?: string }
         Update: Partial<CommissionHierarchy>
+
+      }
+      pay_scales: {
+        Row: PayScale
+        Insert: Omit<PayScale, 'id' | 'adder_percentage' | 'referral_bonus' | 'sort_order' | 'active' | 'created_at' | 'updated_at'> & { id?: string; adder_percentage?: number; referral_bonus?: number; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string }
+        Update: Partial<PayScale>
+
+      }
+      pay_distribution: {
+        Row: PayDistribution
+        Insert: Omit<PayDistribution, 'id' | 'sort_order' | 'active' | 'created_at'> & { id?: string; sort_order?: number; active?: boolean; created_at?: string }
+        Update: Partial<PayDistribution>
+
+      }
+      sales_teams: {
+        Row: SalesTeam
+        Insert: Omit<SalesTeam, 'id' | 'stack_per_watt' | 'active' | 'created_at' | 'updated_at'> & { id?: string; stack_per_watt?: number; active?: boolean; created_at?: string; updated_at?: string }
+        Update: Partial<SalesTeam>
+
+      }
+      sales_reps: {
+        Row: SalesRep
+        Insert: Omit<SalesRep, 'id' | 'role_key' | 'status' | 'split_percentage' | 'created_at' | 'updated_at'> & { id?: string; role_key?: string; status?: RepStatus; split_percentage?: number; created_at?: string; updated_at?: string }
+        Update: Partial<SalesRep>
+
+      }
+      onboarding_requirements: {
+        Row: OnboardingRequirement
+        Insert: Omit<OnboardingRequirement, 'id' | 'required' | 'sort_order' | 'active' | 'created_at'> & { id?: string; required?: boolean; sort_order?: number; active?: boolean; created_at?: string }
+        Update: Partial<OnboardingRequirement>
+
+      }
+      onboarding_documents: {
+        Row: OnboardingDocument
+        Insert: Omit<OnboardingDocument, 'id' | 'status' | 'created_at' | 'updated_at'> & { id?: string; status?: OnboardingDocStatus; created_at?: string; updated_at?: string }
+        Update: Partial<OnboardingDocument>
 
       }
     }

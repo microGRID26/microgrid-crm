@@ -21,6 +21,8 @@ import { CustomFieldsManager } from '@/components/admin/CustomFieldsManager'
 import { CommissionRatesManager } from '@/components/admin/CommissionRatesManager'
 import { EngineeringConfigManager } from '@/components/admin/EngineeringConfigManager'
 import { InvoiceRulesManager } from '@/components/admin/InvoiceRulesManager'
+import { PayScaleManager } from '@/components/admin/PayScaleManager'
+import { PayDistributionManager } from '@/components/admin/PayDistributionManager'
 
 export default function AdminPage() {
   const { user: authUser, loading } = useCurrentUser()
@@ -141,6 +143,8 @@ export default function AdminPage() {
             {activeModule === 'commissions' && <CommissionRatesManager isSuperAdmin={isSuperAdmin} />}
             {activeModule === 'engineering_config' && <EngineeringConfigManager />}
             {activeModule === 'invoice_rules' && <InvoiceRulesManager isSuperAdmin={isSuperAdmin} />}
+            {activeModule === 'pay_scales' && <PayScaleManager isSuperAdmin={isSuperAdmin} />}
+            {activeModule === 'pay_distribution' && <PayDistributionManager isSuperAdmin={isSuperAdmin} />}
           </div>
         </main>
       </div>
