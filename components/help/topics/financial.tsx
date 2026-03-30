@@ -148,6 +148,32 @@ function CommissionCalculator() {
   )
 }
 
+function EarningsDashboard() {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-3">The Earnings Dashboard gives every rep and PM visibility into their personal commission history, monthly trends, and team rankings.</p>
+      <div className="space-y-2 text-xs">
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-green-500">
+          <span className="text-green-400 font-bold">My Earnings Tab</span>
+          <p className="text-gray-400 mt-1">See total earned, this month, pending, and paid in hero stat cards. A 6-month trend chart shows earnings trajectory. The recent deals table is sortable by project, kW, role, commission amounts, status, and date. Click any project to open the full ProjectPanel.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-amber-500">
+          <span className="text-amber-400 font-bold">Leaderboard Tab</span>
+          <p className="text-gray-400 mt-1">See team rankings by total commission, deal count, or total kW. Period selectors (month, quarter, year) let you compare performance across timeframes. Your own row is highlighted with a green accent and "(you)" label. Summary cards show top earner, average commission, total team earnings, and total deals.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-blue-500">
+          <span className="text-blue-400 font-bold">Admin View</span>
+          <p className="text-gray-400 mt-1">Admins can switch the user dropdown to view any team member's earnings. Non-admins see only their own data.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-purple-500">
+          <span className="text-purple-400 font-bold">Tiered Commissions</span>
+          <p className="text-gray-400 mt-1">Volume tiers automatically increase per-watt rates as reps close more deals or accumulate more watts in a period. Geo modifiers adjust rates by market (city, state, or region). Both are configured by admins and applied transparently during commission calculation.</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export const financialTopics: HelpTopicData[] = [
   {
     id: 'funding-overview',
@@ -205,5 +231,15 @@ export const financialTopics: HelpTopicData[] = [
     tryItLink: '/commissions',
     relatedTopics: ['funding-overview', 'invoice-management'],
     content: CommissionCalculator,
+  },
+  {
+    id: 'earnings-dashboard',
+    title: 'Earnings Dashboard',
+    description: 'Personal earnings, monthly trends, and team leaderboard',
+    category: 'Financial',
+    keywords: ['earnings', 'dashboard', 'leaderboard', 'trend', 'ranking', 'commission', 'monthly', 'tier', 'geo', 'modifier', 'accelerator'],
+    tryItLink: '/earnings',
+    relatedTopics: ['commission-calculator', 'funding-overview'],
+    content: EarningsDashboard,
   },
 ]

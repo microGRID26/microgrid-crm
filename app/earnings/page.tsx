@@ -147,22 +147,25 @@ export default function EarningsPage() {
     const { data: usersData } = await loadUsers()
     setUsers(usersData)
 
-    // Build monthly trend (last 6 months)
+    // Build monthly trend (last 6 months) — single query covers entire range
+    const trendStart = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+    const trendRecs = await loadCommissionRecords({
+      userId: uid,
+      orgId,
+      dateFrom: trendStart.toISOString(),
+    })
     const trend: { label: string; amount: number }[] = []
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const label = d.toLocaleDateString('en-US', { month: 'short' })
-      const mStart = d.toISOString()
-      const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString()
-      // Filter from already-loaded all-time records to avoid 6 extra queries
-      const monthRecs = await loadCommissionRecords({
-        userId: uid,
-        orgId,
-        dateFrom: mStart,
-        dateTo: mEnd,
-      })
-      const monthTotal = monthRecs
-        .filter(r => r.status !== 'cancelled')
+      const mStart = d.getTime()
+      const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).getTime()
+      const monthTotal = trendRecs
+        .filter(r => {
+          if (r.status === 'cancelled') return false
+          const t = new Date(r.created_at).getTime()
+          return t >= mStart && t <= mEnd
+        })
         .reduce((sum, r) => sum + (r.total_commission ?? 0), 0)
       trend.push({ label, amount: Math.round(monthTotal * 100) / 100 })
     }
