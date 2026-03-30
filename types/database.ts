@@ -756,6 +756,46 @@ export interface NTPRequest {
   updated_at: string
 }
 
+export type CommissionStatus = 'pending' | 'approved' | 'paid' | 'cancelled'
+export type CommissionRateType = 'per_watt' | 'percentage' | 'flat'
+
+export interface CommissionRate {
+  id: string
+  role_key: string
+  label: string
+  rate_type: CommissionRateType
+  rate: number
+  description: string | null
+  active: boolean
+  sort_order: number
+  org_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CommissionRecord {
+  id: string
+  project_id: string
+  user_id: string | null
+  user_name: string | null
+  role_key: string
+  system_watts: number | null
+  rate: number
+  adder_revenue: number | null
+  referral_count: number
+  solar_commission: number
+  adder_commission: number
+  referral_commission: number
+  total_commission: number
+  status: CommissionStatus
+  milestone: string | null
+  paid_at: string | null
+  notes: string | null
+  org_id: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled' | 'disputed'
 
 export interface Invoice {
@@ -1150,6 +1190,18 @@ export type Database = {
         Row: InvoiceRule
         Insert: Omit<InvoiceRule, 'id' | 'active' | 'created_at' | 'updated_at'> & { id?: string; active?: boolean; created_at?: string; updated_at?: string }
         Update: Partial<InvoiceRule>
+
+      }
+      commission_rates: {
+        Row: CommissionRate
+        Insert: Omit<CommissionRate, 'id' | 'active' | 'sort_order' | 'created_at' | 'updated_at'> & { id?: string; active?: boolean; sort_order?: number; created_at?: string; updated_at?: string }
+        Update: Partial<CommissionRate>
+
+      }
+      commission_records: {
+        Row: CommissionRecord
+        Insert: Omit<CommissionRecord, 'id' | 'referral_count' | 'solar_commission' | 'adder_commission' | 'referral_commission' | 'total_commission' | 'status' | 'created_at' | 'updated_at'> & { id?: string; referral_count?: number; solar_commission?: number; adder_commission?: number; referral_commission?: number; total_commission?: number; status?: CommissionStatus; created_at?: string; updated_at?: string }
+        Update: Partial<CommissionRecord>
 
       }
     }

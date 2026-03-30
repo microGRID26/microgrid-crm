@@ -47,6 +47,7 @@ const MORE_SECTIONS: LinkSection[] = [
   {
     section: 'Finance',
     links: [
+      { label: 'Commissions',   href: '/commissions' },
       { label: 'Invoices',      href: '/invoices' },
     ],
   },
