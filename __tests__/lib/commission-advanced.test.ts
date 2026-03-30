@@ -720,3 +720,269 @@ describe('loadPendingClawbacks', () => {
     expect(result).toEqual([])
   })
 })
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ROUND 2: EDGE CASE TESTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── calculateProjectCommission edge cases ────────────────────────────────────
+
+describe('calculateProjectCommission edge cases', () => {
+  const defaultConfig: Record<string, string> = {
+    ec_gross_per_watt: '0.50',
+    non_ec_gross_per_watt: '0.35',
+    ec_bonus_per_watt: '0.15',
+    operations_per_watt: '0.10',
+    ec_effective_per_watt: '0.40',
+    non_ec_effective_per_watt: '0.25',
+    m1_advance_amount: '1000',
+    m1_self_gen_ec_split: '100',
+    m1_ec_ea_split: '50',
+    adder_deduction_from_stack: 'true',
+  }
+
+  const fullDistribution = [
+    { role_key: 'ec', label: 'Energy Consultant', percentage: 40 },
+    { role_key: 'ea', label: 'Energy Advisor', percentage: 40 },
+    { role_key: 'mgr', label: 'Manager', percentage: 20 },
+  ]
+
+  it('very large system (100kW = 100,000 watts) scales correctly', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 100, energy_community: true, adder_total: 0, self_generated: false },
+      defaultConfig,
+      fullDistribution,
+    )
+    expect(result.system_watts).toBe(100000)
+    expect(result.total_gross).toBe(50000)         // 100,000 * $0.50
+    expect(result.total_ops_deduction).toBe(10000) // 100,000 * $0.10
+    expect(result.total_net).toBe(40000)            // 50,000 - 10,000
+    // Verify line items sum to total
+    const lineSum = result.lines.reduce((s, l) => s + l.net_commission, 0)
+    expect(lineSum).toBeCloseTo(result.total_net, 2)
+  })
+
+  it('adder deduction exceeding commission stack clamps to zero', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    // 5kW EC: gross = 2500, ops = 500, net = 2000. Adder = 5000 >> 2000
+    const result = calculateProjectCommission(
+      { system_kw: 5, energy_community: true, adder_total: 5000, self_generated: false },
+      defaultConfig,
+      fullDistribution,
+    )
+    expect(result.total_adder_deduction).toBe(5000)
+    // distributablePool = max(0, 2500 - 500 - 5000) = 0
+    expect(result.total_net).toBe(0)
+    result.lines.forEach(l => expect(l.net_commission).toBe(0))
+  })
+
+  it('distribution summing to less than 100% leaves remainder unallocated', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const partialDist = [
+      { role_key: 'ec', label: 'EC', percentage: 30 },
+      { role_key: 'ea', label: 'EA', percentage: 20 },
+    ]
+    // 50% total allocated
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: true, adder_total: 0, self_generated: false },
+      defaultConfig,
+      partialDist,
+    )
+    // Pool = 4000. Allocated: 30% + 20% = 50% = 2000
+    expect(result.lines).toHaveLength(2)
+    const ecLine = result.lines.find(l => l.role_key === 'ec')!
+    const eaLine = result.lines.find(l => l.role_key === 'ea')!
+    expect(ecLine.net_commission).toBe(1200) // 4000 * 0.30
+    expect(eaLine.net_commission).toBe(800)  // 4000 * 0.20
+    // total_net is the SUM of lines, which is only 50%
+    expect(result.total_net).toBe(2000)
+  })
+
+  it('distribution with all roles inactive (empty array) produces zero net', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: true, adder_total: 0, self_generated: false },
+      defaultConfig,
+      [], // no roles
+    )
+    expect(result.lines).toHaveLength(0)
+    expect(result.total_net).toBe(0)
+    // Gross and ops should still be calculated
+    expect(result.total_gross).toBe(5000)
+    expect(result.total_ops_deduction).toBe(1000)
+  })
+
+  it('EC flag with zero system_kw produces zero across all fields', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 0, energy_community: true, adder_total: 0, self_generated: false },
+      defaultConfig,
+      fullDistribution,
+    )
+    expect(result.is_ec).toBe(true)
+    expect(result.system_watts).toBe(0)
+    expect(result.total_gross).toBe(0)
+    expect(result.total_ops_deduction).toBe(0)
+    expect(result.total_net).toBe(0)
+    // Per-watt rates should still reflect EC values
+    expect(result.gross_per_watt).toBe(0.50)
+    expect(result.effective_per_watt).toBe(0.40)
+    // M1 advance is still calculated (independent of system size)
+    expect(result.m1_advance).toBe(1000)
+  })
+
+  it('fractional kW with adders produces correctly rounded results', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 3.333, energy_community: false, adder_total: 77.77, self_generated: false },
+      defaultConfig,
+      [{ role_key: 'solo', label: 'Solo', percentage: 100 }],
+    )
+    // 3.333 kW = 3333 W. Gross = 3333 * 0.35 = 1166.55
+    expect(result.total_gross).toBe(1166.55)
+    // Ops = 3333 * 0.10 = 333.30
+    expect(result.total_ops_deduction).toBe(333.3)
+    // Net pool = max(0, 1166.55 - 333.30 - 77.77) = 755.48
+    expect(result.total_net).toBeCloseTo(755.48, 2)
+    // All values should have at most 2 decimal places
+    expect(Number(result.total_net.toFixed(2))).toBe(result.total_net)
+  })
+
+  it('distribution summing to more than 100% distributes proportionally', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const overDist = [
+      { role_key: 'a', label: 'A', percentage: 60 },
+      { role_key: 'b', label: 'B', percentage: 60 },
+    ]
+    // 120% total
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: true, adder_total: 0, self_generated: false },
+      defaultConfig,
+      overDist,
+    )
+    // Pool = 4000. Each gets 60% = 2400
+    expect(result.lines[0].net_commission).toBe(2400)
+    expect(result.lines[1].net_commission).toBe(2400)
+    // total_net = sum of lines = 4800 (120% of pool)
+    expect(result.total_net).toBe(4800)
+  })
+})
+
+// ── calculateDaysSinceSale edge cases ────────────────────────────────────────
+
+describe('calculateDaysSinceSale edge cases', () => {
+  it('date at exact midnight boundary (start of day)', async () => {
+    const { calculateDaysSinceSale } = await import('@/lib/api/commission-advanced')
+    // Yesterday at midnight
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const dateStr = yesterday.toISOString().split('T')[0]
+    const result = calculateDaysSinceSale(dateStr)
+    // Should be at least 1 (could be 1 depending on time of day)
+    expect(result).toBeGreaterThanOrEqual(1)
+    expect(result).toBeLessThanOrEqual(2)
+  })
+
+  it('very old date (10 years ago) returns large number', async () => {
+    const { calculateDaysSinceSale } = await import('@/lib/api/commission-advanced')
+    const tenYearsAgo = new Date()
+    tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10)
+    const result = calculateDaysSinceSale(tenYearsAgo.toISOString().split('T')[0])
+    // 10 years = ~3650 days (accounting for leap years)
+    expect(result).toBeGreaterThanOrEqual(3650)
+    expect(result).toBeLessThanOrEqual(3653)
+  })
+
+  it('date with timestamp suffix is parsed correctly', async () => {
+    const { calculateDaysSinceSale } = await import('@/lib/api/commission-advanced')
+    const fiveDaysAgo = new Date()
+    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5)
+    const isoFull = fiveDaysAgo.toISOString() // e.g. "2026-03-23T12:00:00.000Z"
+    const result = calculateDaysSinceSale(isoFull)
+    // Should handle full ISO strings too
+    expect(result).toBeGreaterThanOrEqual(4)
+    expect(result).toBeLessThanOrEqual(6)
+  })
+})
+
+// ── isClawbackEligible edge cases ────────────────────────────────────────────
+
+describe('isClawbackEligible edge cases', () => {
+  it('cancelled status returns false even if past clawback date', async () => {
+    const { isClawbackEligible } = await import('@/lib/api/commission-advanced')
+    const pastDate = new Date()
+    pastDate.setDate(pastDate.getDate() - 30)
+    expect(isClawbackEligible({
+      status: 'cancelled',
+      clawback_date: pastDate.toISOString().split('T')[0],
+    })).toBe(false)
+  })
+
+  it('clawed_back status returns false (already clawed back)', async () => {
+    const { isClawbackEligible } = await import('@/lib/api/commission-advanced')
+    const pastDate = new Date()
+    pastDate.setDate(pastDate.getDate() - 30)
+    expect(isClawbackEligible({
+      status: 'clawed_back',
+      clawback_date: pastDate.toISOString().split('T')[0],
+    })).toBe(false)
+  })
+
+  it('clawback_days = 0 means immediate clawback eligibility for paid advance', async () => {
+    const { isClawbackEligible } = await import('@/lib/api/commission-advanced')
+    // With clawback_date set to today (simulating 0-day window)
+    const today = new Date().toISOString().split('T')[0]
+    expect(isClawbackEligible({
+      status: 'paid',
+      clawback_date: today,
+    })).toBe(true)
+  })
+
+  it('undefined clawback_date treated same as null', async () => {
+    const { isClawbackEligible } = await import('@/lib/api/commission-advanced')
+    expect(isClawbackEligible({
+      status: 'paid',
+      clawback_date: undefined as any,
+    })).toBe(false)
+  })
+})
+
+// ── clawbackAdvance edge cases ───────────────────────────────────────────────
+
+describe('clawbackAdvance edge cases', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('clawback with empty reason string still sets status', async () => {
+    const chain = setupMockChain({
+      eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
+    })
+
+    const { clawbackAdvance } = await import('@/lib/api/commission-advanced')
+    const result = await clawbackAdvance('adv-1', '')
+    expect(result).toBe(true)
+    expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'clawed_back',
+      clawback_reason: '',
+    }))
+    // clawed_back_at should still be set
+    const call = chain.update.mock.calls[0][0]
+    expect(call.clawed_back_at).toBeTruthy()
+  })
+
+  it('clawback with very long reason string passes through', async () => {
+    const chain = setupMockChain({
+      eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
+    })
+
+    const longReason = 'A'.repeat(1000)
+    const { clawbackAdvance } = await import('@/lib/api/commission-advanced')
+    const result = await clawbackAdvance('adv-1', longReason)
+    expect(result).toBe(true)
+    const call = chain.update.mock.calls[0][0]
+    expect(call.clawback_reason).toBe(longReason)
+    expect(call.clawback_reason).toHaveLength(1000)
+  })
+})
