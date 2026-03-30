@@ -836,3 +836,272 @@ describe('initializeRepDocuments', () => {
     expect(result).toBe(false)
   })
 })
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EDGE CASES: calculateOverride
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('calculateOverride edge cases', () => {
+  it('handles very large watt values (1,000,000 watts = 1MW)', async () => {
+    const { calculateOverride } = await import('@/lib/api/sales-teams')
+    const result = calculateOverride(0.40, 0.20, 1_000_000)
+    expect(result.overridePerWatt).toBe(0.20)
+    expect(result.totalOverride).toBe(200_000)
+    expect(result.systemWatts).toBe(1_000_000)
+  })
+
+  it('handles very small rates (0.001 per watt)', async () => {
+    const { calculateOverride } = await import('@/lib/api/sales-teams')
+    const result = calculateOverride(0.005, 0.001, 10_000)
+    expect(result.overridePerWatt).toBeCloseTo(0.004)
+    expect(result.totalOverride).toBeCloseTo(40)
+  })
+
+  it('handles both rep and team at zero rate', async () => {
+    const { calculateOverride } = await import('@/lib/api/sales-teams')
+    const result = calculateOverride(0, 0, 50_000)
+    expect(result.overridePerWatt).toBe(0)
+    expect(result.totalOverride).toBe(0)
+    expect(result.teamStackRate).toBe(0)
+    expect(result.repRate).toBe(0)
+  })
+
+  it('handles fractional watts (e.g., 7,523.5 watts)', async () => {
+    const { calculateOverride } = await import('@/lib/api/sales-teams')
+    const result = calculateOverride(0.40, 0.25, 7523.5)
+    expect(result.overridePerWatt).toBeCloseTo(0.15)
+    expect(result.totalOverride).toBeCloseTo(1128.525)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EDGE CASES: calculateTeamDistribution
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('calculateTeamDistribution edge cases', () => {
+  it('handles distribution that sums to 99.99% (rounding edge)', async () => {
+    const { calculateTeamDistribution } = await import('@/lib/api/sales-teams')
+    const dist = [
+      { id: 'd1', role_key: 'a', label: 'A', percentage: 33.33, sort_order: 1, active: true, org_id: null, created_at: '' },
+      { id: 'd2', role_key: 'b', label: 'B', percentage: 33.33, sort_order: 2, active: true, org_id: null, created_at: '' },
+      { id: 'd3', role_key: 'c', label: 'C', percentage: 33.33, sort_order: 3, active: true, org_id: null, created_at: '' },
+    ] as any
+    const result = calculateTeamDistribution(1000, dist)
+    expect(result).toHaveLength(3)
+    // Each: 33.33% of 1000 = 333.30
+    result.forEach(d => expect(d.amount).toBe(333.3))
+    const sum = result.reduce((s, d) => s + d.amount, 0)
+    // Sum = 999.90, not 1000 — caller must accept rounding loss
+    expect(sum).toBeCloseTo(999.9)
+    expect(sum).not.toBe(1000)
+  })
+
+  it('handles single role at 100%', async () => {
+    const { calculateTeamDistribution } = await import('@/lib/api/sales-teams')
+    const dist = [
+      { id: 'd1', role_key: 'solo', label: 'Solo Rep', percentage: 100, sort_order: 1, active: true, org_id: null, created_at: '' },
+    ] as any
+    const result = calculateTeamDistribution(5000, dist)
+    expect(result).toHaveLength(1)
+    expect(result[0].amount).toBe(5000)
+    expect(result[0].roleKey).toBe('solo')
+  })
+
+  it('handles all roles at 0%', async () => {
+    const { calculateTeamDistribution } = await import('@/lib/api/sales-teams')
+    const dist = [
+      { id: 'd1', role_key: 'a', label: 'A', percentage: 0, sort_order: 1, active: true, org_id: null, created_at: '' },
+      { id: 'd2', role_key: 'b', label: 'B', percentage: 0, sort_order: 2, active: true, org_id: null, created_at: '' },
+    ] as any
+    const result = calculateTeamDistribution(10_000, dist)
+    expect(result).toHaveLength(2)
+    result.forEach(d => expect(d.amount).toBe(0))
+  })
+
+  it('handles very large total amount ($1M override)', async () => {
+    const { calculateTeamDistribution } = await import('@/lib/api/sales-teams')
+    const dist = [
+      { id: 'd1', role_key: 'a', label: 'A', percentage: 50, sort_order: 1, active: true, org_id: null, created_at: '' },
+      { id: 'd2', role_key: 'b', label: 'B', percentage: 50, sort_order: 2, active: true, org_id: null, created_at: '' },
+    ] as any
+    const result = calculateTeamDistribution(1_000_000, dist)
+    expect(result[0].amount).toBe(500_000)
+    expect(result[1].amount).toBe(500_000)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EDGE CASES: loadSalesReps with all filters combined
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('loadSalesReps edge cases', () => {
+  it('applies all filters combined (teamId + status + orgId + search)', async () => {
+    const rep1 = { ...MOCK_REP, id: 'rep-1', first_name: 'Alice', last_name: 'Smith', email: 'alice@test.com' }
+    const rep2 = { ...MOCK_REP, id: 'rep-2', first_name: 'Bob', last_name: 'Jones', email: 'bob@test.com' }
+    const chain = mockChain({ data: [rep1, rep2], error: null })
+    mockSupabase.from.mockReturnValue(chain)
+    const { loadSalesReps } = await import('@/lib/api/sales-teams')
+
+    const result = await loadSalesReps({
+      teamId: 'team-1',
+      status: 'active',
+      orgId: 'org-1',
+      search: 'alice',
+    })
+
+    // DB filters applied
+    expect(chain.eq).toHaveBeenCalledWith('team_id', 'team-1')
+    expect(chain.eq).toHaveBeenCalledWith('status', 'active')
+    expect(chain.or).toHaveBeenCalledWith('org_id.eq.org-1,org_id.is.null')
+    // Client-side search narrows to alice only
+    expect(result).toHaveLength(1)
+    expect(result[0].first_name).toBe('Alice')
+  })
+
+  it('search is case-insensitive', async () => {
+    const rep = { ...MOCK_REP, first_name: 'María', last_name: 'González', email: 'maria@test.com' }
+    const chain = mockChain({ data: [rep], error: null })
+    mockSupabase.from.mockReturnValue(chain)
+    const { loadSalesReps } = await import('@/lib/api/sales-teams')
+
+    const result = await loadSalesReps({ search: 'MARÍA' })
+    expect(result).toHaveLength(1)
+  })
+
+  it('search matches email', async () => {
+    const chain = mockChain({ data: [MOCK_REP], error: null })
+    mockSupabase.from.mockReturnValue(chain)
+    const { loadSalesReps } = await import('@/lib/api/sales-teams')
+
+    const result = await loadSalesReps({ search: 'john@test' })
+    expect(result).toHaveLength(1)
+  })
+
+  it('search with no matches returns empty array', async () => {
+    const chain = mockChain({ data: [MOCK_REP], error: null })
+    mockSupabase.from.mockReturnValue(chain)
+    const { loadSalesReps } = await import('@/lib/api/sales-teams')
+
+    const result = await loadSalesReps({ search: 'zzz_no_match' })
+    expect(result).toHaveLength(0)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EDGE CASES: updateOnboardingDocStatus timestamp behavior
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('updateOnboardingDocStatus edge cases', () => {
+  it('rejected status does NOT set any lifecycle timestamp', async () => {
+    const chain = mockChain({ data: null, error: null })
+    mockSupabase.from.mockReturnValue(chain)
+    const { updateOnboardingDocStatus } = await import('@/lib/api/sales-teams')
+
+    await updateOnboardingDocStatus('doc-1', 'rejected')
+    const updateArg = chain.update.mock.calls[0][0]
+    expect(updateArg.status).toBe('rejected')
+    // No timestamp fields should be present
+    expect(updateArg.sent_at).toBeUndefined()
+    expect(updateArg.viewed_at).toBeUndefined()
+    expect(updateArg.signed_at).toBeUndefined()
+    expect(updateArg.uploaded_at).toBeUndefined()
+    expect(updateArg.verified_at).toBeUndefined()
+  })
+
+  it('pending status does NOT set any lifecycle timestamp (reset scenario)', async () => {
+    const chain = mockChain({ data: null, error: null })
+    mockSupabase.from.mockReturnValue(chain)
+    const { updateOnboardingDocStatus } = await import('@/lib/api/sales-teams')
+
+    await updateOnboardingDocStatus('doc-1', 'pending')
+    const updateArg = chain.update.mock.calls[0][0]
+    expect(updateArg.status).toBe('pending')
+    expect(updateArg.sent_at).toBeUndefined()
+    expect(updateArg.viewed_at).toBeUndefined()
+    expect(updateArg.signed_at).toBeUndefined()
+    expect(updateArg.uploaded_at).toBeUndefined()
+    expect(updateArg.verified_at).toBeUndefined()
+  })
+
+  it('rejected with notes includes the notes but no timestamps', async () => {
+    const chain = mockChain({ data: null, error: null })
+    mockSupabase.from.mockReturnValue(chain)
+    const { updateOnboardingDocStatus } = await import('@/lib/api/sales-teams')
+
+    await updateOnboardingDocStatus('doc-1', 'rejected', 'Missing signature on page 2')
+    const updateArg = chain.update.mock.calls[0][0]
+    expect(updateArg.notes).toBe('Missing signature on page 2')
+    expect(updateArg.verified_at).toBeUndefined()
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EDGE CASES: addSalesRep with minimal fields
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('addSalesRep edge cases', () => {
+  it('adds a rep with minimal required fields only', async () => {
+    const minimalRep = {
+      id: 'rep-min', user_id: null, auth_user_id: null,
+      first_name: 'Min', last_name: 'Rep', email: 'min@test.com', phone: null,
+      team_id: null, pay_scale_id: null, role_key: 'energy_consultant',
+      hire_date: null, status: 'onboarding' as const, split_percentage: 100,
+      split_partner_id: null, notes: null, org_id: null,
+      created_at: '2026-03-28', updated_at: '2026-03-28',
+    }
+    const chain = mockChain({ data: minimalRep, error: null })
+    mockSupabase.from.mockReturnValue(chain)
+    const { addSalesRep } = await import('@/lib/api/sales-teams')
+
+    const result = await addSalesRep({
+      first_name: 'Min',
+      last_name: 'Rep',
+      email: 'min@test.com',
+      role_key: 'energy_consultant',
+    })
+
+    expect(result).not.toBeNull()
+    expect(result?.first_name).toBe('Min')
+    expect(result?.last_name).toBe('Rep')
+    expect(result?.email).toBe('min@test.com')
+    expect(result?.role_key).toBe('energy_consultant')
+    // Verify insert was called with only the provided fields
+    const insertArg = chain.insert.mock.calls[0][0]
+    expect(insertArg.first_name).toBe('Min')
+    expect(insertArg.last_name).toBe('Rep')
+    expect(insertArg.email).toBe('min@test.com')
+    expect(insertArg.role_key).toBe('energy_consultant')
+    // Optional fields should not be present (not explicitly passed)
+    expect(insertArg.phone).toBeUndefined()
+    expect(insertArg.team_id).toBeUndefined()
+    expect(insertArg.pay_scale_id).toBeUndefined()
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EDGE CASES: initializeRepDocuments when requirements query returns error
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('initializeRepDocuments edge cases', () => {
+  it('returns true when requirements query returns error (empty fallback)', async () => {
+    // When loadOnboardingRequirements errors, it returns [] (empty array)
+    // So initializeRepDocuments should see 0 requirements and return true
+    const reqChain = mockChain({ data: null, error: { message: 'DB connection lost' } })
+    mockSupabase.from.mockReturnValue(reqChain)
+    const { initializeRepDocuments } = await import('@/lib/api/sales-teams')
+
+    const result = await initializeRepDocuments('rep-1')
+    // loadOnboardingRequirements returns [] on error, so no insert is attempted
+    expect(result).toBe(true)
+  })
+
+  it('passes orgId through to requirements query', async () => {
+    const reqChain = mockChain({ data: [], error: null })
+    mockSupabase.from.mockReturnValue(reqChain)
+    const { initializeRepDocuments } = await import('@/lib/api/sales-teams')
+
+    await initializeRepDocuments('rep-1', 'org-abc')
+    // The requirements query should have applied the orgId filter
+    expect(reqChain.or).toHaveBeenCalledWith('org_id.eq.org-abc,org_id.is.null')
+  })
+})
