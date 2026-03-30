@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { escapeIlike, fmt$ } from '@/lib/utils'
+import { fmt$ } from '@/lib/utils'
 import {
   loadCommissionRates,
   updateCommissionRate,
@@ -28,7 +28,7 @@ export function CommissionRatesManager({ isSuperAdmin }: { isSuperAdmin: boolean
 
   const load = useCallback(async () => {
     try {
-      const data = await loadCommissionRates()
+      const data = await loadCommissionRates(undefined, false) // Include inactive rates for admin management
       setRates(data)
     } catch (err) {
       console.error('Failed to load commission rates:', err)

@@ -27,6 +27,7 @@ export const CATEGORIES = [
 ]
 
 export const WHATS_NEW = [
+  { date: 'Mar 2026', title: 'Commission Calculator', topicId: 'commission-calculator' },
   { date: 'Mar 2026', title: 'Engineering Assignments', topicId: 'engineering-assignments' },
   { date: 'Mar 2026', title: 'Invoices', topicId: 'invoice-management' },
   { date: 'Mar 2026', title: 'Organization Switching', topicId: 'org-switcher' },

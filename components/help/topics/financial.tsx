@@ -116,6 +116,38 @@ function InvoiceManagement() {
   )
 }
 
+function CommissionCalculator() {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-3">The Commission Calculator helps sales reps, closers, team leaders, and managers estimate and track per-deal commissions.</p>
+      <div className="space-y-2 text-xs">
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-green-500">
+          <span className="text-green-400 font-bold">Calculator Tab</span>
+          <p className="text-gray-400 mt-1">Enter system size (kW), adder revenue, and referral count, then select your role. The calculator applies per-watt rates for solar, a percentage for adders, and a flat fee per referral to show a detailed breakdown and total.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-blue-500">
+          <span className="text-blue-400 font-bold">Commission Structure</span>
+          <p className="text-gray-400 mt-1">Solar commissions are calculated as system watts times a per-watt rate (e.g., Sales Rep $0.50/W, Closer $0.25/W). Adder commissions are a percentage of total adder revenue. Referral bonuses are a flat fee per referral. All rates are admin-configurable.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-amber-500">
+          <span className="text-amber-400 font-bold">Earnings Tab</span>
+          <p className="text-gray-400 mt-1">View commission history filtered by period (month, quarter, year, all time). Admins see all records with a PM filter. Non-admins see their own records only. Sortable columns, per-deal breakdowns, and CSV export.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-purple-500">
+          <span className="text-purple-400 font-bold">Rate Card Tab (Admin Only)</span>
+          <p className="text-gray-400 mt-1">Admins manage commission rates: add, edit, and delete per-role rates. Six default rates are seeded (Sales Rep, Closer, Team Leader Override, Manager Override, Adder Commission, Referral Bonus). Rates are org-scoped for multi-tenant support.</p>
+        </div>
+      </div>
+      <div className="mt-3 space-y-1 text-xs">
+        <div className="flex items-center gap-2"><span className="bg-amber-900 text-amber-300 px-2 py-0.5 rounded">Pending</span><span className="text-gray-400">-- Commission calculated, awaiting approval</span></div>
+        <div className="flex items-center gap-2"><span className="bg-blue-900 text-blue-300 px-2 py-0.5 rounded">Approved</span><span className="text-gray-400">-- Approved for payment</span></div>
+        <div className="flex items-center gap-2"><span className="bg-green-900 text-green-300 px-2 py-0.5 rounded">Paid</span><span className="text-gray-400">-- Payment issued (terminal)</span></div>
+        <div className="flex items-center gap-2"><span className="bg-red-900 text-red-300 px-2 py-0.5 rounded">Cancelled</span><span className="text-gray-400">-- Voided (terminal)</span></div>
+      </div>
+    </div>
+  )
+}
+
 export const financialTopics: HelpTopicData[] = [
   {
     id: 'funding-overview',
@@ -163,5 +195,15 @@ export const financialTopics: HelpTopicData[] = [
     tryItLink: '/invoices',
     relatedTopics: ['funding-overview', 'funding-triggers', 'engineering-assignments'],
     content: InvoiceManagement,
+  },
+  {
+    id: 'commission-calculator',
+    title: 'Commission Calculator',
+    description: 'Per-deal commission estimates, earnings history, and rate management',
+    category: 'Financial',
+    keywords: ['commission', 'calculator', 'earnings', 'rate', 'per-watt', 'adder', 'referral', 'sales rep', 'closer', 'team leader', 'manager', 'paid', 'approved'],
+    tryItLink: '/commissions',
+    relatedTopics: ['funding-overview', 'invoice-management'],
+    content: CommissionCalculator,
   },
 ]

@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { Nav } from '@/components/Nav'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { useOrg } from '@/lib/hooks'
 import { useRealtimeSubscription } from '@/lib/hooks'
-import { fmt$, fmtDate, escapeIlike } from '@/lib/utils'
+import { fmt$, fmtDate } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { Pagination } from '@/components/Pagination'
 import { Download, Calculator, DollarSign, TrendingUp, Clock, ChevronDown, ChevronUp } from 'lucide-react'
@@ -83,21 +83,22 @@ function CalculatorTab({ rates }: { rates: CommissionRate[] }) {
     const adders = parseFloat(adderRevenue || '0')
     const referrals = parseInt(referralCount || '0', 10)
 
-    const roleRates = activeRates.filter(r => r.role_key === selectedRole)
-    const perWatt = roleRates.find(r => r.rate_type === 'per_watt')
-    const pct = roleRates.find(r => r.rate_type === 'percentage')
-    const flat = roleRates.find(r => r.rate_type === 'flat')
+    // Use the shared calculateCommission() function instead of manual math
+    const breakdown = calculateCommission(watts, adders, referrals, selectedRole, rates)
 
-    const solar = watts * (perWatt?.rate ?? 0)
-    const adder = adders * (pct?.rate ?? 0) / 100
-    const referral = referrals * (flat?.rate ?? 0)
+    // Look up rates for display purposes
+    const roleRate = activeRates.find(r => r.role_key === selectedRole)
+    const adderRate = activeRates.find(r => r.role_key === 'adder' && r.active)
+    const referralRate = activeRates.find(r => r.role_key === 'referral' && r.active)
 
     setResult({
-      solar, adder, referral,
-      total: solar + adder + referral,
-      solarRate: perWatt?.rate ?? 0,
-      adderRate: pct?.rate ?? 0,
-      referralRate: flat?.rate ?? 0,
+      solar: breakdown.solarCommission,
+      adder: breakdown.adderCommission,
+      referral: breakdown.referralCommission,
+      total: breakdown.total,
+      solarRate: roleRate?.rate ?? 0,
+      adderRate: adderRate?.rate ?? 0,
+      referralRate: referralRate?.rate ?? 0,
       watts,
     })
   }
@@ -247,7 +248,7 @@ function CalculatorTab({ rates }: { rates: CommissionRate[] }) {
 
 // ── Earnings Tab ─────────────────────────────────────────────────────────────
 
-function EarningsTab({ orgId }: { orgId: string | null }) {
+function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rates: CommissionRate[] }) {
   const { user: currentUser } = useCurrentUser()
   const isAdmin = currentUser?.isAdmin ?? false
 
@@ -468,9 +469,8 @@ function EarningsTab({ orgId }: { orgId: string | null }) {
             </thead>
             <tbody>
               {paged.map((r, i) => (
-                <>
+                <React.Fragment key={r.id}>
                   <tr
-                    key={r.id}
                     onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
                     className={`border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer transition-colors ${i % 2 === 0 ? '' : 'bg-gray-900/20'}`}
                   >
@@ -504,7 +504,12 @@ function EarningsTab({ orgId }: { orgId: string | null }) {
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                             <div>
                               <p className="text-gray-500">Solar</p>
-                              <p className="text-white">{r.system_watts?.toLocaleString() ?? 0} W x ${r.rate}/W = {fmt$(r.solar_commission)}</p>
+                              <p className="text-white">{r.system_watts?.toLocaleString() ?? 0} W x {(() => {
+                                const rateInfo = loadedRates.find(lr => lr.role_key === r.role_key)
+                                if (rateInfo?.rate_type === 'percentage') return `${r.rate}%`
+                                if (rateInfo?.rate_type === 'flat') return `${fmt$(r.rate)} flat`
+                                return `$${r.rate}/W`
+                              })()} = {fmt$(r.solar_commission)}</p>
                             </div>
                             <div>
                               <p className="text-gray-500">Adder</p>
@@ -532,7 +537,7 @@ function EarningsTab({ orgId }: { orgId: string | null }) {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               ))}
               {paged.length === 0 && (
                 <tr>
@@ -786,7 +791,6 @@ export default function CommissionsPage() {
   const { user: currentUser, loading: userLoading } = useCurrentUser()
   const { orgId } = useOrg()
   const isAdmin = currentUser?.isAdmin ?? false
-  const isManager = currentUser?.isManager ?? false
 
   const [tab, setTab] = useState<Tab>('calculator')
   const [rates, setRates] = useState<CommissionRate[]>([])
@@ -814,25 +818,12 @@ export default function CommissionsPage() {
     )
   }
 
-  // Role gate: Manager+
-  if (!isManager) {
+  // Auth gate: any authenticated user can access (Calculator + Earnings)
+  // Rate Card tab is admin-only (gated below in tab list)
+  if (!currentUser) {
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col">
-        <Nav active="Commissions" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <h1 className="text-lg font-semibold text-white mb-2">Manager Access Required</h1>
-            <p className="text-sm text-gray-500">You don&apos;t have permission to view this page.</p>
-            <a href="/command" className="inline-block mt-4 text-xs text-blue-400 hover:text-blue-300 transition-colors">
-              Back to Command Center
-            </a>
-          </div>
-        </div>
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-gray-500 text-sm">Please sign in to view commissions.</div>
       </div>
     )
   }
@@ -876,7 +867,7 @@ export default function CommissionsPage() {
 
         {/* Tab content */}
         {tab === 'calculator' && <CalculatorTab rates={rates} />}
-        {tab === 'earnings' && <EarningsTab orgId={orgId} />}
+        {tab === 'earnings' && <EarningsTab orgId={orgId} rates={rates} />}
         {tab === 'rates' && isAdmin && <RateCardTab rates={rates} onReload={loadRates} orgId={orgId} />}
       </div>
     </div>

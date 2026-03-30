@@ -58,6 +58,11 @@ export function calculateCommission(
   roleKey: string,
   rates: CommissionRate[],
 ): CommissionBreakdown {
+  // Guard against negative inputs
+  systemWatts = Math.max(0, systemWatts)
+  adderRevenue = Math.max(0, adderRevenue)
+  referralCount = Math.max(0, referralCount)
+
   const roleRate = rates.find(r => r.role_key === roleKey && r.active)
   const adderRate = rates.find(r => r.role_key === 'adder' && r.active)
   const referralRate = rates.find(r => r.role_key === 'referral' && r.active)
@@ -101,16 +106,18 @@ export function calculateCommission(
 // ── Rate Queries ────────────────────────────────────────────────────────────
 
 /**
- * Load all active commission rates, optionally filtered by org.
+ * Load commission rates, optionally filtered by org.
+ * @param orgId - filter to a specific org
+ * @param activeOnly - when true (default), only returns active rates; pass false to include inactive (admin use)
  */
-export async function loadCommissionRates(orgId?: string | null): Promise<CommissionRate[]> {
+export async function loadCommissionRates(orgId?: string | null, activeOnly = true): Promise<CommissionRate[]> {
   const supabase = db()
   let q = supabase
     .from('commission_rates')
     .select('*')
-    .eq('active', true)
     .order('sort_order', { ascending: true })
     .limit(100)
+  if (activeOnly) q = q.eq('active', true)
   if (orgId) q = q.eq('org_id', orgId)
   const { data, error } = await q
   if (error) console.error('[loadCommissionRates]', error.message)
@@ -270,7 +277,8 @@ export async function loadEarningsSummary(
   let q = supabase
     .from('commission_records')
     .select('role_key, status, total_commission')
-    .limit(5000)
+    // High limit for aggregation — should move to a Postgres view/function at scale (10K+ records)
+    .limit(10000)
   if (userId) q = q.eq('user_id', userId)
   if (orgId) q = q.eq('org_id', orgId)
   if (dateRange?.from) q = q.gte('created_at', dateRange.from)

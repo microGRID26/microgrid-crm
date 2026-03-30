@@ -281,6 +281,7 @@ const templates: Record<number, TemplateFactory> = {
       <p>Click any amount, date, or status cell to edit inline. Stale submissions (>30 days) are highlighted in amber and red. Export filtered results to CSV with one click.</p>
       <p>M2 and M3 eligibility are set automatically when Install Complete and PTO tasks are marked done.</p>
       <p><strong>Invoices:</strong> The <span style="color:#1D9E75;font-weight:600;">Invoices</span> page handles billing between organizations. Create invoices with line items, tag them to project milestones, send to partner orgs, and track payment -- all with auto-generated invoice numbers and status validation.</p>
+      <p><strong>Commissions:</strong> The <span style="color:#1D9E75;font-weight:600;">Commissions</span> page lets you estimate per-deal earnings instantly. Enter system kW, adder revenue, and referrals, select your role, and see a breakdown of solar, adder, and referral commissions. The Earnings tab tracks your commission history by period.</p>
       ${ctaButton('View Funding Dashboard →', '/funding')}
     `),
   }),
