@@ -230,6 +230,7 @@ function AssignmentDetail({
   isEngineering,
   isPlatform,
   onStatusChange,
+  onPriorityChange,
   onOpenProject,
 }: {
   assignment: EngineeringAssignment
@@ -237,6 +238,7 @@ function AssignmentDetail({
   isEngineering: boolean
   isPlatform: boolean
   onStatusChange: (status: AssignmentStatus) => void
+  onPriorityChange: (priority: string) => void
   onOpenProject: (projectId: string) => void
 }) {
   const deliverables = assignment.deliverables ?? []
@@ -310,6 +312,22 @@ function AssignmentDetail({
           <div className="text-sm text-white">{assignment.revision_count}</div>
         </div>
       </div>
+
+      {/* Editable Priority */}
+      {assignment.status !== 'complete' && assignment.status !== 'cancelled' && (
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-gray-500">Priority</div>
+          <select
+            value={assignment.priority}
+            onChange={e => onPriorityChange(e.target.value)}
+            className="text-xs bg-gray-900 text-white border border-gray-700 rounded px-2 py-1"
+          >
+            {PRIORITIES.map(p => (
+              <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Notes */}
       {assignment.notes && (
@@ -501,6 +519,16 @@ export default function EngineeringPage() {
   async function handleStatusChange(assignment: EngineeringAssignment, newStatus: AssignmentStatus) {
     const result = await updateAssignmentStatus(assignment.id, newStatus)
     if (result) loadData()
+  }
+
+  // Priority change handler
+  async function handlePriorityChange(assignment: EngineeringAssignment, newPriority: string) {
+    const supabase = db()
+    const { error } = await supabase
+      .from('engineering_assignments')
+      .update({ priority: newPriority })
+      .eq('id', assignment.id)
+    if (!error) loadData()
   }
 
   // Open project panel
@@ -793,6 +821,7 @@ export default function EngineeringPage() {
                             isEngineering={isEngineering}
                             isPlatform={isPlatform}
                             onStatusChange={(status) => handleStatusChange(assignment, status)}
+                            onPriorityChange={(priority) => handlePriorityChange(assignment, priority)}
                             onOpenProject={openProjectPanel}
                           />
                         )}

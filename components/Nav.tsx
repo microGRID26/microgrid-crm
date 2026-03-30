@@ -21,6 +21,7 @@ const PRIMARY_LINKS = [
   { label: 'Funding',   href: '/funding'   },
   { label: 'Analytics', href: '/analytics' },
   { label: 'Inventory', href: '/inventory' },
+  { label: 'Legacy',    href: '/legacy'    },
 ]
 
 const SALES_LINKS = [
@@ -47,6 +48,7 @@ const MORE_SECTIONS: LinkSection[] = [
   {
     section: 'Finance',
     links: [
+      { label: 'Earnings',      href: '/earnings' },
       { label: 'Commissions',   href: '/commissions' },
       { label: 'Invoices',      href: '/invoices' },
     ],
@@ -71,7 +73,6 @@ const MORE_SECTIONS: LinkSection[] = [
     section: 'Design',
     links: [
       { label: 'Redesign', href: '/redesign' },
-      { label: 'Legacy',   href: '/legacy'   },
     ],
   },
 ]

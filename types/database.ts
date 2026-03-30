@@ -796,6 +796,44 @@ export interface CommissionRecord {
   updated_at: string
 }
 
+export interface CommissionTier {
+  id: string
+  rate_id: string
+  min_deals: number | null
+  max_deals: number | null
+  min_watts: number | null
+  max_watts: number | null
+  rate: number
+  label: string | null
+  sort_order: number
+  created_at: string
+}
+
+export interface CommissionGeoModifier {
+  id: string
+  state: string | null
+  city: string | null
+  region: string | null
+  modifier: number
+  label: string | null
+  active: boolean
+  org_id: string | null
+  created_at: string
+}
+
+export interface CommissionHierarchy {
+  id: string
+  user_id: string
+  user_name: string | null
+  role_key: string
+  parent_id: string | null
+  team_name: string | null
+  active: boolean
+  org_id: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled' | 'disputed'
 
 export interface Invoice {
@@ -1202,6 +1240,24 @@ export type Database = {
         Row: CommissionRecord
         Insert: Omit<CommissionRecord, 'id' | 'referral_count' | 'solar_commission' | 'adder_commission' | 'referral_commission' | 'total_commission' | 'status' | 'created_at' | 'updated_at'> & { id?: string; referral_count?: number; solar_commission?: number; adder_commission?: number; referral_commission?: number; total_commission?: number; status?: CommissionStatus; created_at?: string; updated_at?: string }
         Update: Partial<CommissionRecord>
+
+      }
+      commission_tiers: {
+        Row: CommissionTier
+        Insert: Omit<CommissionTier, 'id' | 'sort_order' | 'created_at'> & { id?: string; sort_order?: number; created_at?: string }
+        Update: Partial<CommissionTier>
+
+      }
+      commission_geo_modifiers: {
+        Row: CommissionGeoModifier
+        Insert: Omit<CommissionGeoModifier, 'id' | 'modifier' | 'active' | 'created_at'> & { id?: string; modifier?: number; active?: boolean; created_at?: string }
+        Update: Partial<CommissionGeoModifier>
+
+      }
+      commission_hierarchy: {
+        Row: CommissionHierarchy
+        Insert: Omit<CommissionHierarchy, 'id' | 'active' | 'created_at' | 'updated_at'> & { id?: string; active?: boolean; created_at?: string; updated_at?: string }
+        Update: Partial<CommissionHierarchy>
 
       }
     }

@@ -6,8 +6,8 @@
 import { db } from '@/lib/db'
 
 // ── Types ────────────────────────────────────────────────────────────────────
-export type { CommissionRate, CommissionRecord, CommissionStatus, CommissionRateType } from '@/types/database'
-import type { CommissionRate, CommissionRecord, CommissionStatus } from '@/types/database'
+export type { CommissionRate, CommissionRecord, CommissionStatus, CommissionRateType, CommissionTier, CommissionGeoModifier, CommissionHierarchy } from '@/types/database'
+import type { CommissionRate, CommissionRecord, CommissionStatus, CommissionTier, CommissionGeoModifier, CommissionHierarchy } from '@/types/database'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -418,4 +418,358 @@ export async function generateProjectCommissions(
   }
 
   return created
+}
+
+// ── Tier Queries ───────────────────────────────────────────────────────────
+
+/**
+ * Load commission tiers for a specific rate, ordered by sort_order.
+ */
+export async function loadCommissionTiers(rateId: string): Promise<CommissionTier[]> {
+  const supabase = db()
+  const { data, error } = await supabase
+    .from('commission_tiers')
+    .select('*')
+    .eq('rate_id', rateId)
+    .order('sort_order', { ascending: true })
+    .limit(50)
+  if (error) console.error('[loadCommissionTiers]', error.message)
+  return (data ?? []) as CommissionTier[]
+}
+
+/**
+ * Add a commission tier (admin only).
+ */
+export async function addCommissionTier(
+  tier: Omit<CommissionTier, 'id' | 'created_at'>,
+): Promise<CommissionTier | null> {
+  const supabase = db()
+  const { data, error } = await supabase
+    .from('commission_tiers')
+    .insert(tier)
+    .select()
+    .single()
+  if (error) {
+    console.error('[addCommissionTier]', error.message)
+    return null
+  }
+  return data as CommissionTier
+}
+
+/**
+ * Delete a commission tier (admin only).
+ */
+export async function deleteCommissionTier(id: string): Promise<boolean> {
+  const supabase = db()
+  const { error } = await supabase
+    .from('commission_tiers')
+    .delete()
+    .eq('id', id)
+  if (error) {
+    console.error('[deleteCommissionTier]', error.message)
+    return false
+  }
+  return true
+}
+
+// ── Geo Modifier Queries ───────────────────────────────────────────────────
+
+/**
+ * Load active geo modifiers, optionally filtered by org.
+ */
+export async function loadGeoModifiers(orgId?: string | null): Promise<CommissionGeoModifier[]> {
+  const supabase = db()
+  let q = supabase
+    .from('commission_geo_modifiers')
+    .select('*')
+    .eq('active', true)
+    .order('state', { ascending: true })
+    .limit(500)
+  if (orgId) q = q.or(`org_id.eq.${orgId},org_id.is.null`)
+  const { data, error } = await q
+  if (error) console.error('[loadGeoModifiers]', error.message)
+  return (data ?? []) as CommissionGeoModifier[]
+}
+
+/**
+ * Add a geo modifier (admin only).
+ */
+export async function addGeoModifier(
+  modifier: Omit<CommissionGeoModifier, 'id' | 'created_at'>,
+): Promise<CommissionGeoModifier | null> {
+  const supabase = db()
+  const { data, error } = await supabase
+    .from('commission_geo_modifiers')
+    .insert(modifier)
+    .select()
+    .single()
+  if (error) {
+    console.error('[addGeoModifier]', error.message)
+    return null
+  }
+  return data as CommissionGeoModifier
+}
+
+/**
+ * Update a geo modifier (admin only).
+ */
+export async function updateGeoModifier(
+  id: string,
+  updates: Partial<CommissionGeoModifier>,
+): Promise<CommissionGeoModifier | null> {
+  const supabase = db()
+  const { data, error } = await supabase
+    .from('commission_geo_modifiers')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) {
+    console.error('[updateGeoModifier]', error.message)
+    return null
+  }
+  return data as CommissionGeoModifier
+}
+
+/**
+ * Delete a geo modifier (admin only).
+ */
+export async function deleteGeoModifier(id: string): Promise<boolean> {
+  const supabase = db()
+  const { error } = await supabase
+    .from('commission_geo_modifiers')
+    .delete()
+    .eq('id', id)
+  if (error) {
+    console.error('[deleteGeoModifier]', error.message)
+    return false
+  }
+  return true
+}
+
+// ── Hierarchy Queries ──────────────────────────────────────────────────────
+
+/**
+ * Load team hierarchy, optionally filtered by org.
+ */
+export async function loadHierarchy(orgId?: string | null): Promise<CommissionHierarchy[]> {
+  const supabase = db()
+  let q = supabase
+    .from('commission_hierarchy')
+    .select('*')
+    .eq('active', true)
+    .order('role_key', { ascending: true })
+    .limit(500)
+  if (orgId) q = q.or(`org_id.eq.${orgId},org_id.is.null`)
+  const { data, error } = await q
+  if (error) console.error('[loadHierarchy]', error.message)
+  return (data ?? []) as CommissionHierarchy[]
+}
+
+/**
+ * Add a member to the commission hierarchy (admin only).
+ */
+export async function addHierarchyMember(
+  member: Omit<CommissionHierarchy, 'id' | 'created_at' | 'updated_at'>,
+): Promise<CommissionHierarchy | null> {
+  const supabase = db()
+  const { data, error } = await supabase
+    .from('commission_hierarchy')
+    .insert(member)
+    .select()
+    .single()
+  if (error) {
+    console.error('[addHierarchyMember]', error.message)
+    return null
+  }
+  return data as CommissionHierarchy
+}
+
+/**
+ * Update a hierarchy member (admin only).
+ */
+export async function updateHierarchyMember(
+  id: string,
+  updates: Partial<CommissionHierarchy>,
+): Promise<CommissionHierarchy | null> {
+  const supabase = db()
+  const { data, error } = await supabase
+    .from('commission_hierarchy')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) {
+    console.error('[updateHierarchyMember]', error.message)
+    return null
+  }
+  return data as CommissionHierarchy
+}
+
+/**
+ * Remove a hierarchy member (admin only). Sets active = false (soft delete).
+ */
+export async function removeHierarchyMember(id: string): Promise<boolean> {
+  const supabase = db()
+  const { error } = await supabase
+    .from('commission_hierarchy')
+    .update({ active: false })
+    .eq('id', id)
+  if (error) {
+    console.error('[removeHierarchyMember]', error.message)
+    return false
+  }
+  return true
+}
+
+// ── Pure Calculation Functions (tiers + geo) ───────────────────────────────
+
+/**
+ * Given a base rate and tiers, return the applicable rate based on deal count or total watts.
+ * Tiers are checked in sort_order — first matching tier wins.
+ * Falls back to the base rate if no tier matches.
+ */
+export function getTieredRate(
+  rateId: string,
+  dealCount: number,
+  totalWatts: number,
+  rates: CommissionRate[],
+  tiers: CommissionTier[],
+): number {
+  const baseRate = rates.find(r => r.id === rateId)
+  if (!baseRate) return 0
+
+  // Filter tiers for this rate, sorted by sort_order
+  const rateTiers = tiers
+    .filter(t => t.rate_id === rateId)
+    .sort((a, b) => a.sort_order - b.sort_order)
+
+  for (const tier of rateTiers) {
+    const dealsMatch =
+      (tier.min_deals == null || dealCount >= tier.min_deals) &&
+      (tier.max_deals == null || dealCount <= tier.max_deals)
+    const wattsMatch =
+      (tier.min_watts == null || totalWatts >= tier.min_watts) &&
+      (tier.max_watts == null || totalWatts <= tier.max_watts)
+
+    // Tier matches if it has deal bounds and they match, OR has watt bounds and they match
+    const hasDealBounds = tier.min_deals != null || tier.max_deals != null
+    const hasWattBounds = tier.min_watts != null || tier.max_watts != null
+
+    if (hasDealBounds && hasWattBounds) {
+      // Both specified: both must match
+      if (dealsMatch && wattsMatch) return tier.rate
+    } else if (hasDealBounds) {
+      if (dealsMatch) return tier.rate
+    } else if (hasWattBounds) {
+      if (wattsMatch) return tier.rate
+    }
+  }
+
+  return baseRate.rate
+}
+
+/**
+ * Find the matching geo modifier for a given state and city.
+ * Priority: exact city+state match > state-only match > region match > default (1.0).
+ */
+export function getGeoModifier(
+  state: string | null | undefined,
+  city: string | null | undefined,
+  modifiers: CommissionGeoModifier[],
+): number {
+  if (!state && !city) return 1.0
+
+  const active = modifiers.filter(m => m.active)
+  const normState = state?.trim().toLowerCase() ?? ''
+  const normCity = city?.trim().toLowerCase() ?? ''
+
+  // Priority 1: exact city + state match
+  if (normCity && normState) {
+    const cityMatch = active.find(
+      m => m.city?.toLowerCase() === normCity && m.state?.toLowerCase() === normState,
+    )
+    if (cityMatch) return cityMatch.modifier
+  }
+
+  // Priority 2: state-only match (no city specified on modifier)
+  if (normState) {
+    const stateMatch = active.find(
+      m => m.state?.toLowerCase() === normState && !m.city,
+    )
+    if (stateMatch) return stateMatch.modifier
+  }
+
+  // Priority 3: region match (check if state or city has a region modifier)
+  // Region modifiers have region set but no state/city
+  const regionMatch = active.find(m => m.region && !m.state && !m.city)
+  if (regionMatch) return regionMatch.modifier
+
+  return 1.0
+}
+
+/**
+ * Enhanced commission calculation that applies volume tiers and geo modifiers.
+ * Replaces the base rate with the tiered rate (if applicable) and multiplies by geo modifier.
+ */
+export function calculateTieredCommission(
+  systemWatts: number,
+  adderRevenue: number,
+  referralCount: number,
+  roleKey: string,
+  rates: CommissionRate[],
+  tiers: CommissionTier[],
+  geoModifier?: number,
+  dealCount?: number,
+  totalWatts?: number,
+): CommissionBreakdown {
+  // Guard against negative inputs
+  systemWatts = Math.max(0, systemWatts)
+  adderRevenue = Math.max(0, adderRevenue)
+  referralCount = Math.max(0, referralCount)
+  const geo = geoModifier ?? 1.0
+
+  const roleRate = rates.find(r => r.role_key === roleKey && r.active)
+  const adderRate = rates.find(r => r.role_key === 'adder' && r.active)
+  const referralRate = rates.find(r => r.role_key === 'referral' && r.active)
+
+  let solarCommission = 0
+  if (roleRate) {
+    // Use tiered rate if tiers are provided and volume data is available
+    const effectiveRate =
+      tiers.length > 0 && (dealCount != null || totalWatts != null)
+        ? getTieredRate(roleRate.id, dealCount ?? 0, totalWatts ?? 0, rates, tiers)
+        : roleRate.rate
+
+    if (roleRate.rate_type === 'per_watt') {
+      solarCommission = systemWatts * effectiveRate * geo
+    } else if (roleRate.rate_type === 'percentage') {
+      solarCommission = systemWatts * effectiveRate / 100 * geo
+    } else if (roleRate.rate_type === 'flat') {
+      solarCommission = effectiveRate * geo
+    }
+  }
+
+  let adderCommission = 0
+  if (adderRate && adderRevenue > 0) {
+    if (adderRate.rate_type === 'percentage') {
+      adderCommission = adderRevenue * adderRate.rate / 100
+    } else if (adderRate.rate_type === 'flat') {
+      adderCommission = adderRate.rate
+    }
+  }
+
+  let referralCommission = 0
+  if (referralRate && referralCount > 0) {
+    referralCommission = referralCount * referralRate.rate
+  }
+
+  const total = solarCommission + adderCommission + referralCommission
+
+  return {
+    solarCommission: Math.round(solarCommission * 100) / 100,
+    adderCommission: Math.round(adderCommission * 100) / 100,
+    referralCommission: Math.round(referralCommission * 100) / 100,
+    total: Math.round(total * 100) / 100,
+  }
 }
