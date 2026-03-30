@@ -223,6 +223,40 @@ function RepOnboarding() {
   )
 }
 
+function ECCommissions() {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-3">Projects in Energy Communities (EC) earn higher commission rates. The EC/Non-EC distinction affects the gross per-watt rate, M1 advance splits, and overall earnings.</p>
+      <div className="space-y-2 text-xs">
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-green-500">
+          <span className="text-green-400 font-bold">EC Rate: $0.50/W Gross</span>
+          <p className="text-gray-400 mt-1">Energy Community projects earn $0.50/W gross. After the $0.10/W operations deduction, the effective rate is $0.40/W. The $0.15/W EC bonus represents the premium over non-EC projects.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-blue-500">
+          <span className="text-blue-400 font-bold">Non-EC Rate: $0.35/W Gross</span>
+          <p className="text-gray-400 mt-1">Standard projects earn $0.35/W gross. After the $0.10/W operations deduction, the effective rate is $0.25/W.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-amber-500">
+          <span className="text-amber-400 font-bold">M1 Advance ($1,000)</span>
+          <p className="text-gray-400 mt-1">A $1,000 M1 advance is issued at the sale. Self-generated deals: 100% goes to the Energy Consultant. Split deals: 50% EC / 50% EA. The advance has a 90-day clawback window -- if the project is not installed within 90 days, the advance can be clawed back.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-red-500">
+          <span className="text-red-400 font-bold">Adder Deductions</span>
+          <p className="text-gray-400 mt-1">When enabled, adder revenue (EV chargers, critter guards, etc.) is deducted from the commission stack before distribution. This ensures adder costs do not inflate commission payouts.</p>
+        </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-purple-500">
+          <span className="text-purple-400 font-bold">Clawback &amp; Advances Tab</span>
+          <p className="text-gray-400 mt-1">Admins manage M1 advances on the Advances tab: approve, pay, and clawback. Advances past the 90-day clawback window are flagged for recovery. Each advance tracks paid_at, clawback_date, reason, and admin notes.</p>
+        </div>
+      </div>
+      <div className="mt-3 bg-gray-800 rounded-lg px-4 py-3 text-xs">
+        <p className="text-gray-500 font-medium mb-1">Setting the EC Flag</p>
+        <p className="text-gray-400">Toggle the Energy Community flag on any project&apos;s Info tab (under the System section). The EC badge appears on commission records and affects all rate calculations for that project.</p>
+      </div>
+    </div>
+  )
+}
+
 export const financialTopics: HelpTopicData[] = [
   {
     id: 'funding-overview',
@@ -310,5 +344,15 @@ export const financialTopics: HelpTopicData[] = [
     tryItLink: '/sales',
     relatedTopics: ['sales-teams', 'commission-calculator'],
     content: RepOnboarding,
+  },
+  {
+    id: 'ec-commissions',
+    title: 'EC/Non-EC Commissions & M1 Advances',
+    description: 'Energy Community rates, M1 advance splits, clawback, and adder deductions',
+    category: 'Financial',
+    keywords: ['ec', 'energy community', 'non-ec', 'advance', 'm1', 'clawback', 'adder', 'deduction', 'self-generated', 'split', 'per-watt', 'gross', 'effective', 'operations'],
+    tryItLink: '/commissions',
+    relatedTopics: ['commission-calculator', 'earnings-dashboard', 'funding-overview'],
+    content: ECCommissions,
   },
 ]

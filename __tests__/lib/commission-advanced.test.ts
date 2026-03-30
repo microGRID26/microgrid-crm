@@ -1,0 +1,722 @@
+// __tests__/lib/commission-advanced.test.ts
+// Tests for EC/Non-EC commission calculation, M1 advances, clawback, adder deductions
+
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mockSupabase } from '../../vitest.setup'
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+describe('commission-advanced constants', () => {
+  it('ADVANCE_STATUSES contains all 5 statuses', async () => {
+    const { ADVANCE_STATUSES } = await import('@/lib/api/commission-advanced')
+    expect(ADVANCE_STATUSES).toEqual(['pending', 'approved', 'paid', 'clawed_back', 'cancelled'])
+    expect(ADVANCE_STATUSES).toHaveLength(5)
+  })
+
+  it('ADVANCE_STATUS_LABELS maps every status', async () => {
+    const { ADVANCE_STATUS_LABELS, ADVANCE_STATUSES } = await import('@/lib/api/commission-advanced')
+    for (const s of ADVANCE_STATUSES) {
+      expect(ADVANCE_STATUS_LABELS[s]).toBeTruthy()
+    }
+    expect(ADVANCE_STATUS_LABELS.pending).toBe('Pending')
+    expect(ADVANCE_STATUS_LABELS.clawed_back).toBe('Clawed Back')
+  })
+
+  it('ADVANCE_STATUS_BADGE maps every status to CSS classes', async () => {
+    const { ADVANCE_STATUS_BADGE, ADVANCE_STATUSES } = await import('@/lib/api/commission-advanced')
+    for (const s of ADVANCE_STATUSES) {
+      expect(ADVANCE_STATUS_BADGE[s]).toMatch(/bg-/)
+      expect(ADVANCE_STATUS_BADGE[s]).toMatch(/text-/)
+    }
+  })
+
+  it('EC_DEFAULTS has correct EC/Non-EC rates from CSV', async () => {
+    const { EC_DEFAULTS } = await import('@/lib/api/commission-advanced')
+    expect(EC_DEFAULTS.ec_gross_per_watt).toBe(0.50)
+    expect(EC_DEFAULTS.non_ec_gross_per_watt).toBe(0.35)
+    expect(EC_DEFAULTS.ec_bonus_per_watt).toBe(0.15)
+    expect(EC_DEFAULTS.operations_per_watt).toBe(0.10)
+    expect(EC_DEFAULTS.operations_deduction_pct).toBe(20)
+    expect(EC_DEFAULTS.ec_effective_per_watt).toBe(0.40)
+    expect(EC_DEFAULTS.non_ec_effective_per_watt).toBe(0.25)
+    expect(EC_DEFAULTS.m1_advance_amount).toBe(1000)
+    expect(EC_DEFAULTS.m1_self_gen_ec_split).toBe(100)
+    expect(EC_DEFAULTS.m1_ec_ea_split).toBe(50)
+    expect(EC_DEFAULTS.clawback_days).toBe(90)
+    expect(EC_DEFAULTS.adder_deduction_from_stack).toBe(true)
+  })
+})
+
+// ── calculateDaysSinceSale ────────────────────────────────────────────────────
+
+describe('calculateDaysSinceSale', () => {
+  it('returns 0 for null date', async () => {
+    const { calculateDaysSinceSale } = await import('@/lib/api/commission-advanced')
+    expect(calculateDaysSinceSale(null)).toBe(0)
+  })
+
+  it('returns 0 for undefined date', async () => {
+    const { calculateDaysSinceSale } = await import('@/lib/api/commission-advanced')
+    expect(calculateDaysSinceSale(undefined)).toBe(0)
+  })
+
+  it('returns 0 for empty string', async () => {
+    const { calculateDaysSinceSale } = await import('@/lib/api/commission-advanced')
+    expect(calculateDaysSinceSale('')).toBe(0)
+  })
+
+  it('returns 0 for today', async () => {
+    const { calculateDaysSinceSale } = await import('@/lib/api/commission-advanced')
+    const today = new Date().toISOString().split('T')[0]
+    expect(calculateDaysSinceSale(today)).toBe(0)
+  })
+
+  it('returns 1 for yesterday', async () => {
+    const { calculateDaysSinceSale } = await import('@/lib/api/commission-advanced')
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    expect(calculateDaysSinceSale(yesterday.toISOString().split('T')[0])).toBe(1)
+  })
+
+  it('returns 0 for future date (never negative)', async () => {
+    const { calculateDaysSinceSale } = await import('@/lib/api/commission-advanced')
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    expect(calculateDaysSinceSale(tomorrow.toISOString().split('T')[0])).toBe(0)
+  })
+
+  it('returns correct days for a date 30 days ago', async () => {
+    const { calculateDaysSinceSale } = await import('@/lib/api/commission-advanced')
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    expect(calculateDaysSinceSale(d.toISOString().split('T')[0])).toBe(30)
+  })
+
+  it('returns 0 for invalid date string', async () => {
+    const { calculateDaysSinceSale } = await import('@/lib/api/commission-advanced')
+    expect(calculateDaysSinceSale('not-a-date')).toBe(0)
+  })
+})
+
+// ── isClawbackEligible ────────────────────────────────────────────────────────
+
+describe('isClawbackEligible', () => {
+  it('returns true for paid advance past clawback date', async () => {
+    const { isClawbackEligible } = await import('@/lib/api/commission-advanced')
+    const pastDate = new Date()
+    pastDate.setDate(pastDate.getDate() - 1)
+    expect(isClawbackEligible({
+      status: 'paid',
+      clawback_date: pastDate.toISOString().split('T')[0],
+    })).toBe(true)
+  })
+
+  it('returns false for paid advance within clawback window', async () => {
+    const { isClawbackEligible } = await import('@/lib/api/commission-advanced')
+    const futureDate = new Date()
+    futureDate.setDate(futureDate.getDate() + 30)
+    expect(isClawbackEligible({
+      status: 'paid',
+      clawback_date: futureDate.toISOString().split('T')[0],
+    })).toBe(false)
+  })
+
+  it('returns false for non-paid status even if past clawback date', async () => {
+    const { isClawbackEligible } = await import('@/lib/api/commission-advanced')
+    const pastDate = new Date()
+    pastDate.setDate(pastDate.getDate() - 10)
+    expect(isClawbackEligible({
+      status: 'pending',
+      clawback_date: pastDate.toISOString().split('T')[0],
+    })).toBe(false)
+    expect(isClawbackEligible({
+      status: 'approved',
+      clawback_date: pastDate.toISOString().split('T')[0],
+    })).toBe(false)
+    expect(isClawbackEligible({
+      status: 'clawed_back',
+      clawback_date: pastDate.toISOString().split('T')[0],
+    })).toBe(false)
+    expect(isClawbackEligible({
+      status: 'cancelled',
+      clawback_date: pastDate.toISOString().split('T')[0],
+    })).toBe(false)
+  })
+
+  it('returns false when clawback_date is null', async () => {
+    const { isClawbackEligible } = await import('@/lib/api/commission-advanced')
+    expect(isClawbackEligible({
+      status: 'paid',
+      clawback_date: null,
+    })).toBe(false)
+  })
+
+  it('returns false for invalid clawback_date string', async () => {
+    const { isClawbackEligible } = await import('@/lib/api/commission-advanced')
+    expect(isClawbackEligible({
+      status: 'paid',
+      clawback_date: 'not-a-date',
+    })).toBe(false)
+  })
+
+  it('returns true for paid advance on exact clawback date', async () => {
+    const { isClawbackEligible } = await import('@/lib/api/commission-advanced')
+    // "today" should be >= today, so eligible
+    const today = new Date().toISOString().split('T')[0]
+    expect(isClawbackEligible({
+      status: 'paid',
+      clawback_date: today,
+    })).toBe(true)
+  })
+})
+
+// ── calculateProjectCommission ────────────────────────────────────────────────
+
+describe('calculateProjectCommission', () => {
+  const defaultConfig: Record<string, string> = {
+    ec_gross_per_watt: '0.50',
+    non_ec_gross_per_watt: '0.35',
+    ec_bonus_per_watt: '0.15',
+    operations_per_watt: '0.10',
+    ec_effective_per_watt: '0.40',
+    non_ec_effective_per_watt: '0.25',
+    m1_advance_amount: '1000',
+    m1_self_gen_ec_split: '100',
+    m1_ec_ea_split: '50',
+    adder_deduction_from_stack: 'true',
+  }
+
+  const distribution = [
+    { role_key: 'ec', label: 'Energy Consultant', percentage: 40 },
+    { role_key: 'ea', label: 'Energy Advisor', percentage: 40 },
+    { role_key: 'mgr', label: 'Manager', percentage: 20 },
+  ]
+
+  it('EC project: correct gross, ops deduction, and effective per watt', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: true, adder_total: 0, self_generated: false },
+      defaultConfig,
+      distribution,
+    )
+    // 10 kW = 10,000 W
+    expect(result.is_ec).toBe(true)
+    expect(result.system_watts).toBe(10000)
+    expect(result.gross_per_watt).toBe(0.50)
+    expect(result.ops_deduction_per_watt).toBe(0.10)
+    expect(result.effective_per_watt).toBe(0.40)
+    expect(result.total_gross).toBe(5000) // 10000 * 0.50
+    expect(result.total_ops_deduction).toBe(1000) // 10000 * 0.10
+    expect(result.total_adder_deduction).toBe(0)
+    expect(result.total_net).toBe(4000) // 5000 - 1000 = 4000
+  })
+
+  it('Non-EC project: correct gross ($0.35/W) and effective ($0.25/W)', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: false, adder_total: 0, self_generated: false },
+      defaultConfig,
+      distribution,
+    )
+    expect(result.is_ec).toBe(false)
+    expect(result.gross_per_watt).toBe(0.35)
+    expect(result.ops_deduction_per_watt).toBe(0.10)
+    expect(result.effective_per_watt).toBe(0.25)
+    expect(result.total_gross).toBe(3500) // 10000 * 0.35
+    expect(result.total_ops_deduction).toBe(1000) // 10000 * 0.10
+    expect(result.total_net).toBe(2500) // 3500 - 1000 = 2500
+  })
+
+  it('distribution percentages are applied correctly to each role', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: true, adder_total: 0, self_generated: false },
+      defaultConfig,
+      distribution,
+    )
+    // Total distributable pool = 5000 - 1000 = 4000
+    expect(result.lines).toHaveLength(3)
+    const ecLine = result.lines.find(l => l.role_key === 'ec')!
+    const eaLine = result.lines.find(l => l.role_key === 'ea')!
+    const mgrLine = result.lines.find(l => l.role_key === 'mgr')!
+
+    expect(ecLine.percentage).toBe(40)
+    expect(ecLine.net_commission).toBe(1600) // 4000 * 0.40
+    expect(eaLine.net_commission).toBe(1600) // 4000 * 0.40
+    expect(mgrLine.net_commission).toBe(800)  // 4000 * 0.20
+  })
+
+  it('adder deduction reduces distributable pool', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: true, adder_total: 500, self_generated: false },
+      defaultConfig,
+      distribution,
+    )
+    // Pool: 5000 - 1000 - 500 = 3500
+    expect(result.total_adder_deduction).toBe(500)
+    expect(result.total_net).toBe(3500)
+  })
+
+  it('adder deduction disabled when config says false', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const config = { ...defaultConfig, adder_deduction_from_stack: 'false' }
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: true, adder_total: 500, self_generated: false },
+      config,
+      distribution,
+    )
+    expect(result.total_adder_deduction).toBe(0)
+    expect(result.total_net).toBe(4000) // no adder deduction
+  })
+
+  it('zero system kW produces zero commission', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 0, energy_community: true, adder_total: 0, self_generated: false },
+      defaultConfig,
+      distribution,
+    )
+    expect(result.system_watts).toBe(0)
+    expect(result.total_gross).toBe(0)
+    expect(result.total_net).toBe(0)
+    result.lines.forEach(l => expect(l.net_commission).toBe(0))
+  })
+
+  it('ops deduction math: exactly 20% of gross for EC', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: true, adder_total: 0, self_generated: false },
+      defaultConfig,
+      distribution,
+    )
+    // $0.10 / $0.50 = 20%
+    expect(result.total_ops_deduction / result.total_gross).toBeCloseTo(0.20)
+  })
+
+  it('ops deduction math for Non-EC: $0.10/$0.35 = ~28.6%', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: false, adder_total: 0, self_generated: false },
+      defaultConfig,
+      distribution,
+    )
+    // ops per watt is flat $0.10 regardless of EC/non-EC
+    expect(result.total_ops_deduction).toBe(1000)
+    expect(result.total_ops_deduction / result.total_gross).toBeCloseTo(0.10 / 0.35)
+  })
+
+  it('M1 advance: self-generated gets 100% EC split', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: true, adder_total: 0, self_generated: true },
+      defaultConfig,
+      distribution,
+    )
+    expect(result.m1_advance).toBe(1000)
+    expect(result.m1_ec_amount).toBe(1000) // 100% to EC
+    expect(result.m1_ea_amount).toBe(0)    // 0% to EA
+  })
+
+  it('M1 advance: non-self-generated splits 50/50', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: true, adder_total: 0, self_generated: false },
+      defaultConfig,
+      distribution,
+    )
+    expect(result.m1_advance).toBe(1000)
+    expect(result.m1_ec_amount).toBe(500) // 50% to EC
+    expect(result.m1_ea_amount).toBe(500) // 50% to EA
+  })
+
+  it('net commission never goes negative (large adder deduction)', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 1, energy_community: false, adder_total: 10000, self_generated: false },
+      defaultConfig,
+      distribution,
+    )
+    // 1kW = 1000W * $0.35 = $350 gross, $100 ops, $10000 adder = hugely negative
+    // Math.max(0, ...) should prevent negative
+    expect(result.total_net).toBeGreaterThanOrEqual(0)
+    result.lines.forEach(l => expect(l.net_commission).toBeGreaterThanOrEqual(0))
+  })
+
+  it('uses defaults when config keys are missing', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 10, energy_community: true, adder_total: 0, self_generated: false },
+      {}, // empty config
+      distribution,
+    )
+    // Should fall back to EC_DEFAULTS
+    expect(result.gross_per_watt).toBe(0.50)
+    expect(result.ops_deduction_per_watt).toBe(0.10)
+    expect(result.effective_per_watt).toBe(0.40)
+    expect(result.m1_advance).toBe(1000)
+  })
+
+  it('rounds to 2 decimal places for currency', async () => {
+    const { calculateProjectCommission } = await import('@/lib/api/commission-advanced')
+    const result = calculateProjectCommission(
+      { system_kw: 7.3, energy_community: true, adder_total: 333, self_generated: false },
+      defaultConfig,
+      [{ role_key: 'rep', label: 'Rep', percentage: 100 }],
+    )
+    // Verify no floating point artifacts
+    const decimalPlaces = (n: number) => {
+      const s = String(n)
+      if (!s.includes('.')) return 0
+      return s.split('.')[1].length
+    }
+    expect(decimalPlaces(result.total_gross)).toBeLessThanOrEqual(2)
+    expect(decimalPlaces(result.total_net)).toBeLessThanOrEqual(2)
+    result.lines.forEach(l => {
+      expect(decimalPlaces(l.net_commission)).toBeLessThanOrEqual(2)
+      expect(decimalPlaces(l.gross_amount)).toBeLessThanOrEqual(2)
+    })
+  })
+})
+
+// ── Helper: create a pre-configured mock chain ───────────────────────────────
+// mockSupabase.from() creates a new chain each call, so we must configure the
+// chain _before_ the code under test calls from() by using mockReturnValueOnce.
+function setupMockChain(overrides: Record<string, any> = {}) {
+  // Build a chain with all methods returning itself
+  const chain: any = {}
+  const methods = ['select', 'insert', 'update', 'upsert', 'delete', 'eq', 'neq', 'in', 'ilike',
+    'gt', 'lt', 'gte', 'lte', 'or', 'order', 'range', 'limit']
+  for (const m of methods) {
+    chain[m] = vi.fn(() => chain)
+  }
+  chain.single = vi.fn(() => Promise.resolve({ data: null, error: null }))
+  chain.maybeSingle = vi.fn(() => Promise.resolve({ data: null, error: null }))
+  chain.then = vi.fn((cb: any) => Promise.resolve({ data: [], error: null }).then(cb))
+
+  // Apply overrides
+  for (const [k, v] of Object.entries(overrides)) {
+    chain[k] = v
+  }
+
+  mockSupabase.from.mockReturnValueOnce(chain)
+  return chain
+}
+
+// ── loadCommissionConfig ──────────────────────────────────────────────────────
+
+describe('loadCommissionConfig', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns config as key-value record', async () => {
+    const chain = setupMockChain({
+      then: vi.fn((cb: any) => Promise.resolve({
+        data: [
+          { config_key: 'ec_gross_per_watt', value: '0.50' },
+          { config_key: 'non_ec_gross_per_watt', value: '0.35' },
+        ],
+        error: null,
+      }).then(cb)),
+    })
+
+    const { loadCommissionConfig } = await import('@/lib/api/commission-advanced')
+    const config = await loadCommissionConfig()
+    expect(mockSupabase.from).toHaveBeenCalledWith('commission_config')
+    expect(config).toEqual({
+      ec_gross_per_watt: '0.50',
+      non_ec_gross_per_watt: '0.35',
+    })
+  })
+
+  it('filters by orgId when provided', async () => {
+    const chain = setupMockChain({
+      then: vi.fn((cb: any) => Promise.resolve({ data: [], error: null }).then(cb)),
+    })
+
+    const { loadCommissionConfig } = await import('@/lib/api/commission-advanced')
+    await loadCommissionConfig('org-123')
+    expect(chain.or).toHaveBeenCalled()
+  })
+
+  it('returns empty record on error', async () => {
+    setupMockChain({
+      then: vi.fn((cb: any) => Promise.resolve({
+        data: null,
+        error: { message: 'DB error' },
+      }).then(cb)),
+    })
+
+    const { loadCommissionConfig } = await import('@/lib/api/commission-advanced')
+    const config = await loadCommissionConfig()
+    expect(config).toEqual({})
+  })
+})
+
+// ── updateCommissionConfig ────────────────────────────────────────────────────
+
+describe('updateCommissionConfig', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns true on success', async () => {
+    const chain = setupMockChain({
+      eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
+    })
+
+    const { updateCommissionConfig } = await import('@/lib/api/commission-advanced')
+    const result = await updateCommissionConfig('ec_gross_per_watt', '0.55')
+    expect(mockSupabase.from).toHaveBeenCalledWith('commission_config')
+    expect(chain.update).toHaveBeenCalledWith({ value: '0.55' })
+    expect(result).toBe(true)
+  })
+
+  it('returns false on error', async () => {
+    setupMockChain({
+      eq: vi.fn(() => Promise.resolve({ data: null, error: { message: 'fail' } })),
+    })
+
+    const { updateCommissionConfig } = await import('@/lib/api/commission-advanced')
+    const result = await updateCommissionConfig('bad_key', 'val')
+    expect(result).toBe(false)
+  })
+})
+
+// ── loadAdvances ──────────────────────────────────────────────────────────────
+
+describe('loadAdvances', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('loads advances with no filters', async () => {
+    const chain = setupMockChain({
+      then: vi.fn((cb: any) => Promise.resolve({ data: [{ id: '1' }], error: null }).then(cb)),
+    })
+
+    const { loadAdvances } = await import('@/lib/api/commission-advanced')
+    const result = await loadAdvances()
+    expect(mockSupabase.from).toHaveBeenCalledWith('commission_advances')
+    expect(chain.order).toHaveBeenCalled()
+    expect(chain.limit).toHaveBeenCalledWith(500)
+    expect(result).toHaveLength(1)
+  })
+
+  it('applies projectId filter', async () => {
+    const chain = setupMockChain({
+      then: vi.fn((cb: any) => Promise.resolve({ data: [], error: null }).then(cb)),
+    })
+
+    const { loadAdvances } = await import('@/lib/api/commission-advanced')
+    await loadAdvances({ projectId: 'PROJ-123' })
+    expect(chain.eq).toHaveBeenCalledWith('project_id', 'PROJ-123')
+  })
+
+  it('applies repId filter', async () => {
+    const chain = setupMockChain({
+      then: vi.fn((cb: any) => Promise.resolve({ data: [], error: null }).then(cb)),
+    })
+
+    const { loadAdvances } = await import('@/lib/api/commission-advanced')
+    await loadAdvances({ repId: 'rep-uuid' })
+    expect(chain.eq).toHaveBeenCalledWith('rep_id', 'rep-uuid')
+  })
+
+  it('applies status filter', async () => {
+    const chain = setupMockChain({
+      then: vi.fn((cb: any) => Promise.resolve({ data: [], error: null }).then(cb)),
+    })
+
+    const { loadAdvances } = await import('@/lib/api/commission-advanced')
+    await loadAdvances({ status: 'paid' })
+    expect(chain.eq).toHaveBeenCalledWith('status', 'paid')
+  })
+
+  it('applies orgId filter', async () => {
+    const chain = setupMockChain({
+      then: vi.fn((cb: any) => Promise.resolve({ data: [], error: null }).then(cb)),
+    })
+
+    const { loadAdvances } = await import('@/lib/api/commission-advanced')
+    await loadAdvances({ orgId: 'org-uuid' })
+    expect(chain.eq).toHaveBeenCalledWith('org_id', 'org-uuid')
+  })
+
+  it('returns empty array on error', async () => {
+    setupMockChain({
+      then: vi.fn((cb: any) => Promise.resolve({ data: null, error: { message: 'fail' } }).then(cb)),
+    })
+
+    const { loadAdvances } = await import('@/lib/api/commission-advanced')
+    const result = await loadAdvances()
+    expect(result).toEqual([])
+  })
+})
+
+// ── createAdvance ─────────────────────────────────────────────────────────────
+
+describe('createAdvance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns created advance on success', async () => {
+    const advance = { id: 'adv-1', project_id: 'PROJ-1', amount: 1000 }
+    const chain = setupMockChain({
+      single: vi.fn(() => Promise.resolve({ data: advance, error: null })),
+    })
+
+    const { createAdvance } = await import('@/lib/api/commission-advanced')
+    const result = await createAdvance({
+      project_id: 'PROJ-1',
+      rep_id: null,
+      rep_name: 'Test Rep',
+      role_key: 'ec',
+      amount: 1000,
+      milestone: 'M1',
+      paid_at: null,
+      clawback_date: '2026-06-28',
+      clawback_reason: null,
+      clawed_back_at: null,
+      notes: null,
+      admin_notes: null,
+      org_id: null,
+    })
+    expect(mockSupabase.from).toHaveBeenCalledWith('commission_advances')
+    expect(chain.insert).toHaveBeenCalled()
+    expect(result).toEqual(advance)
+  })
+
+  it('returns null on error', async () => {
+    setupMockChain({
+      single: vi.fn(() => Promise.resolve({ data: null, error: { message: 'fail' } })),
+    })
+
+    const { createAdvance } = await import('@/lib/api/commission-advanced')
+    const result = await createAdvance({
+      project_id: 'PROJ-1',
+      rep_id: null,
+      rep_name: 'Test',
+      role_key: 'ec',
+      amount: 1000,
+      milestone: 'M1',
+      paid_at: null,
+      clawback_date: null,
+      clawback_reason: null,
+      clawed_back_at: null,
+      notes: null,
+      admin_notes: null,
+      org_id: null,
+    })
+    expect(result).toBeNull()
+  })
+})
+
+// ── updateAdvance ─────────────────────────────────────────────────────────────
+
+describe('updateAdvance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns true on success', async () => {
+    const chain = setupMockChain({
+      eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
+    })
+
+    const { updateAdvance } = await import('@/lib/api/commission-advanced')
+    const result = await updateAdvance('adv-1', { status: 'approved' })
+    expect(mockSupabase.from).toHaveBeenCalledWith('commission_advances')
+    expect(chain.update).toHaveBeenCalledWith({ status: 'approved' })
+    expect(result).toBe(true)
+  })
+
+  it('returns false on error', async () => {
+    setupMockChain({
+      eq: vi.fn(() => Promise.resolve({ data: null, error: { message: 'fail' } })),
+    })
+
+    const { updateAdvance } = await import('@/lib/api/commission-advanced')
+    const result = await updateAdvance('adv-1', { status: 'approved' })
+    expect(result).toBe(false)
+  })
+})
+
+// ── clawbackAdvance ───────────────────────────────────────────────────────────
+
+describe('clawbackAdvance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('sets status to clawed_back with reason and timestamp', async () => {
+    const chain = setupMockChain({
+      eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
+    })
+
+    const { clawbackAdvance } = await import('@/lib/api/commission-advanced')
+    const result = await clawbackAdvance('adv-1', 'Project cancelled')
+    expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'clawed_back',
+      clawback_reason: 'Project cancelled',
+    }))
+    // Verify clawed_back_at is an ISO timestamp
+    const call = chain.update.mock.calls[0][0]
+    expect(call.clawed_back_at).toBeTruthy()
+    expect(new Date(call.clawed_back_at).getTime()).not.toBeNaN()
+    expect(result).toBe(true)
+  })
+
+  it('returns false on error', async () => {
+    setupMockChain({
+      eq: vi.fn(() => Promise.resolve({ data: null, error: { message: 'fail' } })),
+    })
+
+    const { clawbackAdvance } = await import('@/lib/api/commission-advanced')
+    const result = await clawbackAdvance('adv-1', 'reason')
+    expect(result).toBe(false)
+  })
+})
+
+// ── loadPendingClawbacks ──────────────────────────────────────────────────────
+
+describe('loadPendingClawbacks', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('queries for paid advances past clawback date', async () => {
+    const chain = setupMockChain({
+      then: vi.fn((cb: any) => Promise.resolve({ data: [{ id: 'adv-1' }], error: null }).then(cb)),
+    })
+
+    const { loadPendingClawbacks } = await import('@/lib/api/commission-advanced')
+    const result = await loadPendingClawbacks()
+    expect(mockSupabase.from).toHaveBeenCalledWith('commission_advances')
+    expect(chain.eq).toHaveBeenCalledWith('status', 'paid')
+    expect(chain.limit).toHaveBeenCalledWith(200)
+    expect(result).toHaveLength(1)
+  })
+
+  it('applies orgId filter when provided', async () => {
+    const chain = setupMockChain({
+      then: vi.fn((cb: any) => Promise.resolve({ data: [], error: null }).then(cb)),
+    })
+
+    const { loadPendingClawbacks } = await import('@/lib/api/commission-advanced')
+    await loadPendingClawbacks('org-123')
+    expect(chain.eq).toHaveBeenCalledWith('org_id', 'org-123')
+  })
+
+  it('returns empty array on error', async () => {
+    setupMockChain({
+      then: vi.fn((cb: any) => Promise.resolve({ data: null, error: { message: 'fail' } }).then(cb)),
+    })
+
+    const { loadPendingClawbacks } = await import('@/lib/api/commission-advanced')
+    const result = await loadPendingClawbacks()
+    expect(result).toEqual([])
+  })
+})

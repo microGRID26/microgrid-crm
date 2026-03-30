@@ -139,11 +139,11 @@ function CalculatorTab({ rates }: { rates: CommissionRate[] }) {
     const adders = parseFloat(adderRevenue || '0')
     const referrals = parseInt(referralCount || '0', 10)
 
-    // EC/Non-EC rate breakdown
-    const grossRate = 0.50 // base gross rate $/W
+    // EC/Non-EC rate breakdown (from CSV: EC $0.50/W, Non-EC $0.35/W)
+    const grossRate = isEC ? 0.50 : 0.35
     const opsDeduction = 0.10 // ops deduction $/W
-    const ecBonus = isEC ? 0.15 : 0 // EC bonus $/W
-    const effectiveRate = grossRate - opsDeduction + ecBonus // $0.40 (EC) or $0.25 (non-EC)
+    const effectiveRate = grossRate - opsDeduction // $0.40 (EC) or $0.25 (non-EC)
+    const ecBonus = isEC ? 0.15 : 0 // EC bonus over non-EC (display only)
 
     const breakdown = calculateCommission(watts, adders, referrals, selectedRole, rates)
 
@@ -776,7 +776,7 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
                                   <button
                                     onClick={async (e) => {
                                       e.stopPropagation()
-                                      await updateCommissionRecord(r.id, { notes: notesDraft || null })
+                                      await updateCommissionRecord(r.id, { admin_notes: notesDraft || null })
                                       setEditingNoteId(null)
                                       load()
                                     }}
@@ -789,14 +789,14 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
                                 </div>
                               ) : (
                                 <button
-                                  onClick={e => { e.stopPropagation(); setEditingNoteId(r.id); setNotesDraft(r.notes ?? '') }}
+                                  onClick={e => { e.stopPropagation(); setEditingNoteId(r.id); setNotesDraft(r.admin_notes ?? '') }}
                                   className="text-xs text-gray-400 hover:text-white"
                                 >
-                                  {r.notes || 'Click to add admin note...'}
+                                  {r.admin_notes || 'Click to add admin note...'}
                                 </button>
                               )
                             ) : (
-                              <p className="text-gray-400 text-xs">{r.notes || '\u2014'}</p>
+                              <p className="text-gray-400 text-xs">{r.admin_notes || '\u2014'}</p>
                             )}
                           </div>
                           {r.paid_at && (
