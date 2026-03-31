@@ -7,7 +7,7 @@ import type { Project } from '@/types/database'
 // All pages should use these functions instead of querying Supabase directly.
 // This gives us one place to add caching, validation, and business logic.
 
-const PROJECT_FIELDS = 'id, name, city, address, pm, pm_id, stage, stage_date, sale_date, contract, blocker, systemkw, financier, ahj, disposition, follow_up_date, email, phone'
+const PROJECT_FIELDS = 'id, name, city, address, pm, pm_id, stage, stage_date, sale_date, contract, blocker, systemkw, financier, ahj, disposition, follow_up_date, email, phone, meter_number, esid'
 const PROJECT_LIMIT = 2000
 const TASK_STATE_LIMIT = 50000
 

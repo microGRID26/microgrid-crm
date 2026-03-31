@@ -435,12 +435,13 @@ function TeamsTab({ teams, reps, payScales, users, orgId, onRefresh }: {
 
 // ── Personnel Tab ────────────────────────────────────────────────────────────
 
-function PersonnelTab({ reps, teams, payScales, requirements, orgId, onRefresh }: {
+function PersonnelTab({ reps, teams, payScales, requirements, orgId, isAdmin, onRefresh }: {
   reps: SalesRep[]
   teams: SalesTeam[]
   payScales: PayScale[]
   requirements: OnboardingRequirement[]
   orgId: string | null
+  isAdmin: boolean
   onRefresh: () => void
 }) {
   const [search, setSearch] = useState('')
@@ -452,6 +453,8 @@ function PersonnelTab({ reps, teams, payScales, requirements, orgId, onRefresh }
   const [showAdd, setShowAdd] = useState(false)
   const [repDocs, setRepDocs] = useState<Map<string, OnboardingDocument[]>>(new Map())
   const [repCommissions, setRepCommissions] = useState<Map<string, { total: number; paid: number; pending: number; count: number; projects: { id: string; amount: number; status: string }[] }>>(new Map())
+  const [editingRepId, setEditingRepId] = useState<string | null>(null)
+  const [repDraft, setRepDraft] = useState<{ recheck_id: string; blacklisted: boolean; blacklist_reason: string; notes: string }>({ recheck_id: '', blacklisted: false, blacklist_reason: '', notes: '' })
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 50
 
@@ -484,6 +487,27 @@ function PersonnelTab({ reps, teams, payScales, requirements, orgId, onRefresh }
     }
     setRepCommissions(prev => new Map(prev).set(rep.id, summary))
   }, [])
+
+  const startEditRep = useCallback((rep: SalesRep) => {
+    setEditingRepId(rep.id)
+    setRepDraft({
+      recheck_id: rep.recheck_id ?? '',
+      blacklisted: rep.blacklisted ?? false,
+      blacklist_reason: rep.blacklist_reason ?? '',
+      notes: rep.notes ?? '',
+    })
+  }, [])
+
+  const saveRepFields = useCallback(async (repId: string) => {
+    await updateSalesRep(repId, {
+      recheck_id: repDraft.recheck_id || null,
+      blacklisted: repDraft.blacklisted,
+      blacklist_reason: repDraft.blacklisted ? (repDraft.blacklist_reason || null) : null,
+      notes: repDraft.notes || null,
+    })
+    setEditingRepId(null)
+    onRefresh()
+  }, [repDraft, onRefresh])
 
   const toggleExpand = useCallback((repId: string) => {
     if (expandedId === repId) {
@@ -665,18 +689,60 @@ function PersonnelTab({ reps, teams, payScales, requirements, orgId, onRefresh }
                         <td colSpan={8} className="px-4 py-4 bg-gray-900/50 border-b border-gray-700">
                           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                             <div className="space-y-2">
-                              <h4 className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Contact</h4>
-                              <div className="text-xs space-y-1">
-                                <p className="text-gray-300">{rep.email}</p>
-                                {rep.phone && <p className="text-gray-400">{rep.phone}</p>}
-                                {rep.recheck_id && <p><span className="text-gray-500">RECHECK ID:</span> <span className="text-gray-300 font-mono">{rep.recheck_id}</span></p>}
-                                {rep.blacklisted && (
-                                  <p className="text-red-400 text-[10px] font-medium">
-                                    BLACKLISTED{rep.blacklist_reason ? `: ${rep.blacklist_reason}` : ''}
-                                  </p>
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Contact</h4>
+                                {isAdmin && editingRepId !== rep.id && (
+                                  <button onClick={(e) => { e.stopPropagation(); startEditRep(rep) }} className="text-[10px] text-blue-400 hover:text-blue-300">
+                                    <Pencil className="w-3 h-3 inline mr-0.5" />Edit
+                                  </button>
                                 )}
-                                {rep.notes && <p className="text-gray-500 text-[10px]">{rep.notes}</p>}
                               </div>
+                              {editingRepId === rep.id ? (
+                                <div className="text-xs space-y-2" onClick={e => e.stopPropagation()}>
+                                  <p className="text-gray-300">{rep.email}</p>
+                                  {rep.phone && <p className="text-gray-400">{rep.phone}</p>}
+                                  <div>
+                                    <label className="text-[10px] text-gray-500">RECHECK ID</label>
+                                    <input value={repDraft.recheck_id} onChange={e => setRepDraft(d => ({ ...d, recheck_id: e.target.value }))}
+                                      className="w-full mt-0.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-white font-mono" placeholder="e.g. RC-12345" />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-[10px] text-gray-500">Blacklisted</label>
+                                    <button onClick={() => setRepDraft(d => ({ ...d, blacklisted: !d.blacklisted }))}
+                                      className={`w-8 h-4 rounded-full transition-colors ${repDraft.blacklisted ? 'bg-red-500' : 'bg-gray-600'}`}>
+                                      <div className={`w-3 h-3 rounded-full bg-white transition-transform mx-0.5 ${repDraft.blacklisted ? 'translate-x-4' : ''}`} />
+                                    </button>
+                                  </div>
+                                  {repDraft.blacklisted && (
+                                    <div>
+                                      <label className="text-[10px] text-gray-500">Blacklist Reason</label>
+                                      <input value={repDraft.blacklist_reason} onChange={e => setRepDraft(d => ({ ...d, blacklist_reason: e.target.value }))}
+                                        className="w-full mt-0.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-white" placeholder="Reason..." />
+                                    </div>
+                                  )}
+                                  <div>
+                                    <label className="text-[10px] text-gray-500">Notes</label>
+                                    <textarea value={repDraft.notes} onChange={e => setRepDraft(d => ({ ...d, notes: e.target.value }))}
+                                      rows={2} className="w-full mt-0.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-white resize-none" placeholder="Internal notes..." />
+                                  </div>
+                                  <div className="flex gap-2 pt-1">
+                                    <button onClick={() => saveRepFields(rep.id)} className="px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-[10px] text-white font-medium">Save</button>
+                                    <button onClick={() => setEditingRepId(null)} className="px-2 py-1 text-gray-400 hover:text-white text-[10px]">Cancel</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-xs space-y-1">
+                                  <p className="text-gray-300">{rep.email}</p>
+                                  {rep.phone && <p className="text-gray-400">{rep.phone}</p>}
+                                  {rep.recheck_id && <p><span className="text-gray-500">RECHECK ID:</span> <span className="text-gray-300 font-mono">{rep.recheck_id}</span></p>}
+                                  {rep.blacklisted && (
+                                    <p className="text-red-400 text-[10px] font-medium">
+                                      BLACKLISTED{rep.blacklist_reason ? `: ${rep.blacklist_reason}` : ''}
+                                    </p>
+                                  )}
+                                  {rep.notes && <p className="text-gray-500 text-[10px]">{rep.notes}</p>}
+                                </div>
+                              )}
                             </div>
                             <div className="space-y-2">
                               <h4 className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Assignment</h4>
@@ -1565,7 +1631,7 @@ export default function SalesPage() {
         ) : (
           <>
             {tab === 'teams' && <TeamsTab teams={teams} reps={reps} payScales={payScales} users={users} orgId={orgId} onRefresh={loadAll} />}
-            {tab === 'personnel' && <PersonnelTab reps={reps} teams={teams} payScales={payScales} requirements={requirements} orgId={orgId} onRefresh={loadAll} />}
+            {tab === 'personnel' && <PersonnelTab reps={reps} teams={teams} payScales={payScales} requirements={requirements} orgId={orgId} isAdmin={isAdmin} onRefresh={loadAll} />}
             {tab === 'pay_scales' && <PayScalesTab payScales={payScales} orgId={orgId} isAdmin={isAdmin} onRefresh={loadAll} />}
             {tab === 'distribution' && <DistributionTab distribution={distribution} orgId={orgId} isAdmin={isAdmin} onRefresh={loadAll} />}
             {tab === 'onboarding' && <OnboardingTab reps={reps} teams={teams} requirements={requirements} onRefresh={loadAll} />}
