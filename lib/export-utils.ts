@@ -51,7 +51,6 @@ export const ALL_EXPORT_FIELDS: ExportField[] = [
   { key: 'esid',                   label: 'ESID',              getValue: p => p.esid },
   { key: 'blocker',                label: 'Blocker',           getValue: p => p.blocker },
   { key: 'zip',                    label: 'Zip',               getValue: p => p.zip },
-  { key: 'state',                  label: 'State',             getValue: p => p.state },
   { key: 'down_payment',           label: 'Down Payment',      getValue: p => p.down_payment },
   { key: 'tpo_escalator',          label: 'TPO Escalator',     getValue: p => p.tpo_escalator },
   { key: 'optimizer',              label: 'Optimizer',          getValue: p => p.optimizer },

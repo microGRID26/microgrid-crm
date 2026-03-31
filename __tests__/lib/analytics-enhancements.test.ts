@@ -6,7 +6,6 @@ describe('Export fields completeness', () => {
     const { ALL_EXPORT_FIELDS } = await import('@/lib/export-utils')
     const keys = ALL_EXPORT_FIELDS.map(f => f.key)
     expect(keys).toContain('zip')
-    expect(keys).toContain('state')
     expect(keys).toContain('down_payment')
     expect(keys).toContain('optimizer')
     expect(keys).toContain('optimizer_qty')
