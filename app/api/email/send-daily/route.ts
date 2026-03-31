@@ -60,7 +60,7 @@ export async function GET(req: Request) {
 
     if (error) {
       console.error('[send-daily] query error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to load enrollments' }, { status: 500 })
     }
 
     if (!enrollments || enrollments.length === 0) {

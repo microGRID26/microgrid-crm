@@ -11,12 +11,15 @@ import {
   loadPayDistribution, updatePayDistribution, addPayDistribution, deletePayDistribution,
   loadSalesTeams, addSalesTeam, updateSalesTeam, deleteSalesTeam,
   loadSalesReps, addSalesRep, updateSalesRep,
-  loadOnboardingRequirements, loadRepDocuments, updateOnboardingDocStatus, initializeRepDocuments,
+  loadOnboardingRequirements, loadRepDocuments, updateOnboardingDocStatus, updateDocFileUrl, initializeRepDocuments,
   calculateOverride,
+  loadCommissionRecords,
   REP_STATUSES, REP_STATUS_LABELS, REP_STATUS_BADGE,
   DOC_STATUS_LABELS, DOC_STATUS_BADGE,
+  COMMISSION_STATUS_LABELS, COMMISSION_STATUS_BADGE,
   loadUsers,
 } from '@/lib/api'
+import { fmt$ } from '@/lib/utils'
 import type { PayScale, PayDistribution, SalesTeam, SalesRep, OnboardingRequirement, OnboardingDocument, RepStatus, OnboardingDocStatus } from '@/lib/api'
 import {
   Users, UserPlus, DollarSign, PieChart, ClipboardCheck,
@@ -448,6 +451,7 @@ function PersonnelTab({ reps, teams, payScales, requirements, orgId, onRefresh }
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [repDocs, setRepDocs] = useState<Map<string, OnboardingDocument[]>>(new Map())
+  const [repCommissions, setRepCommissions] = useState<Map<string, { total: number; paid: number; pending: number; count: number }>>(new Map())
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 50
 
@@ -468,14 +472,29 @@ function PersonnelTab({ reps, teams, payScales, requirements, orgId, onRefresh }
     setRepDocs(prev => new Map(prev).set(repId, docs))
   }, [])
 
+  const loadRepCommissions = useCallback(async (rep: SalesRep) => {
+    // Load commission records for this rep by name match
+    const records = await loadCommissionRecords({ userId: rep.user_id ?? undefined })
+    const summary = { total: 0, paid: 0, pending: 0, count: records.length }
+    for (const r of records) {
+      if (r.status === 'cancelled') continue
+      summary.total += r.total_commission ?? 0
+      if (r.status === 'paid') summary.paid += r.total_commission ?? 0
+      if (r.status === 'pending' || r.status === 'approved') summary.pending += r.total_commission ?? 0
+    }
+    setRepCommissions(prev => new Map(prev).set(rep.id, summary))
+  }, [])
+
   const toggleExpand = useCallback((repId: string) => {
     if (expandedId === repId) {
       setExpandedId(null)
     } else {
       setExpandedId(repId)
       if (!repDocs.has(repId)) loadDocs(repId)
+      const rep = reps.find(r => r.id === repId)
+      if (rep && !repCommissions.has(repId)) loadRepCommissions(rep)
     }
-  }, [expandedId, repDocs, loadDocs])
+  }, [expandedId, repDocs, loadDocs, reps, repCommissions, loadRepCommissions])
 
   const filtered = useMemo(() => {
     let list = [...reps]
@@ -644,7 +663,7 @@ function PersonnelTab({ reps, teams, payScales, requirements, orgId, onRefresh }
                     {isExpanded && (
                       <tr>
                         <td colSpan={8} className="px-4 py-4 bg-gray-900/50 border-b border-gray-700">
-                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                             <div className="space-y-2">
                               <h4 className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Contact</h4>
                               <div className="text-xs space-y-1">
@@ -685,6 +704,22 @@ function PersonnelTab({ reps, teams, payScales, requirements, orgId, onRefresh }
                               ) : (
                                 <p className="text-[10px] text-gray-500">No documents</p>
                               )}
+                            </div>
+                            <div className="space-y-2">
+                              <h4 className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Commission History</h4>
+                              {(() => {
+                                const cs = repCommissions.get(rep.id)
+                                if (!cs) return <p className="text-[10px] text-gray-500">Loading...</p>
+                                if (cs.count === 0) return <p className="text-[10px] text-gray-500">No commission records</p>
+                                return (
+                                  <div className="text-xs space-y-1">
+                                    <p><span className="text-gray-500">Deals:</span> <span className="text-gray-300">{cs.count}</span></p>
+                                    <p><span className="text-gray-500">Total:</span> <span className="text-white font-medium">{fmt$(cs.total)}</span></p>
+                                    <p><span className="text-gray-500">Paid:</span> <span className="text-green-400">{fmt$(cs.paid)}</span></p>
+                                    <p><span className="text-gray-500">Pending:</span> <span className="text-amber-400">{fmt$(cs.pending)}</span></p>
+                                  </div>
+                                )
+                              })()}
                             </div>
                           </div>
                         </td>
@@ -1141,6 +1176,8 @@ function OnboardingTab({ reps, teams, requirements, onRefresh }: {
   const [loadingDocs, setLoadingDocs] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
+  const [editingUrlId, setEditingUrlId] = useState<string | null>(null)
+  const [urlDraft, setUrlDraft] = useState('')
 
   const onboardingReps = useMemo(() => reps.filter(r => r.status === 'onboarding'), [reps])
   const teamMap = useMemo(() => {
@@ -1177,6 +1214,23 @@ function OnboardingTab({ reps, teams, requirements, onRefresh }: {
         break
       }
     }
+    setActionInProgress(null)
+  }
+
+  const handleSaveUrl = async (docId: string) => {
+    setActionInProgress(docId)
+    await updateDocFileUrl(docId, urlDraft.trim() || null)
+    // Refresh docs for affected rep
+    for (const rep of onboardingReps) {
+      const docs = repDocsMap.get(rep.id)
+      if (docs?.find(d => d.id === docId)) {
+        const refreshed = await loadRepDocuments(rep.id)
+        setRepDocsMap(prev => new Map(prev).set(rep.id, refreshed))
+        break
+      }
+    }
+    setEditingUrlId(null)
+    setUrlDraft('')
     setActionInProgress(null)
   }
 
@@ -1261,7 +1315,8 @@ function OnboardingTab({ reps, teams, requirements, onRefresh }: {
                       const req = requirements.find(r => r.id === doc.requirement_id)
                       const isRequired = req?.required ?? false
                       return (
-                        <div key={doc.id} className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg group/doc">
+                        <div key={doc.id} className="py-2 px-3 bg-gray-900/50 rounded-lg group/doc space-y-1">
+                          <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${DOC_STATUS_BADGE[doc.status]}`}>
                               {DOC_STATUS_LABELS[doc.status]}
@@ -1318,6 +1373,41 @@ function OnboardingTab({ reps, teams, requirements, onRefresh }: {
                                 className="px-2 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-[10px] rounded"
                               >
                                 Reset
+                              </button>
+                            )}
+                          </div>
+                          </div>
+                          {/* File URL — view or edit */}
+                          <div className="flex items-center gap-2 pl-8">
+                            {editingUrlId === doc.id ? (
+                              <div className="flex items-center gap-1 flex-1">
+                                <input
+                                  type="url"
+                                  value={urlDraft}
+                                  onChange={e => setUrlDraft(e.target.value)}
+                                  placeholder="https://drive.google.com/..."
+                                  className="flex-1 bg-gray-800 border border-gray-600 text-xs text-white px-2 py-0.5 rounded focus:border-green-500 outline-none"
+                                  onKeyDown={e => { if (e.key === 'Enter') handleSaveUrl(doc.id); if (e.key === 'Escape') setEditingUrlId(null) }}
+                                  autoFocus
+                                />
+                                <button onClick={() => handleSaveUrl(doc.id)} className="text-[10px] text-green-400 hover:text-green-300">Save</button>
+                                <button onClick={() => setEditingUrlId(null)} className="text-[10px] text-gray-500 hover:text-gray-400">Cancel</button>
+                              </div>
+                            ) : doc.file_url ? (
+                              <div className="flex items-center gap-2">
+                                <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-400 hover:text-blue-300 truncate max-w-[200px]">
+                                  {doc.file_url.replace(/^https?:\/\//, '').slice(0, 40)}...
+                                </a>
+                                <button onClick={() => { setEditingUrlId(doc.id); setUrlDraft(doc.file_url ?? '') }} className="text-[10px] text-gray-500 hover:text-gray-400">
+                                  <Pencil className="w-2.5 h-2.5 inline" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => { setEditingUrlId(doc.id); setUrlDraft('') }}
+                                className="text-[10px] text-gray-500 hover:text-gray-400"
+                              >
+                                + Add file link
                               </button>
                             )}
                           </div>

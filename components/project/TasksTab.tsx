@@ -350,7 +350,7 @@ export function TasksTab({
                   const history = taskHistoryByTask[task.id] ?? []
                   const showReason = status === 'Pending Resolution' || status === 'Revision Required'
                   const pendingReasons = activePendingReasons[task.id] ?? []
-                  const revisionReasonsList = activeRevisionReasons[viewStage] ?? []
+                  const revisionReasonsList = activeRevisionReasons[task.id] ?? []
                   const reasonOptions = status === 'Pending Resolution' ? pendingReasons : revisionReasonsList
                   const isEditingNote = editingNoteTask === task.id
 

@@ -4,6 +4,14 @@
     {
       "path": "/api/email/send-daily",
       "schedule": "0 13 * * 1-5"
+    },
+    {
+      "path": "/api/email/onboarding-reminder",
+      "schedule": "0 15 * * 1-5"
+    },
+    {
+      "path": "/api/email/digest",
+      "schedule": "0 12 * * 1-5"
     }
   ]
 }

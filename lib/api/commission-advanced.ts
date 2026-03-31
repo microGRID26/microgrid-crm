@@ -227,8 +227,10 @@ export function calculateDaysSinceSale(saleDate: string | null | undefined): num
   const sale = new Date(saleDate)
   if (isNaN(sale.getTime())) return 0
   const now = new Date()
-  const diffMs = now.getTime() - sale.getTime()
-  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)))
+  // Normalize both to UTC midnight to avoid timezone off-by-one
+  const saleUTC = Date.UTC(sale.getUTCFullYear(), sale.getUTCMonth(), sale.getUTCDate())
+  const nowUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  return Math.max(0, Math.floor((nowUTC - saleUTC) / (1000 * 60 * 60 * 24)))
 }
 
 /** Check if an advance is eligible for clawback (past clawback window and still paid) */

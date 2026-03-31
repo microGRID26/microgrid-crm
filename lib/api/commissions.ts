@@ -377,6 +377,15 @@ export async function generateProjectCommissions(
   const systemWatts = (project.systemkw ?? 0) * 1000 // kW to watts
   const created: CommissionRecord[] = []
 
+  // Check for existing records to prevent duplicates on retry
+  const { data: existing } = await supabase
+    .from('commission_records')
+    .select('role_key')
+    .eq('project_id', projectId)
+    .limit(100)
+  const existingArr = Array.isArray(existing) ? existing : []
+  const existingRoles = new Set(existingArr.map((r: { role_key: string }) => r.role_key))
+
   // Define role assignments: which project field maps to which role
   const roleAssignments: { roleKey: string; userId: string | null; userName: string | null }[] = [
     { roleKey: 'sales_rep', userId: null, userName: project.consultant },
@@ -388,6 +397,8 @@ export async function generateProjectCommissions(
   for (const assignment of roleAssignments) {
     // Skip roles with no assigned person (except manager which may be set later)
     if (!assignment.userName && assignment.roleKey !== 'manager') continue
+    // Skip roles that already have a commission record for this project
+    if (existingRoles.has(assignment.roleKey)) continue
 
     const roleRate = rates.find(r => r.role_key === assignment.roleKey && r.active)
     if (!roleRate) continue
@@ -624,6 +635,35 @@ export async function removeHierarchyMember(id: string): Promise<boolean> {
     return false
   }
   return true
+}
+
+/**
+ * Get the set of user_ids visible to a given user based on hierarchy.
+ * A user can see their own data + anyone below them (direct and indirect reports).
+ * Returns null if user is not in the hierarchy (caller should fall back to own-only).
+ */
+export function getVisibleUserIds(
+  hierarchy: CommissionHierarchy[],
+  userId: string,
+): string[] | null {
+  const userNode = hierarchy.find(h => h.user_id === userId)
+  if (!userNode) return null
+
+  const visible = new Set<string>([userId])
+
+  // BFS to collect all descendants
+  const queue = [userNode.id]
+  while (queue.length > 0) {
+    const parentId = queue.shift()!
+    for (const h of hierarchy) {
+      if (h.parent_id === parentId && !visible.has(h.user_id)) {
+        visible.add(h.user_id)
+        queue.push(h.id)
+      }
+    }
+  }
+
+  return Array.from(visible)
 }
 
 // ── Pure Calculation Functions (tiers + geo) ───────────────────────────────

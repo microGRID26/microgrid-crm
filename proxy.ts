@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 // Routes that require no authentication
 const PUBLIC_ROUTES = ['/login', '/auth']
-const PUBLIC_PREFIXES = ['/api/webhooks/', '/api/email/send-daily', '/api/calendar/webhook', '/_next/', '/favicon.ico']
+const PUBLIC_PREFIXES = ['/api/webhooks/', '/api/email/send-daily', '/api/email/onboarding-reminder', '/api/email/digest', '/api/calendar/webhook', '/_next/', '/favicon.ico']
 
 // Role hierarchy levels (must match lib/useCurrentUser.ts ROLE_LEVEL)
 const ROLE_LEVEL: Record<string, number> = {

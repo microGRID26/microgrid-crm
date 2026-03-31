@@ -394,6 +394,18 @@ export async function updateOnboardingDocStatus(
 }
 
 /**
+ * Update the file URL on an onboarding document (contract/doc link).
+ */
+export async function updateDocFileUrl(docId: string, fileUrl: string | null): Promise<boolean> {
+  const { error } = await db()
+    .from('onboarding_documents')
+    .update({ file_url: fileUrl })
+    .eq('id', docId)
+  if (error) { console.error('updateDocFileUrl error:', error); return false }
+  return true
+}
+
+/**
  * Create pending document records for all active requirements.
  * Called when a new rep is created to bootstrap their onboarding checklist.
  */
@@ -401,11 +413,24 @@ export async function initializeRepDocuments(repId: string, orgId?: string | nul
   const requirements = await loadOnboardingRequirements(orgId)
   if (requirements.length === 0) return true
 
-  const rows = requirements.map(req => ({
-    rep_id: repId,
-    requirement_id: req.id,
-    status: 'pending',
-  }))
+  // Check for existing docs to prevent duplicates on retry
+  const { data: existing } = await db()
+    .from('onboarding_documents')
+    .select('requirement_id')
+    .eq('rep_id', repId)
+    .limit(200)
+  const existingArr = Array.isArray(existing) ? existing : []
+  const existingReqIds = new Set(existingArr.map((d: { requirement_id: string }) => d.requirement_id))
+
+  const rows = requirements
+    .filter(req => !existingReqIds.has(req.id))
+    .map(req => ({
+      rep_id: repId,
+      requirement_id: req.id,
+      status: 'pending',
+    }))
+
+  if (rows.length === 0) return true // all already initialized
 
   const { error } = await db()
     .from('onboarding_documents')

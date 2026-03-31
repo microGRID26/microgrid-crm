@@ -371,7 +371,8 @@ async function executeQuery(plan: QueryPlan) {
   const { data, error, count } = await query
 
   if (error) {
-    throw new Error(`Supabase query error: ${error.message}`)
+    console.error('[reports/chat] query error:', error.message)
+    throw new Error('Query execution failed')
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

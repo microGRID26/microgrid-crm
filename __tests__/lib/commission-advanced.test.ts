@@ -87,8 +87,9 @@ describe('calculateDaysSinceSale', () => {
 
   it('returns correct days for a date 30 days ago', async () => {
     const { calculateDaysSinceSale } = await import('@/lib/api/commission-advanced')
-    const d = new Date()
-    d.setDate(d.getDate() - 30)
+    const now = new Date()
+    // Use UTC dates to avoid local/UTC boundary off-by-one
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 30))
     expect(calculateDaysSinceSale(d.toISOString().split('T')[0])).toBe(30)
   })
 

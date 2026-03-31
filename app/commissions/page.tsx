@@ -20,6 +20,8 @@ import {
   updateCommissionRecord,
   loadEarningsSummary,
   loadUsers,
+  loadHierarchy,
+  getVisibleUserIds,
   COMMISSION_STATUSES,
   COMMISSION_STATUS_LABELS,
   COMMISSION_STATUS_BADGE,
@@ -360,6 +362,7 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<Period>('month')
   const [userFilter, setUserFilter] = useState<string>('all')
+  const [visibleUserIds, setVisibleUserIds] = useState<string[] | null>(null)
   const [search, setSearch] = useState('')
   const [sortCol, setSortCol] = useState<SortCol>('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -382,13 +385,41 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
     setLoading(true)
     try {
       const periodStart = getPeriodStart(period)
-      const userId = !isAdmin ? currentUser?.id : (userFilter !== 'all' ? userFilter : undefined)
+
+      // Pay visibility: non-admins see own data + direct/indirect reports
+      let userId: string | undefined
+      if (!isAdmin && currentUser?.id) {
+        if (userFilter !== 'all') {
+          userId = userFilter
+        } else {
+          userId = currentUser.id
+        }
+        // Load hierarchy to determine visible users
+        const hierarchy = await loadHierarchy(orgId)
+        const visible = getVisibleUserIds(hierarchy, currentUser.id)
+        setVisibleUserIds(visible)
+      } else {
+        userId = userFilter !== 'all' ? userFilter : undefined
+        setVisibleUserIds(null)
+      }
+
       const data = await loadCommissionRecords({
         orgId,
         userId,
         dateFrom: periodStart ?? undefined,
       })
-      setRecords(data)
+
+      // For non-admins with hierarchy, also load records for visible reports
+      let allData = data
+      if (!isAdmin && visibleUserIds && visibleUserIds.length > 1 && userFilter === 'all') {
+        const allRecs = await loadCommissionRecords({
+          orgId,
+          dateFrom: periodStart ?? undefined,
+        })
+        allData = allRecs.filter(r => r.user_id && visibleUserIds.includes(r.user_id))
+      }
+
+      setRecords(allData)
 
       // Load project sale_date + energy_community for days-since-sale and EC badge
       const projectIds = Array.from(new Set(data.map(r => r.project_id).filter(Boolean)))
@@ -445,6 +476,7 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
       console.error('Failed to load commission records:', err)
     }
     setLoading(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, period, userFilter, isAdmin, currentUser?.id])
 
   useEffect(() => { load() }, [load])
@@ -841,12 +873,14 @@ function EarningsTab({ orgId, rates: loadedRates }: { orgId: string | null; rate
 // ── Leaderboard Tab ─────────────────────────────────────────────────────────
 
 function LeaderboardTab({ orgId, currentUserId }: { orgId: string | null; currentUserId: string | null }) {
+  const { user: currentUser } = useCurrentUser()
+  const isAdmin = currentUser?.isAdmin ?? false
   const [lbPeriod, setLbPeriod] = useState<Period>('month')
   const [lbMetric, setLbMetric] = useState<LeaderboardMetric>('commission')
   const [allRecords, setAllRecords] = useState<CommissionRecord[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Load all records for leaderboard (no user filter)
+  // Load records — admins see all, others see own + reports only
   const loadLbData = useCallback(async () => {
     setLoading(true)
     const lbRange = getPeriodStart(lbPeriod)
@@ -854,9 +888,22 @@ function LeaderboardTab({ orgId, currentUserId }: { orgId: string | null; curren
       orgId,
       dateFrom: lbRange ?? undefined,
     })
-    setAllRecords(allRecs)
+
+    // Pay visibility: non-admins only see their downline
+    if (!isAdmin && currentUserId) {
+      const hierarchy = await loadHierarchy(orgId)
+      const visible = getVisibleUserIds(hierarchy, currentUserId)
+      if (visible) {
+        setAllRecords(allRecs.filter(r => r.user_id && visible.includes(r.user_id)))
+      } else {
+        // Not in hierarchy — only see own
+        setAllRecords(allRecs.filter(r => r.user_id === currentUserId))
+      }
+    } else {
+      setAllRecords(allRecs)
+    }
     setLoading(false)
-  }, [orgId, lbPeriod])
+  }, [orgId, lbPeriod, isAdmin, currentUserId])
 
   useEffect(() => { loadLbData() }, [loadLbData])
 
@@ -1674,7 +1721,7 @@ export default function CommissionsPage() {
     { key: 'calculator', label: 'Calculator', icon: <Calculator className="w-3.5 h-3.5" /> },
     { key: 'earnings', label: 'My Earnings', icon: <DollarSign className="w-3.5 h-3.5" /> },
     ...(isAdmin ? [{ key: 'advances' as Tab, label: 'Advances', icon: <Banknote className="w-3.5 h-3.5" /> }] : []),
-    ...(isAdmin ? [{ key: 'leaderboard' as Tab, label: 'Leaderboard', icon: <Trophy className="w-3.5 h-3.5" /> }] : []),
+    { key: 'leaderboard' as Tab, label: 'Leaderboard', icon: <Trophy className="w-3.5 h-3.5" /> },
     ...(isAdmin ? [{ key: 'rates' as Tab, label: 'Rate Card', icon: <TrendingUp className="w-3.5 h-3.5" /> }] : []),
   ]
 
