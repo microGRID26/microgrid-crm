@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { db } from '@/lib/db'
 import { escapeIlike } from '@/lib/utils'
 import { clearQueryCache } from '@/lib/hooks'
