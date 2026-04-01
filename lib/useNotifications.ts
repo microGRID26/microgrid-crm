@@ -67,27 +67,28 @@ export function useNotifications(filterPrefs?: NotificationFilterPrefs) {
       .eq('pm_id', user.id)
       .not('disposition', 'in', '("Cancelled","In Service")') as { data: { id: string; name: string; blocker: string | null; stage: string }[] | null }
 
-    if (!projects) { setLoading(false); return }
-
-    const pids = projects.map(p => p.id)
-    if (pids.length === 0) { setLoading(false); return }
-
-    // Get stuck tasks from last 7 days
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-    const { data: recentHistory } = await supabase
-      .from('task_history')
-      .select('project_id, task_id, status, reason, changed_at, changed_by')
-      .in('project_id', pids)
-      .in('status', ['Revision Required', 'Pending Resolution'])
-      .gte('changed_at', weekAgo.toISOString())
-      .order('changed_at', { ascending: false })
-      .limit(20)
+    const pids = (projects ?? []).map(p => p.id)
 
     const notifs: Notification[] = []
 
+    // Get stuck tasks from last 7 days (only if user has projects)
+    let recentHistory: TaskHistoryRow[] | null = null
+    if (pids.length > 0) {
+      const weekAgo = new Date()
+      weekAgo.setDate(weekAgo.getDate() - 7)
+      const { data } = await supabase
+        .from('task_history')
+        .select('project_id, task_id, status, reason, changed_at, changed_by')
+        .in('project_id', pids)
+        .in('status', ['Revision Required', 'Pending Resolution'])
+        .gte('changed_at', weekAgo.toISOString())
+        .order('changed_at', { ascending: false })
+        .limit(20)
+      recentHistory = data as TaskHistoryRow[] | null
+    }
+
     // Blocked projects — ephemeral, reflect current state
-    projects.filter(p => p.blocker).forEach(p => {
+    (projects ?? []).filter(p => p.blocker).forEach(p => {
       const id = `blocked-${p.id}`
       notifs.push({
         id,
@@ -104,7 +105,7 @@ export function useNotifications(filterPrefs?: NotificationFilterPrefs) {
     // Recent revision/pending tasks — ephemeral, reflect current state
     if (recentHistory) {
       recentHistory.forEach((h: TaskHistoryRow) => {
-        const proj = projects.find(p => p.id === h.project_id)
+        const proj = (projects ?? []).find(p => p.id === h.project_id)
         if (!proj) return
         const id = `task-${h.project_id}-${h.task_id}-${h.changed_at}`
         notifs.push({
@@ -134,13 +135,14 @@ export function useNotifications(filterPrefs?: NotificationFilterPrefs) {
 
     if (mentions) {
       mentions.forEach((m: MentionRow) => {
-        const projName = m.project?.name ?? m.project_id
+        const isTicketMention = m.project_id === 'TICKET'
+        const projName = isTicketMention ? 'Ticket' : (m.project?.name ?? m.project_id)
         notifs.push({
           id: `mention-${m.id}`,
           type: 'mention' as const,
           title: `@Mentioned by ${m.mentioned_by}`,
-          message: `${projName} (${m.project_id}): ${m.message?.slice(0, 80) ?? ''}`,
-          projectId: m.project_id,
+          message: isTicketMention ? (m.message?.slice(0, 100) ?? '') : `${projName} (${m.project_id}): ${m.message?.slice(0, 80) ?? ''}`,
+          projectId: isTicketMention ? '' : m.project_id,
           projectName: projName,
           timestamp: m.created_at,
           read: m.read, // DB is source of truth
