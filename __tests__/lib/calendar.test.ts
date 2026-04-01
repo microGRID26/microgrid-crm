@@ -224,9 +224,9 @@ describe('buildEventTitle', () => {
   it('formats event title with job type label, project name, and ID', async () => {
     const { buildEventTitle } = await import('@/lib/google-calendar')
     expect(buildEventTitle('install', 'Smith Residence', 'PROJ-12345'))
-      .toBe('[INSTALL] Smith Residence - PROJ-12345')
+      .toBe('[INSTALLATION] Smith Residence - PROJ-12345')
     expect(buildEventTitle('survey', 'Johnson Home', 'PROJ-99999'))
-      .toBe('[SURVEY] Johnson Home - PROJ-99999')
+      .toBe('[SITE SURVEY] Johnson Home - PROJ-99999')
   })
 
   it('uppercases unknown job types', async () => {
@@ -246,7 +246,7 @@ describe('buildEventDescription', () => {
       projectId: 'PROJ-12345',
       appUrl: 'https://test.example.com',
     })
-    expect(desc).toContain('Job Type: INSTALL')
+    expect(desc).toContain('Job Type: Installation')
     expect(desc).toContain('Crew: Crew Alpha')
     expect(desc).toContain('Notes: Bring extra panels')
     expect(desc).toContain('https://test.example.com/pipeline?open=PROJ-12345&tab=info')
@@ -261,7 +261,7 @@ describe('buildEventDescription', () => {
       projectId: 'PROJ-1',
     })
     expect(desc).not.toContain('Notes:')
-    expect(desc).toContain('Job Type: SURVEY')
+    expect(desc).toContain('Job Type: Site Survey')
   })
 })
 

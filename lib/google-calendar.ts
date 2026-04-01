@@ -2,6 +2,7 @@
 // Uses service account credentials from GOOGLE_CALENDAR_CREDENTIALS env var
 
 import { JOB_TYPE_COLOR_ID } from '@/lib/api/calendar'
+import { JOB_LABELS } from '@/lib/tasks'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -361,16 +362,9 @@ export async function stopWatch(channelId: string, resourceId: string): Promise<
 
 // ── Job type labels for event formatting ─────────────────────────────────────
 
-const JOB_LABELS: Record<string, string> = {
-  survey: 'SURVEY',
-  install: 'INSTALL',
-  inspection: 'INSPECTION',
-  service: 'SERVICE',
-}
-
 /** Build a calendar event title from schedule data */
 export function buildEventTitle(jobType: string, projectName: string, projectId: string): string {
-  const label = JOB_LABELS[jobType] ?? jobType.toUpperCase()
+  const label = (JOB_LABELS[jobType] ?? jobType).toUpperCase()
   return `[${label}] ${projectName} - ${projectId}`
 }
 
