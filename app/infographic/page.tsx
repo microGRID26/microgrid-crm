@@ -96,6 +96,29 @@ export default function InfographicPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white print:bg-white print:text-black">
+      <style>{`
+        @keyframes countUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes growBar { from { width: 0; } }
+        @keyframes flowDots { from { background-position: 0 0; } to { background-position: 40px 0; } }
+        @keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(29,158,117,0); } 50% { box-shadow: 0 0 20px 2px rgba(29,158,117,0.15); } }
+        @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes ringGrow { from { stroke-dashoffset: 283; } }
+        .animate-count { animation: countUp 0.8s ease-out forwards; }
+        .animate-grow { animation: growBar 1.2s ease-out forwards; }
+        .animate-flow { background: repeating-linear-gradient(90deg, transparent, transparent 8px, #1D9E7540 8px, #1D9E7540 16px); background-size: 40px 2px; animation: flowDots 1.5s linear infinite; }
+        .animate-pulse-glow { animation: pulseGlow 3s ease-in-out infinite; }
+        .animate-slide { animation: fadeSlideUp 0.5s ease-out forwards; opacity: 0; }
+        .animate-slide-1 { animation-delay: 0.1s; }
+        .animate-slide-2 { animation-delay: 0.2s; }
+        .animate-slide-3 { animation-delay: 0.3s; }
+        .animate-slide-4 { animation-delay: 0.4s; }
+        .animate-slide-5 { animation-delay: 0.5s; }
+        .animate-slide-6 { animation-delay: 0.6s; }
+        .animate-slide-7 { animation-delay: 0.7s; }
+        .gradient-border { background: linear-gradient(135deg, #1D9E75, #3b82f6, #8b5cf6); padding: 1px; border-radius: 12px; }
+        .gradient-border > div { background: #111827; border-radius: 11px; }
+        .ring-chart { transform: rotate(-90deg); }
+      `}</style>
       <Nav active="Infographic" />
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-10 print:space-y-6">
 
@@ -124,14 +147,15 @@ export default function InfographicPage() {
           <div className="space-y-14">
 
             {/* HERO — The number */}
-            <div className="text-center py-8">
-              <div className="text-6xl font-black text-green-400 print:text-green-700 tracking-tight">
+            <div className="text-center py-12 relative">
+              <div className="absolute inset-0 bg-gradient-radial from-green-900/20 via-transparent to-transparent rounded-3xl" style={{ background: 'radial-gradient(ellipse at center, rgba(29,158,117,0.08) 0%, transparent 70%)' }} />
+              <div className="animate-count text-7xl font-black text-green-400 print:text-green-700 tracking-tight drop-shadow-[0_0_30px_rgba(29,158,117,0.3)]">
                 {fmt$(stats.totalValue)}
               </div>
-              <div className="text-xl text-gray-300 mt-2 print:text-gray-700">
+              <div className="animate-count text-xl text-gray-300 mt-3 print:text-gray-700" style={{ animationDelay: '0.2s' }}>
                 Portfolio Under Management
               </div>
-              <div className="text-sm text-gray-500 mt-1">
+              <div className="animate-count text-sm text-gray-500 mt-2" style={{ animationDelay: '0.4s' }}>
                 {stats.totalProjects.toLocaleString()} active projects · 7 automated pipeline stages · 14,705 legacy records preserved
               </div>
             </div>
@@ -146,9 +170,9 @@ export default function InfographicPage() {
                       <div className="text-xs font-bold" style={{ color: s.color }}>{s.label}</div>
                     </div>
                     <div className="flex-1">
-                      <div className="h-12 rounded-lg bg-gray-800/50 print:bg-gray-100 overflow-hidden">
-                        <div className="h-full rounded-lg flex items-center justify-between px-4"
-                          style={{ width: `${Math.max((s.count / maxCount) * 100, 12)}%`, backgroundColor: `${s.color}20`, borderLeft: `5px solid ${s.color}` }}>
+                      <div className="h-14 rounded-lg bg-gray-800/50 print:bg-gray-100 overflow-hidden">
+                        <div className="h-full rounded-lg flex items-center justify-between px-4 animate-grow animate-pulse-glow"
+                          style={{ width: `${Math.max((s.count / maxCount) * 100, 12)}%`, backgroundColor: `${s.color}15`, borderLeft: `5px solid ${s.color}`, boxShadow: `inset 0 0 30px ${s.color}10` }}>
                           <span className="text-sm font-bold print:text-black">{s.count} projects</span>
                           <span className="text-sm font-bold text-green-400 print:text-green-700">{fmt$(s.value)}</span>
                         </div>
@@ -161,15 +185,15 @@ export default function InfographicPage() {
 
             {/* THE STORY — 3 panels */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-6 print:bg-red-50 print:border-red-200">
+              <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-6 print:bg-red-50 print:border-red-200 animate-slide animate-slide-1">
                 <div className="text-red-400 text-xs font-bold uppercase tracking-wider mb-2">The Challenge</div>
                 <p className="text-sm text-gray-300 print:text-gray-700">Managing 900+ solar installations across multiple crews, 1,633 permit authorities, and complex funding milestones with spreadsheets doesn't scale. Projects fall through cracks. Revenue gets delayed.</p>
               </div>
-              <div className="bg-blue-950/20 border border-blue-900/30 rounded-xl p-6 print:bg-blue-50 print:border-blue-200">
+              <div className="bg-blue-950/20 border border-blue-900/30 rounded-xl p-6 print:bg-blue-50 print:border-blue-200 animate-slide animate-slide-2">
                 <div className="text-blue-400 text-xs font-bold uppercase tracking-wider mb-2">The Solution</div>
                 <p className="text-sm text-gray-300 print:text-gray-700">Purpose-built platform with automated 7-stage pipeline, real-time crew scheduling with route optimization, integrated ticketing, and AI-powered data access. Every action is tracked, every milestone triggers the next.</p>
               </div>
-              <div className="bg-green-950/20 border border-green-900/30 rounded-xl p-6 print:bg-green-50 print:border-green-200">
+              <div className="bg-green-950/20 border border-green-900/30 rounded-xl p-6 print:bg-green-50 print:border-green-200 animate-slide animate-slide-3">
                 <div className="text-green-400 text-xs font-bold uppercase tracking-wider mb-2">The Impact</div>
                 <p className="text-sm text-gray-300 print:text-gray-700">Zero projects lost in transition. Automated funding milestones. 30/60/90 day revenue forecasting. Crew route optimization reduces drive time. Multi-tenant ready for the EDGE partner network.</p>
               </div>
@@ -220,12 +244,12 @@ export default function InfographicPage() {
                     </div>
                   ))}
                 </div>
-                <div className="flex items-end gap-1 h-32">
+                <div className="flex items-end gap-1 h-40">
                   {Array.from({ length: 16 }, (_, i) => {
                     const crews = i < 4 ? 2 : 2 + Math.floor((i - 4) / 2) + 1
                     const h = (crews * 2 / 16) * 100
                     const color = i < 4 ? '#1D9E75' : i < 8 ? '#3b82f6' : i < 12 ? '#8b5cf6' : '#f59e0b'
-                    return <div key={i} className="flex-1 rounded-t transition-all" style={{ height: `${h}%`, backgroundColor: color }} />
+                    return <div key={i} className="flex-1 rounded-t animate-grow" style={{ height: `${h}%`, backgroundColor: color, animationDelay: `${i * 0.08}s`, boxShadow: `0 0 8px ${color}30` }} />
                   })}
                 </div>
                 <div className="flex justify-between mt-2 text-[9px] text-gray-500"><span>Week 1 — 4 installs/wk</span><span>Week 16 — 16 installs/wk</span></div>
@@ -285,6 +309,12 @@ export default function InfographicPage() {
 
             {/* Automations */}
             <div>
+              {/* Total time saved */}
+              <div className="bg-gradient-to-r from-green-900/20 to-green-900/5 border border-green-800/30 rounded-xl p-5 text-center">
+                <div className="text-3xl font-black text-green-400 drop-shadow-[0_0_20px_rgba(29,158,117,0.3)]">~45 min/day saved</div>
+                <div className="text-sm text-gray-400 mt-1">Per PM through automation — that's 3.75 hours per week back</div>
+              </div>
+
               <h2 className="text-xl font-bold mb-4">Automation Saves You Time</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
@@ -357,9 +387,11 @@ export default function InfographicPage() {
         {/* ═══ FIELD OPS ═══ */}
         {tab === 'field_ops' && (
           <div className="space-y-12">
-            <div className="text-center py-2">
+            <div className="text-center py-6 relative">
+              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, rgba(59,130,246,0.06) 0%, transparent 70%)' }} />
+              <div className="text-4xl mb-2">🔨</div>
               <h2 className="text-2xl font-bold">Field Operations</h2>
-              <p className="text-sm text-gray-500 mt-1">For crew leads, installers, and field technicians</p>
+              <p className="text-sm text-gray-500 mt-1">Built for crew leads, installers, and field technicians</p>
             </div>
 
             {/* Field day workflow */}
@@ -450,7 +482,10 @@ export default function InfographicPage() {
             {/* Commission pipeline */}
             <div>
               <h2 className="text-xl font-bold mb-4">Your Commission Pipeline</h2>
-              <div className="flex items-center gap-1 overflow-x-auto pb-2">
+              <div className="relative">
+                <div className="absolute top-1/2 left-0 right-0 h-0.5 animate-flow" style={{ marginTop: '-1px' }} />
+              </div>
+              <div className="flex items-center gap-1 overflow-x-auto pb-2 relative z-10">
                 {[
                   { step: 'Contract Signed', desc: 'Deal enters pipeline', color: '#3b82f6', icon: '📝' },
                   { step: 'NTP Approved', desc: 'Notice to proceed', color: '#8b5cf6', icon: '✅' },
@@ -486,8 +521,8 @@ export default function InfographicPage() {
                   { step: 6, who: 'Install', action: 'Crew installs the system. When complete, your first commission payment is triggered automatically.', color: '#f97316' },
                   { step: 7, who: 'Paid', action: 'Inspections pass, system goes live, final funding hits. Your full commission is paid out. Check your Earnings Dashboard anytime.', color: '#1D9E75' },
                 ].map(s => (
-                  <div key={s.step} className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3 border border-gray-700">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold" style={{ backgroundColor: `${s.color}20`, color: s.color }}>{s.step}</div>
+                  <div key={s.step} className={`flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3 border border-gray-700 animate-slide animate-slide-${s.step}`}>
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold" style={{ backgroundColor: `${s.color}20`, color: s.color, boxShadow: `0 0 12px ${s.color}20` }}>{s.step}</div>
                     <div className="flex-1">
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded mr-2" style={{ backgroundColor: `${s.color}20`, color: s.color }}>{s.who}</span>
                       <span className="text-xs text-gray-300">{s.action}</span>
@@ -576,7 +611,7 @@ export default function InfographicPage() {
 
             {/* Timeline */}
             <div className="relative">
-              <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-500 via-green-500 to-emerald-500 hidden md:block" />
+              <div className="absolute left-8 top-0 bottom-0 w-1 rounded-full hidden md:block" style={{ background: 'linear-gradient(to bottom, #3b82f6, #8b5cf6, #ec4899, #f59e0b, #f97316, #06b6d4, #22c55e)' }} />
               {[
                 { stage: 'Contract Signed', days: 'Day 0', customer: 'Signs proposal via Spark. Chooses financing. Picks equipment package.', ops: 'Project created automatically. Drive folder generated. Welcome call scheduled.', color: '#3b82f6', icon: '📝' },
                 { stage: 'Site Survey', days: 'Day 3-5', customer: 'Crew visits home. Takes measurements and photos. Checks electrical panel.', ops: 'Survey data uploaded. Engineering design initiated. HOA check if applicable.', color: '#8b5cf6', icon: '📐' },
@@ -637,12 +672,18 @@ export default function InfographicPage() {
               <h2 className="text-xl font-bold mb-4">By the Numbers</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { value: '~90', unit: 'days', label: 'Avg Sale to In-Service', color: '#1D9E75' },
-                  { value: '~55', unit: 'days', label: 'Avg Sale to Install', color: '#3b82f6' },
-                  { value: '7', unit: 'stages', label: 'Automated Pipeline', color: '#f59e0b' },
-                  { value: '30+', unit: 'tasks', label: 'Per Project Tracked', color: '#8b5cf6' },
+                  { value: '~90', unit: 'days', label: 'Avg Sale to In-Service', color: '#1D9E75', pct: 100 },
+                  { value: '~55', unit: 'days', label: 'Avg Sale to Install', color: '#3b82f6', pct: 61 },
+                  { value: '7', unit: 'stages', label: 'Automated Pipeline', color: '#f59e0b', pct: 100 },
+                  { value: '30+', unit: 'tasks', label: 'Per Project Tracked', color: '#8b5cf6', pct: 100 },
                 ].map(n => (
-                  <div key={n.label} className="bg-gray-800 rounded-xl p-5 text-center border border-gray-700">
+                  <div key={n.label} className="bg-gray-800 rounded-xl p-6 text-center border border-gray-700 relative overflow-hidden">
+                    <svg className="ring-chart w-20 h-20 mx-auto mb-2" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="45" fill="none" stroke="#1f2937" strokeWidth="6" />
+                      <circle cx="50" cy="50" r="45" fill="none" stroke={n.color} strokeWidth="6" strokeLinecap="round"
+                        strokeDasharray="283" strokeDashoffset={283 - (283 * n.pct / 100)}
+                        className="animate-grow" style={{ animationDuration: '1.5s' }} />
+                    </svg>
                     <div className="text-3xl font-black" style={{ color: n.color }}>{n.value}</div>
                     <div className="text-xs text-gray-400">{n.unit}</div>
                     <div className="text-[10px] text-gray-500 mt-1">{n.label}</div>
@@ -666,7 +707,7 @@ export default function InfographicPage() {
                   { layer: 'Database', color: '#f59e0b', items: ['Supabase (PostgreSQL)', '45+ tables', 'Row-Level Security', 'Org-scoped access', 'Realtime subscriptions'] },
                   { layer: 'Infrastructure', color: '#8b5cf6', items: ['Vercel (auto-deploy)', 'Sentry (errors)', 'Resend (email)', 'Google Calendar sync', 'HMAC webhooks'] },
                 ].map(l => (
-                  <div key={l.layer} className="rounded-lg px-5 py-3 flex items-center gap-4" style={{ backgroundColor: `${l.color}10`, borderLeft: `4px solid ${l.color}` }}>
+                  <div key={l.layer} className="rounded-lg px-5 py-4 flex items-center gap-4 animate-pulse-glow" style={{ backgroundColor: `${l.color}08`, borderLeft: `4px solid ${l.color}`, boxShadow: `inset 0 0 40px ${l.color}05` }}>
                     <div className="w-28 flex-shrink-0">
                       <span className="text-xs font-bold" style={{ color: l.color }}>{l.layer}</span>
                     </div>
