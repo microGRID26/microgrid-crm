@@ -401,3 +401,45 @@ export const TASK_DATE_FIELDS: Record<string, string> = {
   pto:            'pto_date',
   in_service:     'in_service_date',
 }
+
+// ── JOB TYPE DEFINITIONS ─────────────────────────────────────────────────────
+// Single source of truth for schedule job types, colors, labels, and task mappings.
+
+export const JOB_TYPES = [
+  { value: 'survey',     label: 'Site Survey' },
+  { value: 'install',    label: 'Installation' },
+  { value: 'inspection', label: 'Inspection' },
+  { value: 'service',    label: 'Service Call' },
+] as const
+
+export const JOB_LABELS: Record<string, string> = Object.fromEntries(
+  JOB_TYPES.map(j => [j.value, j.label])
+)
+
+export const JOB_COLORS: Record<string, { bg: string; text: string; border?: string }> = {
+  survey:     { bg: 'bg-blue-900',   text: 'text-blue-200',   border: 'border-blue-700' },
+  install:    { bg: 'bg-green-900',  text: 'text-green-200',  border: 'border-green-700' },
+  inspection: { bg: 'bg-amber-900',  text: 'text-amber-200',  border: 'border-amber-700' },
+  service:    { bg: 'bg-pink-900',   text: 'text-pink-200',   border: 'border-pink-700' },
+}
+
+/** Maps a schedule job_type to the task that gets marked Complete when the job is done */
+export const JOB_COMPLETE_TASK: Record<string, string> = {
+  install: 'install_done',
+  survey: 'site_survey',
+  inspection: 'city_insp',
+}
+
+/** Maps a schedule job_type to the scheduling task that gets marked Scheduled */
+export const JOB_SCHEDULE_TASK: Record<string, string> = {
+  install: 'sched_install',
+  survey: 'sched_survey',
+  inspection: 'sched_city',
+}
+
+/** Maps a completed task to the project date field it should auto-populate */
+export const JOB_COMPLETE_DATE: Record<string, string> = {
+  install_done: 'install_complete_date',
+  site_survey: 'survey_date',
+  city_insp: 'city_inspection_date',
+}

@@ -17,16 +17,7 @@ import type { Schedule, Crew, Project } from '@/types/database'
 /** Schedule row with joined project data from Supabase */
 type ScheduleWithProject = Schedule & { project?: { name: string; city: string } | null }
 
-const JOB_COLORS: Record<string, { bg: string; text: string }> = {
-  survey:     { bg: 'bg-blue-900',   text: 'text-blue-200'   },
-  install:    { bg: 'bg-green-900',  text: 'text-green-200'  },
-  inspection: { bg: 'bg-amber-900',  text: 'text-amber-200'  },
-  service:    { bg: 'bg-pink-900',   text: 'text-pink-200'   },
-}
-
-const JOB_LABELS: Record<string, string> = {
-  survey: 'Site Survey', install: 'Installation', inspection: 'Inspection', service: 'Service Call'
-}
+import { JOB_COLORS, JOB_LABELS, JOB_COMPLETE_TASK, JOB_COMPLETE_DATE } from '@/lib/tasks'
 
 const STATUS_COLORS: Record<string, { dot: string; label: string }> = {
   complete:    { dot: 'bg-green-400',  label: 'Complete'    },
@@ -288,12 +279,7 @@ export default function SchedulePage() {
     if (dayJobs.length === 0) return
     setCompleting(date)
 
-    const JOB_TO_TASK: Record<string, string> = {
-      install: 'install_done', survey: 'site_survey', inspection: 'city_insp',
-    }
-    const TASK_DATE: Record<string, string> = {
-      install_done: 'install_complete_date', site_survey: 'survey_date', city_insp: 'city_inspection_date',
-    }
+    // Use centralized mappings from lib/tasks.ts
     const today = new Date().toISOString().slice(0, 10)
 
     for (const job of dayJobs) {
@@ -302,7 +288,7 @@ export default function SchedulePage() {
       if (schedErr) { console.error('batch schedule update failed:', schedErr); continue }
 
       // Task sync
-      const taskId = JOB_TO_TASK[job.job_type]
+      const taskId = JOB_COMPLETE_TASK[job.job_type]
       if (taskId && job.project_id) {
         try {
           // Preserve existing started_date if already set (#27)
@@ -320,7 +306,7 @@ export default function SchedulePage() {
             status: 'Complete', changed_by: 'Crew (batch complete)',
           })
 
-          const dateField = TASK_DATE[taskId]
+          const dateField = JOB_COMPLETE_DATE[taskId]
           if (dateField) {
             const { data: proj, error: projErr } = await supabase.from('projects').select(dateField).eq('id', job.project_id).single()
             if (projErr || !proj) return

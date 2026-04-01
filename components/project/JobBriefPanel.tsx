@@ -5,16 +5,11 @@ import { db } from '@/lib/db'
 import { cn, STAGE_LABELS, fmtDate, fmt$ } from '@/lib/utils'
 import type { Project, Schedule, Crew } from '@/types/database'
 
-const JOB_LABELS: Record<string, string> = {
-  survey: 'Site Survey', install: 'Installation', inspection: 'Inspection', service: 'Service Call'
-}
+import { JOB_LABELS, JOB_COLORS } from '@/lib/tasks'
 
-const JOB_BADGE: Record<string, string> = {
-  survey: 'bg-blue-900 text-blue-200',
-  install: 'bg-green-900 text-green-200',
-  inspection: 'bg-amber-900 text-amber-200',
-  service: 'bg-pink-900 text-pink-200',
-}
+const JOB_BADGE: Record<string, string> = Object.fromEntries(
+  Object.entries(JOB_COLORS).map(([k, v]) => [k, `${v.bg} ${v.text}`])
+)
 
 const STATUS_BADGE: Record<string, string> = {
   complete: 'bg-green-900 text-green-300',

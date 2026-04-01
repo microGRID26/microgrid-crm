@@ -10,16 +10,16 @@ import type { Crew, Project, Schedule } from '@/types/database'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
+import { JOB_COLORS, JOB_COMPLETE_TASK, JOB_COMPLETE_DATE } from '@/lib/tasks'
+
+// Short labels for mobile crew view
 const JOB_LABELS: Record<string, string> = {
   survey: 'Survey', install: 'Install', inspection: 'Inspection', service: 'Service'
 }
 
-const JOB_BADGE: Record<string, string> = {
-  survey: 'bg-blue-900 text-blue-200',
-  install: 'bg-green-900 text-green-200',
-  inspection: 'bg-amber-900 text-amber-200',
-  service: 'bg-pink-900 text-pink-200',
-}
+const JOB_BADGE: Record<string, string> = Object.fromEntries(
+  Object.entries(JOB_COLORS).map(([k, v]) => [k, `${v.bg} ${v.text}`])
+)
 
 const STATUS_DOT: Record<string, string> = {
   complete: 'bg-green-400',
@@ -443,12 +443,7 @@ export default function CrewPage() {
     if (newStatus === 'complete') {
       const job = jobs.find(j => j.id === jobId)
       if (job) {
-        const JOB_TO_TASK: Record<string, string> = {
-          install: 'install_done',
-          survey: 'site_survey',
-          inspection: 'city_insp',
-        }
-        const taskId = JOB_TO_TASK[job.job_type]
+        const taskId = JOB_COMPLETE_TASK[job.job_type]
         if (taskId) {
           const today = new Date().toISOString().slice(0, 10)
           try {
@@ -468,12 +463,7 @@ export default function CrewPage() {
             })
 
             // Auto-populate project date field if empty
-            const TASK_DATE: Record<string, string> = {
-              install_done: 'install_complete_date',
-              site_survey: 'survey_date',
-              city_insp: 'city_inspection_date',
-            }
-            const dateField = TASK_DATE[taskId]
+            const dateField = JOB_COMPLETE_DATE[taskId]
             if (dateField) {
               const { data: proj } = await supabase.from('projects').select(dateField).eq('id', job.project_id).single()
               if (proj && !(proj as Record<string, unknown>)[dateField]) {

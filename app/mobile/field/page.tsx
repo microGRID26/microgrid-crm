@@ -16,41 +16,23 @@ import type { Project, Schedule } from '@/types/database'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
+import { JOB_COLORS, JOB_COMPLETE_TASK, JOB_COMPLETE_DATE } from '@/lib/tasks'
+
+// Short labels for mobile
 const JOB_LABELS: Record<string, string> = {
   survey: 'Survey', install: 'Install', inspection: 'Inspection', service: 'Service'
 }
 
-const JOB_BADGE: Record<string, string> = {
-  survey: 'bg-blue-900 text-blue-200 border-blue-700',
-  install: 'bg-green-900 text-green-200 border-green-700',
-  inspection: 'bg-amber-900 text-amber-200 border-amber-700',
-  service: 'bg-purple-900 text-purple-200 border-purple-700',
-}
+const JOB_BADGE: Record<string, string> = Object.fromEntries(
+  Object.entries(JOB_COLORS).map(([k, v]) => [k, `${v.bg} ${v.text} ${v.border ?? ''}`])
+)
 
 const STATUS_DOT: Record<string, string> = {
-  complete: 'bg-green-400',
-  scheduled: 'bg-blue-400',
-  in_progress: 'bg-amber-400',
-  cancelled: 'bg-gray-500',
+  complete: 'bg-green-400', scheduled: 'bg-blue-400', in_progress: 'bg-amber-400', cancelled: 'bg-gray-500',
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  complete: 'Complete',
-  scheduled: 'Scheduled',
-  in_progress: 'In Progress',
-  cancelled: 'Cancelled',
-}
-
-const JOB_TO_TASK: Record<string, string> = {
-  install: 'install_done',
-  survey: 'site_survey',
-  inspection: 'city_insp',
-}
-
-const TASK_DATE: Record<string, string> = {
-  install_done: 'install_complete_date',
-  site_survey: 'survey_date',
-  city_insp: 'city_inspection_date',
+  complete: 'Complete', scheduled: 'Scheduled', in_progress: 'In Progress', cancelled: 'Cancelled',
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -512,7 +494,7 @@ function FieldJobCard({
   const address = [job.customer_address, job.customer_city, job.customer_zip].filter(Boolean).join(', ')
   const status = job.status ?? 'scheduled'
   const jobType = job.job_type ?? 'survey'
-  const taskId = JOB_TO_TASK[jobType]
+  const taskId = JOB_COMPLETE_TASK[jobType]
 
   return (
     <div className="bg-gray-900 rounded-xl overflow-hidden border border-gray-800">
@@ -924,7 +906,7 @@ export default function FieldPage() {
     if (newStatus === 'complete') {
       const job = jobsRef.current.find(j => j.id === jobId)
       if (job) {
-        const taskId = JOB_TO_TASK[job.job_type]
+        const taskId = JOB_COMPLETE_TASK[job.job_type]
         if (taskId) {
           const todayStr = new Date().toISOString().slice(0, 10)
           try {
@@ -942,7 +924,7 @@ export default function FieldPage() {
               changed_by: currentUser?.name ?? 'Field Crew',
             })
             // Auto-populate project date
-            const dateField = TASK_DATE[taskId]
+            const dateField = JOB_COMPLETE_DATE[taskId]
             if (dateField) {
               const { data: proj } = await supabase.from('projects').select(dateField).eq('id', job.project_id).maybeSingle()
               if (proj && !(proj as Record<string, unknown>)[dateField]) {
@@ -966,7 +948,7 @@ export default function FieldPage() {
       setToast({ message: 'No internet connection', type: 'error' })
       return
     }
-    const taskId = JOB_TO_TASK[job.job_type]
+    const taskId = JOB_COMPLETE_TASK[job.job_type]
     if (!taskId) return
 
     const todayStr = new Date().toISOString().slice(0, 10)
@@ -991,7 +973,7 @@ export default function FieldPage() {
     })
 
     // Auto-populate project date
-    const dateField = TASK_DATE[taskId]
+    const dateField = JOB_COMPLETE_DATE[taskId]
     if (dateField) {
       try {
         const { data: proj } = await supabase.from('projects').select(dateField).eq('id', job.project_id).maybeSingle()

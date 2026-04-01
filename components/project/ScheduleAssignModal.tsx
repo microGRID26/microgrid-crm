@@ -3,15 +3,9 @@
 import { useState, useEffect } from 'react'
 import { db } from '@/lib/db'
 import { escapeIlike } from '@/lib/utils'
+import { JOB_TYPES, JOB_SCHEDULE_TASK, JOB_COMPLETE_TASK, JOB_COMPLETE_DATE } from '@/lib/tasks'
 import { clearQueryCache } from '@/lib/hooks'
 import type { Crew, Project, Schedule } from '@/types/database'
-
-const JOB_TYPES = [
-  { value: 'survey',     label: 'Site Survey'    },
-  { value: 'install',    label: 'Installation'   },
-  { value: 'inspection', label: 'Inspection'     },
-  { value: 'service',    label: 'Service Call'   },
-]
 
 interface Props {
   crewId: string | null
@@ -264,12 +258,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
 
     // Fix 2: When creating a NEW schedule entry, mark the scheduling task as "Scheduled"
     if (!scheduleId) {
-      const JOB_TO_SCHED_TASK: Record<string, string> = {
-        install: 'sched_install',
-        survey: 'sched_survey',
-        inspection: 'sched_city',
-      }
-      const schedTaskId = JOB_TO_SCHED_TASK[form.job_type]
+      const schedTaskId = JOB_SCHEDULE_TASK[form.job_type]
       if (schedTaskId) {
         try {
           await supabase.from('task_state').upsert({
@@ -289,12 +278,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
 
     // When saving with status 'complete' (edit or new), auto-complete the job task
     if (form.status === 'complete') {
-      const JOB_TO_TASK: Record<string, string> = {
-        install: 'install_done',
-        survey: 'site_survey',
-        inspection: 'city_insp',
-      }
-      const taskId = JOB_TO_TASK[form.job_type]
+      const taskId = JOB_COMPLETE_TASK[form.job_type]
       if (taskId) {
         const today = new Date().toISOString().slice(0, 10)
         try {
@@ -314,12 +298,7 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
           })
 
           // Auto-populate project date field if empty
-          const TASK_DATE: Record<string, string> = {
-            install_done: 'install_complete_date',
-            site_survey: 'survey_date',
-            city_insp: 'city_inspection_date',
-          }
-          const dateField = TASK_DATE[taskId]
+          const dateField = JOB_COMPLETE_DATE[taskId]
           if (dateField) {
             const { data: proj } = await supabase.from('projects').select(dateField).eq('id', pid).single()
             if (proj && !(proj as Record<string, unknown>)[dateField]) {
