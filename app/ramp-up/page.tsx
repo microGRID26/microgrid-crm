@@ -230,15 +230,15 @@ export default function RampUpPage() {
     loadActiveCrews().then((r: any) => setAllCrews((r.data ?? r ?? []).map((cr: any) => ({ id: cr.id, name: cr.name }))))
   }, [])
 
-  // Crew ramp: 2 crews for first 4 weeks, then +1 crew every 2 weeks
+  // Crew ramp: 2 crews for first 4 weeks, then +1 crew every 2 weeks (no cap)
   const getActiveCrewCount = useCallback((week: string): number => {
     const weekIdx = weeks.indexOf(week)
     if (weekIdx < 0) return 2
     if (weekIdx < 4) return 2 // First month: 2 crews
     const weeksAfterMonth1 = weekIdx - 4
-    const extra = Math.floor(weeksAfterMonth1 / 2) + 1 // +1 at week 5, +1 every 2 weeks after
-    return Math.min(2 + extra, allCrews.length || 4)
-  }, [weeks, allCrews])
+    const extra = Math.floor(weeksAfterMonth1 / 2) + 1
+    return 2 + extra // 2→3→3→4→4→5→5→6...
+  }, [weeks])
 
   const crewNames = useMemo(() => {
     const count = getActiveCrewCount(selectedWeek)
@@ -369,6 +369,25 @@ export default function RampUpPage() {
               <div className="text-xs text-gray-300 mt-1">{fmt$(tierCounts[tier].value)}</div>
             </div>
           ))}
+        </div>
+
+        {/* Scoring Legend */}
+        <div className="bg-gray-800/50 rounded-lg px-4 py-2.5 flex flex-wrap items-center gap-x-6 gap-y-1">
+          <span className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Scoring:</span>
+          <div className="flex items-center gap-4 text-[10px]">
+            <span className="text-gray-400"><span className="text-white font-semibold">Readiness</span> (40%): Permit 25 + Redesign 25 + Equipment 20 + Utility 15 + HOA 10 + Crew 5 = 100pt</span>
+          </div>
+          <div className="flex items-center gap-4 text-[10px]">
+            <span className="text-gray-400"><span className="text-white font-semibold">Proximity</span> (30%): Distance from warehouse</span>
+            <span className="text-gray-400"><span className="text-white font-semibold">Cluster</span> (15%): Projects in same zip</span>
+            <span className="text-gray-400"><span className="text-white font-semibold">Contract</span> (15%): Higher value = higher priority</span>
+          </div>
+          <div className="flex items-center gap-3 text-[10px] ml-auto">
+            <span className="text-green-400">T1: 60+</span>
+            <span className="text-amber-400">T2: 40-59</span>
+            <span className="text-blue-400">T3: 20-39</span>
+            <span className="text-red-400">T4: 0-19</span>
+          </div>
         </div>
 
         {/* Tab Bar */}
