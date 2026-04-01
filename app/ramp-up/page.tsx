@@ -78,6 +78,10 @@ export default function RampUpPage() {
   const [selectedWeek, setSelectedWeek] = useState(rampStart)
   const [panelProject, setPanelProject] = useState<Project | null>(null)
   const [tab, setTab] = useState<'planner' | 'queue' | 'timeline'>('planner')
+  const [showGuide, setShowGuide] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return localStorage.getItem('mg_rampup_guide_dismissed') !== 'true'
+  })
   const [tierFilter, setTierFilter] = useState<Tier | null>(null)
   const [queueSearch, setQueueSearch] = useState('')
   const [expandedProject, setExpandedProject] = useState<string | null>(null)
@@ -268,17 +272,19 @@ export default function RampUpPage() {
   // Handlers
   const handleSchedule = async (projectId: string, crewName: string, slot: number) => {
     const project = projects.find(p => p.id === projectId)
-    await scheduleProject({
+    if (!project) return
+    const result = await scheduleProject({
       project_id: projectId,
       crew_name: crewName,
       scheduled_week: selectedWeek,
       slot,
       status: 'planned',
-      priority_score: project?.priorityScore ?? 0,
-      distance_miles: project?.distanceMiles ?? null,
-      drive_minutes: project?.driveMinutes ?? null,
+      priority_score: project.priorityScore ?? 0,
+      distance_miles: project.distanceMiles ?? null,
+      drive_minutes: project.driveMinutes ?? null,
       created_by: user?.name,
     })
+    if (!result) { alert('Failed to schedule project'); return }
     loadAll()
   }
 
@@ -292,15 +298,15 @@ export default function RampUpPage() {
     const installDate = entry.scheduled_day ?? selectedWeek
 
     // Create schedule entry in the main schedule table
+    if (!crew) { alert(`Crew "${entry.crew_name}" not found in database`); return }
     await db().from('schedule').insert({
       project_id: entry.project_id,
-      crew_id: crew?.id ?? entry.crew_name?.toLowerCase().replace(/\s/g, ''),
+      crew_id: crew.id,
       job_type: 'install',
       date: installDate,
       status: 'Scheduled',
       notes: `Ramp-up planner: ${entry.crew_name}, Week of ${getWeekLabel(entry.scheduled_week)}`,
       pm: project.pm,
-      pm_id: null,
     })
 
     // Update ramp schedule status
@@ -412,6 +418,44 @@ export default function RampUpPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <Nav active="Ramp-Up" />
+
+      {/* Instructional Guide */}
+      {showGuide && (
+        <div className="bg-gray-900 border-b border-gray-700 px-4 py-4">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-start justify-between">
+              <div className="space-y-3 flex-1 pr-8">
+                <h2 className="text-sm font-bold text-white">How to Use the Ramp-Up Planner</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                    <div className="text-green-400 font-semibold mb-1">1. Review Readiness</div>
+                    <p className="text-gray-400">Go to the <span className="text-white">Readiness Queue</span> tab. Projects are scored 0-100 based on permit status, redesign, equipment, utility, HOA, and crew availability. Click the checklist items to update readiness as things get confirmed.</p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                    <div className="text-blue-400 font-semibold mb-1">2. Schedule Installs</div>
+                    <p className="text-gray-400">On the <span className="text-white">Week Planner</span> tab, click <span className="text-green-400">+ HOU 1</span> or <span className="text-blue-400">+ HOU 2</span> on suggested projects to assign them to a crew. Set the install date with the date picker. Click <span className="text-indigo-400">Confirm</span> to add it to the main schedule.</p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                    <div className="text-amber-400 font-semibold mb-1">3. Track Progress</div>
+                    <p className="text-gray-400">The <span className="text-white">30/60/90 Timeline</span> shows your rolling forecast. Click <span className="text-green-400">Complete</span> when an install is done — it automatically updates the project tasks and advances the pipeline. The map shows crew locations for the week.</p>
+                  </div>
+                </div>
+                <div className="flex gap-6 text-[10px] text-gray-500">
+                  <span><span className="text-green-400">Tier 1 (60+)</span> = Ready to schedule</span>
+                  <span><span className="text-amber-400">Tier 2 (40-59)</span> = Almost ready</span>
+                  <span><span className="text-blue-400">Tier 3 (20-39)</span> = Needs work</span>
+                  <span><span className="text-red-400">Tier 4 (0-19)</span> = Not ready</span>
+                  <span className="ml-4">Ramp: 2 crews for first month → +1 crew every 2 weeks</span>
+                </div>
+              </div>
+              <button onClick={() => { setShowGuide(false); localStorage.setItem('mg_rampup_guide_dismissed', 'true') }}
+                className="text-gray-500 hover:text-white flex-shrink-0 mt-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-4">
         {/* Header */}

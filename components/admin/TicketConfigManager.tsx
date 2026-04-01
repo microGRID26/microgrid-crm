@@ -19,8 +19,8 @@ export function TicketConfigManager() {
   const [draft, setDraft] = useState<any>({})
 
   const reload = () => {
-    db().from('ticket_categories').select('*').order('sort_order').limit(500).then(({ data }: any) => setCategories(data ?? []))
-    db().from('ticket_resolution_codes').select('*').order('sort_order').limit(200).then(({ data }: any) => setResolutions(data ?? []))
+    db().from('ticket_categories').select('*').order('sort_order').limit(500).then(({ data }: any) => setCategories(data ?? [])).catch(() => {})
+    db().from('ticket_resolution_codes').select('*').order('sort_order').limit(200).then(({ data }: any) => setResolutions(data ?? [])).catch(() => {})
   }
 
   useEffect(() => { reload() }, [])
