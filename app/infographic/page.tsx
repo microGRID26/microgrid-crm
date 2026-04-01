@@ -489,11 +489,11 @@ export default function InfographicPage() {
                 {[
                   { step: 'Contract Signed', desc: 'Deal enters pipeline', color: '#3b82f6', icon: '📝' },
                   { step: 'NTP Approved', desc: 'Notice to proceed', color: '#8b5cf6', icon: '✅' },
-                  { step: 'M1 Advance', desc: 'First payment available', color: '#1D9E75', icon: '💵' },
+                  { step: 'Design & Permit', desc: 'Engineering + AHJ', color: '#f59e0b', icon: '📐' },
                   { step: 'Install Complete', desc: 'System on the roof', color: '#f97316', icon: '🔨' },
-                  { step: 'M2 Funded', desc: 'Second milestone paid', color: '#22c55e', icon: '💰' },
-                  { step: 'PTO Received', desc: 'Permission to operate', color: '#06b6d4', icon: '⚡' },
-                  { step: 'M3 Funded', desc: 'Final payment', color: '#1D9E75', icon: '🎉' },
+                  { step: 'Inspection Passed', desc: 'City/utility approval', color: '#06b6d4', icon: '🔍' },
+                  { step: 'PTO Received', desc: 'Permission to operate', color: '#22c55e', icon: '⚡' },
+                  { step: 'Commission Paid', desc: 'Rep gets paid', color: '#1D9E75', icon: '💰' },
                 ].map((s, i) => (
                   <div key={s.step} className="flex items-center flex-shrink-0">
                     <div className="rounded-xl px-4 py-4 text-center min-w-[120px] border" style={{ backgroundColor: `${s.color}10`, borderColor: `${s.color}40` }}>
