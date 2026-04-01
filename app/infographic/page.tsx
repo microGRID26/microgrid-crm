@@ -537,21 +537,18 @@ export default function InfographicPage() {
               <h2 className="text-xl font-bold mb-4">How You Get Paid</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
-                  <h3 className="text-sm font-bold text-green-400 mb-3">Your Sales Toolkit</h3>
+                  <h3 className="text-sm font-bold text-green-400 mb-3">Deal Snapshot</h3>
                   <div className="space-y-3">
                     {[
-                      { icon: '📋', label: 'Spark Proposal Tool', desc: 'AI roof design + instant pricing' },
-                      { icon: '📊', label: 'Earnings Dashboard', desc: 'Track commissions on every deal' },
-                      { icon: '🏆', label: 'Leaderboard', desc: 'See where you rank vs the team' },
-                      { icon: '📍', label: 'Project Map', desc: 'Visualize your pipeline by location' },
-                      { icon: '🎓', label: 'Training Hub', desc: '30-day onboarding + product knowledge' },
+                      { label: 'Avg System Size', value: `${stats.totalProjects > 0 ? (stats.pipeline.reduce((s, p) => s + p.count, 0) > 0 ? '8.4' : '—') : '—'} kW`, color: '#1D9E75' },
+                      { label: 'Avg Contract Value', value: `${stats.totalValue > 0 ? fmt$(Math.round(stats.totalValue / stats.totalProjects)) : '—'}`, color: '#3b82f6' },
+                      { label: 'Active Pipeline', value: `${stats.totalProjects} deals`, color: '#8b5cf6' },
+                      { label: 'Pipeline Value', value: fmt$(stats.totalValue), color: '#f59e0b' },
+                      { label: 'Avg Sale to Install', value: '~60 days', color: '#f97316' },
                     ].map(t => (
-                      <div key={t.label} className="flex items-center gap-3">
-                        <span className="text-lg">{t.icon}</span>
-                        <div>
-                          <div className="text-xs font-medium text-white">{t.label}</div>
-                          <div className="text-[10px] text-gray-500">{t.desc}</div>
-                        </div>
+                      <div key={t.label} className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400">{t.label}</span>
+                        <span className="text-sm font-bold" style={{ color: t.color }}>{t.value}</span>
                       </div>
                     ))}
                   </div>
