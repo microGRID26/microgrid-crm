@@ -409,11 +409,11 @@ function TicketsPageInner() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="bg-gray-900 rounded-lg p-3 text-center">
                   <div className="text-[10px] text-gray-500 uppercase">Avg Response Time</div>
-                  <div className="text-lg font-bold text-blue-400">{avgResponseHrs > 0 ? `${Math.round(avgResponseHrs)}h` : '\u2014'}</div>
+                  <div className="text-lg font-bold text-blue-400">{avgResponseHrs > 0 ? (avgResponseHrs >= 24 ? `${(avgResponseHrs / 24).toFixed(1)}d` : `${Math.round(avgResponseHrs)}h`) : '\u2014'}</div>
                 </div>
                 <div className="bg-gray-900 rounded-lg p-3 text-center">
                   <div className="text-[10px] text-gray-500 uppercase">Avg Resolution Time</div>
-                  <div className="text-lg font-bold text-green-400">{avgResolutionHrs > 0 ? `${Math.round(avgResolutionHrs)}h` : '\u2014'}</div>
+                  <div className="text-lg font-bold text-green-400">{avgResolutionHrs > 0 ? (avgResolutionHrs >= 24 ? `${(avgResolutionHrs / 24).toFixed(1)}d` : `${Math.round(avgResolutionHrs)}h`) : '\u2014'}</div>
                 </div>
                 <div className="bg-gray-900 rounded-lg p-3 text-center">
                   <div className="text-[10px] text-gray-500 uppercase">Resolution Rate</div>
