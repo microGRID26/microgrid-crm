@@ -356,6 +356,137 @@ export function optimizeRoute(warehouse: { lat: number; lng: number }, points: R
   }
 }
 
+// ── Crew-Aware Clustering ────────────────────────────────────────────────────
+// Given a set of projects and number of crews, assign projects to crews
+// minimizing total driving distance per crew using geographic clustering.
+//
+// Algorithm:
+// 1. Compute pairwise distances between all projects
+// 2. Use k-means-style clustering: assign each project to the nearest centroid
+// 3. Iterate to refine centroids
+// 4. Each cluster = one crew's jobs
+
+export interface ClusteredAssignment {
+  crewIndex: number
+  projects: RoutePoint[]
+  totalMiles: number
+}
+
+export function clusterProjectsForCrews(
+  warehouse: { lat: number; lng: number },
+  projects: (RoutePoint & { priorityScore?: number })[],
+  crewCount: number,
+  jobsPerCrew: number,
+): ClusteredAssignment[] {
+  if (projects.length === 0 || crewCount === 0) return []
+
+  const maxJobs = crewCount * jobsPerCrew
+  // Take top projects by priority score (already sorted)
+  const candidates = projects.slice(0, maxJobs)
+
+  if (candidates.length <= crewCount) {
+    // Fewer projects than crews — assign one per crew
+    return candidates.map((p, i) => ({
+      crewIndex: i % crewCount,
+      projects: [p],
+      totalMiles: haversineDistance(warehouse.lat, warehouse.lng, p.lat, p.lng) * 2,
+    }))
+  }
+
+  // K-means clustering
+  // Initialize centroids: spread evenly by sorting by angle from warehouse
+  const withAngle = candidates.map(p => ({
+    ...p,
+    angle: Math.atan2(p.lat - warehouse.lat, p.lng - warehouse.lng),
+  }))
+  withAngle.sort((a, b) => a.angle - b.angle)
+
+  // Assign initial clusters by dividing sorted list
+  const perCluster = Math.ceil(candidates.length / crewCount)
+  let assignments = new Array(candidates.length).fill(0)
+  for (let i = 0; i < candidates.length; i++) {
+    assignments[i] = Math.min(Math.floor(i / perCluster), crewCount - 1)
+  }
+
+  // Iterate k-means (3 iterations is usually enough for small N)
+  for (let iter = 0; iter < 5; iter++) {
+    // Compute centroids
+    const centroids: { lat: number; lng: number; count: number }[] = Array.from(
+      { length: crewCount },
+      () => ({ lat: 0, lng: 0, count: 0 })
+    )
+    for (let i = 0; i < withAngle.length; i++) {
+      const c = assignments[i]
+      centroids[c].lat += withAngle[i].lat
+      centroids[c].lng += withAngle[i].lng
+      centroids[c].count++
+    }
+    for (const c of centroids) {
+      if (c.count > 0) { c.lat /= c.count; c.lng /= c.count }
+      else { c.lat = warehouse.lat; c.lng = warehouse.lng }
+    }
+
+    // Reassign each project to nearest centroid (respecting jobsPerCrew limit)
+    const newAssignments = new Array(withAngle.length).fill(-1)
+    const clusterSizes = new Array(crewCount).fill(0)
+
+    // Sort projects by distance to their nearest centroid (furthest first for better assignment)
+    const indexed = withAngle.map((p, i) => {
+      const dists = centroids.map(c => haversineDistance(p.lat, p.lng, c.lat, c.lng))
+      return { idx: i, dists, minDist: Math.min(...dists) }
+    })
+    indexed.sort((a, b) => b.minDist - a.minDist) // Furthest first
+
+    for (const { idx, dists } of indexed) {
+      // Find nearest centroid with capacity
+      const sorted = dists.map((d, ci) => ({ ci, d })).sort((a, b) => a.d - b.d)
+      for (const { ci } of sorted) {
+        if (clusterSizes[ci] < jobsPerCrew) {
+          newAssignments[idx] = ci
+          clusterSizes[ci]++
+          break
+        }
+      }
+      // Fallback: assign to any cluster with space
+      if (newAssignments[idx] === -1) {
+        for (let ci = 0; ci < crewCount; ci++) {
+          if (clusterSizes[ci] < jobsPerCrew) {
+            newAssignments[idx] = ci
+            clusterSizes[ci]++
+            break
+          }
+        }
+      }
+    }
+
+    assignments = newAssignments
+  }
+
+  // Build result
+  const result: ClusteredAssignment[] = Array.from({ length: crewCount }, (_, i) => ({
+    crewIndex: i,
+    projects: [] as RoutePoint[],
+    totalMiles: 0,
+  }))
+
+  for (let i = 0; i < withAngle.length; i++) {
+    const ci = assignments[i]
+    if (ci >= 0 && ci < crewCount) {
+      result[ci].projects.push(withAngle[i])
+    }
+  }
+
+  // Compute route distance per cluster
+  for (const cluster of result) {
+    if (cluster.projects.length > 0) {
+      const route = optimizeRoute(warehouse, cluster.projects)
+      cluster.totalMiles = route.totalMiles
+    }
+  }
+
+  return result
+}
+
 // ── Week Helpers ─────────────────────────────────────────────────────────────
 
 export function getMonday(date: Date): string {

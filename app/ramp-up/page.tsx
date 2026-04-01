@@ -11,7 +11,7 @@ import { ProjectPanel } from '@/components/project/ProjectPanel'
 import type { Project } from '@/types/database'
 import {
   classifyTier, tierFromScore, haversineDistance, estimateDriveMinutes,
-  computeReadinessScore, computePriorityScore, optimizeRoute, autoReadiness,
+  computeReadinessScore, computePriorityScore, optimizeRoute, autoReadiness, clusterProjectsForCrews,
   getMonday, getWeekLabel, getNextWeeks,
   loadRampConfig, loadAllReadiness, loadAllSchedule, loadScheduledProjectIds,
   scheduleProject, updateScheduleEntry, completeScheduleEntry, cancelScheduleEntry,
@@ -253,19 +253,43 @@ export default function RampUpPage() {
     return sorted.slice(0, count).map(c => c.name)
   }, [allCrews, selectedWeek, getActiveCrewCount])
 
-  // Auto-suggest top projects for the week — only projects with readiness >= 35
-  const suggestions = useMemo(() => {
-    if (!config) return []
-    const slotsNeeded = config.crews_count * config.installs_per_crew_per_week
-    const weekAlready = weekSchedule.length
-    const remaining = slotsNeeded - weekAlready
-    if (remaining <= 0) return []
-    // Sort by priority score and show top candidates
-    const pool = unscheduled
-      .filter(p => p.readinessScore >= 35)
-      .slice(0, remaining + 4)
-    return pool
-  }, [unscheduled, config, weekSchedule, tierFilter])
+  // Auto-suggest with crew-aware geographic clustering
+  const crewSuggestions = useMemo(() => {
+    if (!config) return new Map<string, RampProject[]>()
+
+    // Only suggest for crews that have empty slots
+    const crewsWithSpace = crewNames.filter(crew => {
+      const filled = weekSchedule.filter(s => s.crew_name === crew).length
+      return filled < (config.installs_per_crew_per_week ?? 2)
+    })
+    if (crewsWithSpace.length === 0) return new Map<string, RampProject[]>()
+
+    // Get pool of candidates with coordinates
+    const pool = unscheduled.filter(p => p.readinessScore >= 20 && p.lat !== 0)
+    if (pool.length === 0) return new Map<string, RampProject[]>()
+
+    // Cluster projects geographically for available crews
+    const warehouse = { lat: config.warehouse_lat, lng: config.warehouse_lng }
+    const clusters = clusterProjectsForCrews(
+      warehouse,
+      pool.map(p => ({ id: p.id, lat: p.lat, lng: p.lng, label: p.name, priorityScore: p.priorityScore })),
+      crewsWithSpace.length,
+      config.installs_per_crew_per_week ?? 2,
+    )
+
+    // Map clusters to crew names
+    const result = new Map<string, RampProject[]>()
+    clusters.forEach((cluster, i) => {
+      const crewName = crewsWithSpace[i]
+      if (!crewName) return
+      const projectIds = new Set(cluster.projects.map(cp => cp.id))
+      result.set(crewName, pool.filter(p => projectIds.has(p.id)))
+    })
+    return result
+  }, [unscheduled, config, weekSchedule, crewNames])
+
+  // Flat list for backward compat
+  const suggestions = useMemo(() => [...crewSuggestions.values()].flat(), [crewSuggestions])
 
   // Handlers
   const handleSchedule = async (projectId: string, crewName: string, slot: number) => {
@@ -734,46 +758,53 @@ export default function RampUpPage() {
               </div>
             )}
 
-            {/* Suggestions */}
-            {suggestions.length > 0 && (
-              <div className="bg-gray-800 rounded-lg p-4">
-                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Suggested Projects (Tier 1, sorted by priority score)</h4>
-                <div className="space-y-2">
-                  {suggestions.map(p => (
-                    <div key={p.id} className="flex items-center justify-between bg-gray-900/50 rounded-lg px-3 py-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => openProject(p.id)} className="text-xs font-medium text-white hover:text-green-400">{p.name}</button>
-                          <span className="text-[10px] text-green-400 font-mono">{p.id}</span>
-                          <span className={cn('text-[9px] px-1.5 py-0.5 rounded', TIER_BG[p.tier], TIER_TEXT[p.tier])}>T{p.tier}</span>
-                        </div>
-                        <div className="text-[10px] text-gray-500 mt-0.5">
-                          {p.city} · {p.distanceMiles}mi · ~{p.driveMinutes}min · {p.systemkw}kW · {fmt$(Number(p.contract) || 0)}
-                        </div>
+            {/* Crew-Clustered Suggestions */}
+            {crewSuggestions.size > 0 && (
+              <div className="bg-gray-800 rounded-lg p-4 space-y-4">
+                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Auto-Clustered Suggestions by Crew</h4>
+                <p className="text-[10px] text-gray-500 -mt-2">Projects grouped by geographic proximity. Click to assign to the recommended crew.</p>
+                {[...crewSuggestions.entries()].map(([crew, crewProjects], ci) => {
+                  const crewSlots = weekSchedule.filter(s => s.crew_name === crew).length
+                  const maxSlots = config?.installs_per_crew_per_week ?? 2
+                  const slotsLeft = maxSlots - crewSlots
+                  if (slotsLeft <= 0) return null
+                  return (
+                    <div key={crew} className="border-t border-gray-700 pt-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: CREW_COLORS[ci] ?? '#6b7280' }} />
+                        <span className="text-xs font-semibold text-white">{crew}</span>
+                        <span className="text-[10px] text-gray-500">{slotsLeft} slot{slotsLeft > 1 ? 's' : ''} available</span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <div className="text-xs font-bold text-green-400">{p.priorityScore}</div>
-                          <div className="text-[9px] text-gray-500">score</div>
-                        </div>
-                        <div className="flex gap-1">
-                          {crewNames.map((crew, ci) => {
-                            const crewSlots = weekSchedule.filter(s => s.crew_name === crew).length
-                            const maxSlots = config?.installs_per_crew_per_week ?? 2
-                            if (crewSlots >= maxSlots) return null
-                            return (
-                              <button key={crew} onClick={() => handleSchedule(p.id, crew, crewSlots + 1)}
-                                className={cn('text-[10px] px-2 py-1 rounded hover:opacity-80',
-                                  ci % 2 === 0 ? 'bg-green-900/40 text-green-400' : 'bg-blue-900/40 text-blue-400')}>
+                      <div className="space-y-1.5">
+                        {crewProjects.slice(0, slotsLeft + 2).map(p => (
+                          <div key={p.id} className="flex items-center justify-between bg-gray-900/50 rounded-lg px-3 py-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => openProject(p.id)} className="text-xs font-medium text-white hover:text-green-400">{p.name}</button>
+                                <span className="text-[10px] font-mono" style={{ color: CREW_COLORS[ci] ?? '#6b7280' }}>{p.id}</span>
+                                <span className={cn('text-[9px] px-1.5 py-0.5 rounded', TIER_BG[p.tier], TIER_TEXT[p.tier])}>T{p.tier}</span>
+                              </div>
+                              <div className="text-[10px] text-gray-500 mt-0.5">
+                                <span className="capitalize">{p.stage}</span> · {p.city} · {p.distanceMiles}mi · {p.systemkw}kW · {fmt$(Number(p.contract) || 0)}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="text-right">
+                                <div className="text-xs font-bold" style={{ color: CREW_COLORS[ci] }}>{p.priorityScore}</div>
+                                <div className="text-[9px] text-gray-500">score</div>
+                              </div>
+                              <button onClick={() => handleSchedule(p.id, crew, crewSlots + 1)}
+                                className="text-[10px] px-3 py-1 rounded hover:opacity-80 font-medium"
+                                style={{ backgroundColor: `${CREW_COLORS[ci]}20`, color: CREW_COLORS[ci], border: `1px solid ${CREW_COLORS[ci]}40` }}>
                                 + {crew}
                               </button>
-                            )
-                          })}
-                        </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )
+                })}
               </div>
             )}
           </div>
