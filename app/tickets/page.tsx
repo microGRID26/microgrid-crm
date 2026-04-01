@@ -339,6 +339,26 @@ function TicketsPageInner() {
           </div>
         </div>
 
+        {/* SLA Legend */}
+        <div className="flex items-center gap-6 bg-gray-800/50 rounded-lg px-4 py-2">
+          <span className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">SLA Key:</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <div className="flex gap-0.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500" /><span className="w-2.5 h-2.5 rounded-full bg-green-500" /></div>
+              <span className="text-[10px] text-gray-400">On Track</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="flex gap-0.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /><span className="w-2.5 h-2.5 rounded-full bg-green-500" /></div>
+              <span className="text-[10px] text-gray-400">Response Near Target</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="flex gap-0.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /><span className="w-2.5 h-2.5 rounded-full bg-red-500" /></div>
+              <span className="text-[10px] text-gray-400">Both Breached</span>
+            </div>
+          </div>
+          <span className="text-[10px] text-gray-600 ml-auto">Left dot = Response &middot; Right dot = Resolution</span>
+        </div>
+
         {/* Analytics Toggle + Panel */}
         <div className="flex justify-end">
           <button onClick={() => setShowAnalytics(!showAnalytics)}
@@ -525,7 +545,7 @@ function TicketsPageInner() {
                   </th>
                   <th className="px-4 py-2 text-left font-medium">Project</th>
                   <th className="px-4 py-2 text-left font-medium">Assigned</th>
-                  <th className="px-4 py-2 text-left font-medium">SLA</th>
+                  <th className="px-4 py-2 text-left font-medium" title="Left dot = Response SLA, Right dot = Resolution SLA">SLA</th>
                   <th className="px-4 py-2 text-left font-medium">Age</th>
                 </tr>
               </thead>
