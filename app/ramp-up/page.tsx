@@ -299,7 +299,9 @@ export default function RampUpPage() {
 
     // Create schedule entry in the main schedule table
     if (!crew) { alert(`Crew "${entry.crew_name}" not found in database`); return }
-    await db().from('schedule').insert({
+    const schedId = crypto.randomUUID()
+    const { error: schedErr } = await db().from('schedule').insert({
+      id: schedId,
       project_id: entry.project_id,
       crew_id: crew.id,
       job_type: 'install',
@@ -308,6 +310,7 @@ export default function RampUpPage() {
       notes: `Ramp-up planner: ${entry.crew_name}, Week of ${getWeekLabel(entry.scheduled_week)}`,
       pm: project.pm,
     })
+    if (schedErr) { console.error('Schedule insert failed:', schedErr); alert('Failed to create schedule entry'); return }
 
     // Update ramp schedule status
     await updateScheduleEntry(entry.id, { status: 'confirmed', scheduled_day: installDate })
