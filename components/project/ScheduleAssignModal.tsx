@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { db } from '@/lib/db'
 import { escapeIlike } from '@/lib/utils'
 import { clearQueryCache } from '@/lib/hooks'
@@ -173,12 +172,13 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
     // Validate end_date >= date if set
     if (form.end_date && form.end_date < form.date) {
       setError('End date cannot be before start date')
+      setSaving(false)
       return
     }
 
     // WiFi reminder for install jobs
     if (form.job_type === 'install' && !installDetails.wifi_info) {
-      if (!confirm('WiFi Info is not filled out. The crew will need WiFi access for monitoring setup.\n\nContinue without WiFi info?')) return
+      if (!confirm('WiFi Info is not filled out. The crew will need WiFi access for monitoring setup.\n\nContinue without WiFi info?')) { setSaving(false); return }
     }
 
     const record: Record<string, any> = {

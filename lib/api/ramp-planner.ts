@@ -221,8 +221,10 @@ export async function loadRampConfig(): Promise<RampConfig> {
   }
 }
 
-export async function updateRampConfig(key: string, value: string): Promise<void> {
-  await db().from('ramp_config').update({ value }).eq('config_key', key)
+export async function updateRampConfig(key: string, value: string): Promise<boolean> {
+  const { error } = await db().from('ramp_config').update({ value }).eq('config_key', key)
+  if (error) { console.error('[updateRampConfig]', error.message); return false }
+  return true
 }
 
 // ── Readiness CRUD ───────────────────────────────────────────────────────────
@@ -264,7 +266,7 @@ export async function loadAllSchedule(): Promise<RampScheduleEntry[]> {
 }
 
 export async function loadScheduledProjectIds(): Promise<Set<string>> {
-  const { data } = await db().from('ramp_schedule').select('project_id').not('status', 'in', '("cancelled","rescheduled")').limit(2000)
+  const { data } = await db().from('ramp_schedule').select('project_id').not('status', 'in', '(cancelled,rescheduled)').limit(2000)
   return new Set((data ?? []).map((r: any) => r.project_id))
 }
 

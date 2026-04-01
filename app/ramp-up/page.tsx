@@ -85,7 +85,7 @@ export default function RampUpPage() {
   })
   const [tierFilter, setTierFilter] = useState<Set<Tier>>(new Set())
   const [queueSearch, setQueueSearch] = useState('')
-  const [expandedProject, setExpandedProject] = useState<string | null>(null)
+  // expandedProject removed — was unused
   const [stageFilter, setStageFilter] = useState('')
   const [financierFilter, setFinancierFilter] = useState('')
 
@@ -335,7 +335,7 @@ export default function RampUpPage() {
       crew_id: crew.id,
       job_type: 'install',
       date: installDate,
-      status: 'Scheduled',
+      status: 'scheduled',
       notes: `Ramp-up planner: ${entry.crew_name}, Week of ${getWeekLabel(entry.scheduled_week)}`,
       pm: project.pm,
     })
@@ -372,7 +372,7 @@ export default function RampUpPage() {
     const crew = allCrews.find(c => c.name === entry.crew_name)
     if (crew) {
       await db().from('schedule')
-        .update({ status: 'Complete' })
+        .update({ status: 'complete' })
         .eq('project_id', entry.project_id)
         .eq('crew_id', crew.id)
         .eq('job_type', 'install')
@@ -396,6 +396,7 @@ export default function RampUpPage() {
           .eq('crew_id', crew.id)
           .eq('date', entry.scheduled_day)
           .eq('job_type', 'install')
+          .in('status', ['Scheduled', 'scheduled'])
       }
     }
 
@@ -415,7 +416,8 @@ export default function RampUpPage() {
       if (p.id !== projectId) return p
       const newReadiness = { ...p.readiness, ...updated } as any
       const newScore = computeReadinessScore(newReadiness)
-      return { ...p, readiness: newReadiness, readinessScore: newScore }
+      const newTier = tierFromScore(newScore, newReadiness.permit_clear ?? false, newReadiness.redesign_complete ?? false)
+      return { ...p, readiness: newReadiness, readinessScore: newScore, tier: newTier }
     }))
   }
 
@@ -460,7 +462,7 @@ export default function RampUpPage() {
   }, [weekSchedule, projects])
 
   // HTML escape for print template
-  const esc = (s: string | null | undefined) => (s ?? '—').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const esc = (s: string | null | undefined) => (s ?? '—').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 
   // Print crew sheet
   const handlePrint = () => {
@@ -680,7 +682,7 @@ export default function RampUpPage() {
                       <h3 className="text-sm font-semibold text-white flex items-center gap-2"><Truck className="w-4 h-4 text-gray-400" /> {crew}</h3>
                       <span className="text-[10px] text-gray-500">{crewJobs.length} / {config?.installs_per_crew_per_week ?? 2} jobs</span>
                     </div>
-                    {[1, 2].map(slot => {
+                    {Array.from({ length: config?.installs_per_crew_per_week ?? 2 }, (_, i) => i + 1).map(slot => {
                       const job = crewJobs.find(j => j.slot === slot)
                       const project = job ? projects.find(p => p.id === job.project_id) : null
                       return (
