@@ -91,6 +91,17 @@ export default function RampUpPage() {
 
     if (!rawProjects || !cfg) { setLoading(false); return }
 
+    // Load task states to determine real readiness + filter out already-installed
+    const { data: taskStates } = await db().from('task_state')
+      .select('project_id, task_id, status')
+      .in('task_id', ['install_done', 'sched_install', 'inventory', 'util_permit', 'city_permit', 'hoa', 'eng_approval', 'stamps'])
+      .limit(50000)
+    const taskMap = new Map<string, Map<string, string>>()
+    for (const t of (taskStates ?? []) as any[]) {
+      if (!taskMap.has(t.project_id)) taskMap.set(t.project_id, new Map())
+      taskMap.get(t.project_id)!.set(t.task_id, t.status)
+    }
+
     // Load AHJ permit_required data
     const { data: ahjs } = await db().from('ahjs').select('name, permit_required').limit(2000)
     const ahjPermitMap = new Map<string, boolean>()
@@ -112,12 +123,24 @@ export default function RampUpPage() {
       const coords = zipCache.get(p.zip)
       if (!coords) continue
 
+      // Skip projects where install is already complete
+      const tasks = taskMap.get(p.id)
+      if (tasks?.get('install_done') === 'Complete') continue
+
       const permitRequired = p.ahj ? ahjPermitMap.get(p.ahj) : undefined
       const tier = classifyTier(p.ahj, p.module, p.inverter, p.battery, permitRequired)
       const dist = haversineDistance(cfg.warehouse_lat, cfg.warehouse_lng, coords[0], coords[1])
-      // Use DB readiness if exists, otherwise auto-compute from project properties
+
+      // Build readiness from DB row OR auto-compute from task states + project properties
       const dbReadiness = readinessMap.get(p.id)
       const autoR = autoReadiness(p.ahj, p.module, p.inverter, p.battery, permitRequired)
+      // Enhance auto-readiness with actual task completion data
+      if (!dbReadiness && tasks) {
+        if (tasks.get('inventory') === 'Complete') (autoR as any).equipment_ready = true
+        if (tasks.get('util_permit') === 'Complete') (autoR as any).utility_approved = true
+        if (tasks.get('hoa') === 'Complete') (autoR as any).hoa_approved = true
+        if (tasks.get('eng_approval') === 'Complete' && tasks.get('stamps') === 'Complete') (autoR as any).redesign_complete = true
+      }
       const readiness = dbReadiness ?? autoR as any
       const readinessScore = computeReadinessScore(readiness)
 

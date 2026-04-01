@@ -766,10 +766,10 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
               <div className="flex items-center gap-3 bg-gray-800/50 rounded-lg px-3 py-2">
                 <label className="text-xs text-gray-400">Permit Required</label>
                 <button onClick={() => setAhjEdit((d: any) => ({ ...d, permit_required: !d.permit_required }))}
-                  className={`w-10 h-5 rounded-full transition-colors relative ${ahjEdit.permit_required !== false ? 'bg-amber-500' : 'bg-green-500'}`}>
-                  <div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform ${ahjEdit.permit_required !== false ? 'left-0.5' : 'left-5'}`} />
+                  className={`w-10 h-5 rounded-full transition-colors relative ${ahjEdit.permit_required !== false ? 'bg-green-500' : 'bg-red-500'}`}>
+                  <div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform ${ahjEdit.permit_required !== false ? 'left-5' : 'left-0.5'}`} />
                 </button>
-                <span className={`text-xs font-medium ${ahjEdit.permit_required !== false ? 'text-amber-400' : 'text-green-400'}`}>
+                <span className={`text-xs font-medium ${ahjEdit.permit_required !== false ? 'text-green-400' : 'text-red-400'}`}>
                   {ahjEdit.permit_required !== false ? 'Yes' : 'No'}
                 </span>
               </div>
