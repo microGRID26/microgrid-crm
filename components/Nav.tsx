@@ -67,6 +67,7 @@ const MORE_SECTIONS: LinkSection[] = [
   {
     section: 'Tools',
     links: [
+      { label: 'Ramp-Up Planner', href: '/ramp-up' },
       { label: 'Project Map', href: '/map'      },
       { label: 'Atlas',     href: '/reports'  },
       { label: 'Permits',   href: '/permits'  },
