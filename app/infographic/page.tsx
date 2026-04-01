@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Nav } from '@/components/Nav'
+import { useCurrentUser } from '@/lib/useCurrentUser'
 import { db } from '@/lib/db'
 import { fmt$ } from '@/lib/utils'
 import { Printer } from 'lucide-react'
@@ -38,8 +39,13 @@ const DEFAULTS: LiveStats = {
 }
 
 export default function InfographicPage() {
-  const [tab, setTab] = useState<Tab>('leadership')
+  const { user } = useCurrentUser()
+  const isSales = user?.isSales ?? false
+  const [tab, setTab] = useState<Tab>(isSales ? 'sales' : 'leadership')
   const [stats, setStats] = useState<LiveStats>(DEFAULTS)
+
+  // Force sales tab for sales role
+  useEffect(() => { if (isSales) setTab('sales') }, [isSales])
   const [loading, setLoading] = useState(true)
   const [loadedAt, setLoadedAt] = useState<Date | null>(null)
 
@@ -93,10 +99,10 @@ export default function InfographicPage() {
           <h1 className="text-3xl font-bold"><span className="text-green-400 print:text-green-700">MicroGRID</span> Infographic</h1>
           <div className="flex items-center gap-2">
             <div className="flex bg-gray-800 rounded-lg p-0.5 print:hidden">
-              {([
+              {!isSales && ([
                 { key: 'leadership' as Tab, label: 'Leadership' },
-                { key: 'operations' as Tab, label: 'Operations' },
                 { key: 'sales' as Tab, label: 'Sales' },
+                { key: 'operations' as Tab, label: 'Operations' },
                 { key: 'journey' as Tab, label: 'Customer Journey' },
                 { key: 'technical' as Tab, label: 'Technical' },
               ]).map(t => (
@@ -367,17 +373,17 @@ export default function InfographicPage() {
 
             {/* What happens after you submit */}
             <div>
-              <h2 className="text-xl font-bold mb-2">What Happens After You Submit a Deal</h2>
-              <p className="text-sm text-gray-500 mb-4">You close the sale. Here's what ops does with it — automatically.</p>
+              <h2 className="text-xl font-bold mb-2">What Happens After You Close</h2>
+              <p className="text-sm text-gray-500 mb-4">You close the sale — here's how your deal moves toward your paycheck. Every step is tracked so you always know where it stands.</p>
               <div className="space-y-2">
                 {[
-                  { step: 1, who: 'System', action: 'Project created in MicroGRID with all customer data, equipment specs, and adders', color: '#3b82f6' },
-                  { step: 2, who: 'System', action: 'Google Drive folder created with 16 subfolders for documents', color: '#3b82f6' },
-                  { step: 3, who: 'PM', action: 'Site survey scheduled. Crew goes to the home, measures roof, checks electrical.', color: '#1D9E75' },
-                  { step: 4, who: 'Engineering', action: 'System designed — panel layout, string sizing, structural analysis. Stamps applied.', color: '#8b5cf6' },
-                  { step: 5, who: 'Ops', action: 'Permits submitted to AHJ. Utility interconnection application filed.', color: '#f59e0b' },
-                  { step: 6, who: 'Crew', action: 'Installation scheduled. Equipment delivered. Crew installs system.', color: '#f97316' },
-                  { step: 7, who: 'System', action: 'M2 funding auto-triggered. Inspections scheduled. PTO submitted. M3 follows.', color: '#22c55e' },
+                  { step: 1, who: 'Your Deal', action: 'Contract enters the pipeline. Your commission is calculated and tracked from this moment.', color: '#3b82f6' },
+                  { step: 2, who: 'Survey', action: 'Site survey gets scheduled. The faster this happens, the faster you get paid.', color: '#1D9E75' },
+                  { step: 3, who: 'Design', action: 'Engineering designs the system and gets stamps. Any change orders are tracked so you know if the deal changes.', color: '#8b5cf6' },
+                  { step: 4, who: 'NTP', action: 'Notice to Proceed approved. Your M1 advance becomes available.', color: '#22c55e' },
+                  { step: 5, who: 'Permits', action: 'Permits submitted. This is the waiting game — the system tracks every AHJ deadline and follows up automatically.', color: '#f59e0b' },
+                  { step: 6, who: 'Install', action: 'Crew installs the system. When complete, M2 funding is triggered automatically — no action needed from you.', color: '#f97316' },
+                  { step: 7, who: 'Funded', action: 'Inspections pass, PTO received, M3 funded. Your full commission hits. Check your Earnings Dashboard anytime.', color: '#1D9E75' },
                 ].map(s => (
                   <div key={s.step} className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3 border border-gray-700">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold" style={{ backgroundColor: `${s.color}20`, color: s.color }}>{s.step}</div>
