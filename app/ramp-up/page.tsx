@@ -667,10 +667,24 @@ export default function RampUpPage() {
                       <CircleMarker key={s.id} center={[p.lat, p.lng]} radius={8}
                         pathOptions={{ color, fillColor: color, fillOpacity: 0.8, weight: 2 }}>
                         <Tooltip direction="top" offset={[0, -10]}>
-                          <div style={{ background: '#1f2937', color: '#e5e7eb', padding: '6px 10px', borderRadius: '6px', fontSize: '11px', border: `2px solid ${color}` }}>
-                            <div style={{ fontWeight: 600, color: '#fff' }}>{p.name}</div>
-                            <div style={{ color: '#9ca3af', fontSize: '10px' }}>{p.id} · {p.city}</div>
-                            <div style={{ color, fontSize: '10px', fontWeight: 600, marginTop: '2px' }}>{s.crew_name} · Job {s.slot}</div>
+                          <div style={{ background: '#1f2937', color: '#e5e7eb', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', border: `2px solid ${color}`, minWidth: '220px' }}>
+                            <div style={{ fontWeight: 700, color: '#fff', fontSize: '12px', marginBottom: '4px' }}>{p.name}</div>
+                            <div style={{ color: '#9ca3af', fontSize: '10px' }}>{p.id} · {p.city}{p.address ? `, ${p.address}` : ''}</div>
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '10px' }}>
+                              <span style={{ color: '#9ca3af' }}>AHJ: <span style={{ color: '#e5e7eb' }}>{p.ahj ?? '—'}</span></span>
+                              <span style={{ color: '#9ca3af' }}>{p.systemkw ?? '—'} kW</span>
+                              <span style={{ color: '#22c55e' }}>{fmt$(Number(p.contract) || 0)}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '4px', fontSize: '10px' }}>
+                              <span style={{ color: '#9ca3af' }}>Module: <span style={{ color: '#e5e7eb' }}>{(p.module ?? '—').slice(0, 25)}</span></span>
+                            </div>
+                            <div style={{ borderTop: '1px solid #374151', marginTop: '6px', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ color, fontWeight: 600, fontSize: '11px' }}>{s.crew_name} · Job {s.slot}</span>
+                              <span style={{ color: '#fff', fontSize: '11px', fontWeight: 600 }}>{s.scheduled_day ? new Date(s.scheduled_day + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'No date set'}</span>
+                            </div>
+                            <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
+                              {p.distanceMiles}mi from warehouse · ~{p.driveMinutes}min drive · {s.status}
+                            </div>
                           </div>
                         </Tooltip>
                       </CircleMarker>
