@@ -230,13 +230,14 @@ export default function RampUpPage() {
     loadActiveCrews().then((r: any) => setAllCrews((r.data ?? r ?? []).map((cr: any) => ({ id: cr.id, name: cr.name }))))
   }, [])
 
-  // Crew ramp: 2 crews weeks 1-2, +1 every 2 weeks after
+  // Crew ramp: 2 crews for first 4 weeks, then +1 crew every 2 weeks
   const getActiveCrewCount = useCallback((week: string): number => {
     const weekIdx = weeks.indexOf(week)
     if (weekIdx < 0) return 2
-    const base = 2
-    const extra = Math.floor(weekIdx / 2) // +1 crew every 2 weeks
-    return Math.min(base + extra, allCrews.length || 4)
+    if (weekIdx < 4) return 2 // First month: 2 crews
+    const weeksAfterMonth1 = weekIdx - 4
+    const extra = Math.floor(weeksAfterMonth1 / 2) + 1 // +1 at week 5, +1 every 2 weeks after
+    return Math.min(2 + extra, allCrews.length || 4)
   }, [weeks, allCrews])
 
   const crewNames = useMemo(() => {
