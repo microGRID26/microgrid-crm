@@ -41,10 +41,10 @@ const DEFAULTS: LiveStats = {
 export default function InfographicPage() {
   const { user } = useCurrentUser()
   const isSales = user?.isSales ?? false
-  const isMicrogridEmployee = user?.email?.endsWith('@gomicrogridenergy.com') ?? false
+  const isMicrogridEmployee = (user?.email?.endsWith('@gomicrogridenergy.com') || user?.email?.endsWith('@energydevelopmentgroup.com')) ?? false
   const isAdmin = user?.isAdmin ?? false
   const isSuperAdmin = user?.isSuperAdmin ?? false
-  const TECHNICAL_EMAILS = ['greg@gomicrogridenergy.com', 'greg@energydevelopmentgroup.com', 'mark@gomicrogridenergy.com', 'zach@gomicrogridenergy.com', 'paul@gomicrogridenergy.com']
+  const TECHNICAL_EMAILS = ['greg@gomicrogridenergy.com', 'greg@energydevelopmentgroup.com', 'mark@gomicrogridenergy.com', 'mark@energydevelopmentgroup.com', 'zach@gomicrogridenergy.com', 'zach@energydevelopmentgroup.com', 'paul@gomicrogridenergy.com']
   const canSeeTechnical = TECHNICAL_EMAILS.includes(user?.email ?? '')
   const [tab, setTab] = useState<Tab>(isSales ? 'sales' : 'leadership')
   const [stats, setStats] = useState<LiveStats>(DEFAULTS)
