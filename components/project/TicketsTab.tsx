@@ -12,7 +12,7 @@ export function TicketsTab({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     setLoading(true)
-    loadProjectTickets(projectId).then(t => { setTickets(t); setLoading(false) })
+    loadProjectTickets(projectId).then(t => { setTickets(t); setLoading(false) }).catch(() => setLoading(false))
   }, [projectId])
 
   if (loading) return <div className="flex-1 overflow-y-auto p-5 text-gray-500 text-xs">Loading tickets...</div>

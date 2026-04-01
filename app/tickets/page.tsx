@@ -132,6 +132,8 @@ export default function TicketsPage() {
     if (ticket) {
       setShowCreate(false)
       setCreateForm({ title: '', description: '', category: 'service', subcategory: '', priority: 'normal', source: 'internal', project_id: '', assigned_to: '' })
+      setProjectSearch('')
+      setProjectResults([])
       loadAll()
     }
   }, [createForm, orgId, userName, user, loadAll])
@@ -703,6 +705,7 @@ export default function TicketsPage() {
                       }
                     }}
                     onFocus={() => projectResults.length > 0 && setShowProjectDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowProjectDropdown(false), 200)}
                     placeholder="Search project name or PROJ-XXXXX..."
                     className="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500" />
                   {showProjectDropdown && projectResults.length > 0 && (
