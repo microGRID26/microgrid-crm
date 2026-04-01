@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
-import { SLA_THRESHOLDS } from '@/lib/utils'
+import { SLA_THRESHOLDS, INTERNAL_DOMAINS } from '@/lib/utils'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://nova.gomicrogridenergy.com'
 
@@ -50,9 +50,8 @@ export async function GET(req: Request) {
   }
 
   // Filter to users with internal company emails
-  const DOMAINS = ['@gomicrogridenergy.com', '@energydevelopmentgroup.com', '@trismartsolar.com']
   const pms = (users as { id: string; name: string; email: string; role: string }[])
-    .filter(u => u.email && DOMAINS.some(d => u.email.includes(d)))
+    .filter(u => u.email && INTERNAL_DOMAINS.some(d => u.email.includes(`@${d}`)))
 
   if (pms.length === 0) {
     return NextResponse.json({ sent: 0, message: 'No PMs to notify' })

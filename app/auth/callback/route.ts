@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { INTERNAL_DOMAINS } from '@/lib/utils'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -19,8 +20,7 @@ export async function GET(request: Request) {
   // #3 — Validate email domain before provisioning
   const { data: { user } } = await supabase.auth.getUser()
   const email = user?.email ?? ''
-  const allowedDomains = ['@gomicrogridenergy.com', '@energydevelopmentgroup.com', '@trismartsolar.com']
-  if (!allowedDomains.some(d => email.endsWith(d))) {
+  if (!INTERNAL_DOMAINS.some(d => email.endsWith(`@${d}`))) {
     return NextResponse.redirect(`${origin}/login?error=unauthorized_domain`)
   }
 

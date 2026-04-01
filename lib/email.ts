@@ -16,7 +16,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   }
   try {
     await resend.emails.send({
-      from: 'MicroGRID <nova@gomicrogridenergy.com>',
+      from: process.env.RESEND_FROM_EMAIL ?? 'MicroGRID <nova@gomicrogridenergy.com>',
       to,
       subject,
       html,
