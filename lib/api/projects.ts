@@ -117,11 +117,16 @@ export async function searchProjects(query: string, limit = 10): Promise<Pick<Pr
   return (data ?? []) as Pick<Project, 'id' | 'name' | 'city' | 'pm' | 'pm_id' | 'systemkw' | 'module' | 'module_qty' | 'financier' | 'financing_type' | 'contract' | 'tpo_escalator' | 'financier_adv_pmt' | 'down_payment'>[]
 }
 
-export async function loadUsers(domainFilter?: string) {
+export async function loadUsers(domainFilter?: string | string[]) {
   const supabase = createClient()
   let query = supabase.from('users').select('id, name, email, role').eq('active', true).order('name').limit(500)
   if (domainFilter) {
-    query = query.like('email', `%@${domainFilter}`)
+    const domains = Array.isArray(domainFilter) ? domainFilter : [domainFilter]
+    if (domains.length === 1) {
+      query = query.like('email', `%@${domains[0]}`)
+    } else {
+      query = query.or(domains.map(d => `email.like.%@${d}`).join(','))
+    }
   }
   const { data, error } = await query
   if (error) console.error('users load failed:', error)

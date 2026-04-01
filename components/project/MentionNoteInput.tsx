@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { db } from '@/lib/db'
+import { INTERNAL_DOMAINS } from '@/lib/utils'
 
 interface MentionNoteInputProps {
   onSubmit: (text: string) => void
@@ -35,7 +36,9 @@ export function MentionNoteInput({
   const inputRef = useRef<HTMLTextAreaElement | HTMLInputElement>(null)
 
   useEffect(() => {
-    db().from('users').select('id, name').eq('active', true).like('email', '%@gomicrogridenergy.com').order('name')
+    db().from('users').select('id, name').eq('active', true)
+      .or(INTERNAL_DOMAINS.map(d => `email.like.%@${d}`).join(','))
+      .order('name')
       .then(({ data }: any) => { if (data) setUsers(data) })
   }, [])
 

@@ -5,6 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** All internal company email domains — used for user filtering, @mentions, PM dropdowns */
+export const INTERNAL_DOMAINS = ['gomicrogridenergy.com', 'energydevelopmentgroup.com', 'trismartsolar.com']
+
+/** Check if an email belongs to an internal domain */
+export function isInternalEmail(email: string | null | undefined): boolean {
+  if (!email) return false
+  return INTERNAL_DOMAINS.some(d => email.endsWith(`@${d}`))
+}
+
 export function fmt$(n: number | null | undefined): string {
   if (!n) return '$0'
   return '$' + Number(n).toLocaleString()

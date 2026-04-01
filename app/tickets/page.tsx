@@ -6,7 +6,7 @@ import { Nav } from '@/components/Nav'
 import { Pagination } from '@/components/Pagination'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { useOrg } from '@/lib/hooks'
-import { fmtDate, cn } from '@/lib/utils'
+import { fmtDate, cn, INTERNAL_DOMAINS } from '@/lib/utils'
 import { loadProjectById, loadUsers, searchProjects } from '@/lib/api'
 import {
   loadTickets, createTicket, updateTicket, updateTicketStatus,
@@ -107,7 +107,7 @@ function TicketsPageInner() {
   }, [orgId])
 
   useEffect(() => { loadAll() }, [loadAll])
-  useEffect(() => { loadUsers('gomicrogridenergy.com').then(r => setUsers((r.data ?? []).map((x: any) => ({ id: x.id, name: x.name })))).catch(() => {}) }, [])
+  useEffect(() => { loadUsers(INTERNAL_DOMAINS).then(r => setUsers((r.data ?? []).map((x: any) => ({ id: x.id, name: x.name })))).catch(() => {}) }, [])
 
   // Realtime — auto-refresh on ticket changes
   useRealtimeSubscription('tickets' as any, { onChange: loadAll, debounceMs: 500 })

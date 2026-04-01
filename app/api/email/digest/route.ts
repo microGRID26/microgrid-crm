@@ -49,9 +49,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Failed to load users' }, { status: 500 })
   }
 
-  // Filter to users with @gomicrogridenergy.com or @energydevelopmentgroup.com emails
+  // Filter to users with internal company emails
+  const DOMAINS = ['@gomicrogridenergy.com', '@energydevelopmentgroup.com', '@trismartsolar.com']
   const pms = (users as { id: string; name: string; email: string; role: string }[])
-    .filter(u => u.email && (u.email.includes('@gomicrogridenergy.com') || u.email.includes('@energydevelopmentgroup.com')))
+    .filter(u => u.email && DOMAINS.some(d => u.email.includes(d)))
 
   if (pms.length === 0) {
     return NextResponse.json({ sent: 0, message: 'No PMs to notify' })

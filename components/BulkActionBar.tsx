@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { updateProject, loadUsers } from '@/lib/api/projects'
 import { db } from '@/lib/db'
+import { INTERNAL_DOMAINS } from '@/lib/utils'
 import { clearQueryCache } from '@/lib/hooks'
 import { Users, ShieldAlert, Tag, Calendar, X, Loader2, CheckSquare, Square } from 'lucide-react'
 import type { Project } from '@/types/database'
@@ -160,7 +161,7 @@ export function BulkActionBar({
   const [pmList, setPmList] = useState<{ id: string; name: string; email: string }[]>([])
   useEffect(() => {
     if (actions.includes('reassign')) {
-      loadUsers('gomicrogridenergy.com').then(({ data }) => {
+      loadUsers(INTERNAL_DOMAINS).then(({ data }) => {
         setPmList(data as { id: string; name: string; email: string }[])
       })
     }

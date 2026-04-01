@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { STAGE_LABELS, fmt$, escapeIlike } from '@/lib/utils'
+import { STAGE_LABELS, fmt$, escapeIlike, INTERNAL_DOMAINS } from '@/lib/utils'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { X, Plus } from 'lucide-react'
 import type { Project } from '@/types/database'
@@ -145,7 +145,9 @@ function PmSelectRow({ value, pmId, draft, editing, onChange }: {
 
   useEffect(() => {
     if (!editing) return
-    ;supabase.from('users').select('id, name').eq('active', true).like('email', '%@gomicrogridenergy.com').order('name')
+    ;supabase.from('users').select('id, name').eq('active', true)
+      .or(INTERNAL_DOMAINS.map(d => `email.like.%@${d}`).join(','))
+      .order('name')
       .then(({ data }: any) => { if (data) setPms(data) })
   }, [editing])
 

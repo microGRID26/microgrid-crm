@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Nav } from '@/components/Nav'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { db } from '@/lib/db'
-import { fmt$ } from '@/lib/utils'
+import { fmt$, INTERNAL_DOMAINS } from '@/lib/utils'
 import { Printer } from 'lucide-react'
 
 type Tab = 'leadership' | 'sales' | 'inside_ops' | 'field_ops' | 'journey' | 'technical'
@@ -41,10 +41,10 @@ const DEFAULTS: LiveStats = {
 export default function InfographicPage() {
   const { user } = useCurrentUser()
   const isSales = user?.isSales ?? false
-  const isMicrogridEmployee = (user?.email?.endsWith('@gomicrogridenergy.com') || user?.email?.endsWith('@energydevelopmentgroup.com')) ?? false
+  const isMicrogridEmployee = INTERNAL_DOMAINS.some(d => user?.email?.endsWith(`@${d}`)) ?? false
   const isAdmin = user?.isAdmin ?? false
   const isSuperAdmin = user?.isSuperAdmin ?? false
-  const TECHNICAL_EMAILS = ['greg@gomicrogridenergy.com', 'greg@energydevelopmentgroup.com', 'mark@gomicrogridenergy.com', 'mark@energydevelopmentgroup.com', 'zach@gomicrogridenergy.com', 'zach@energydevelopmentgroup.com', 'paul@gomicrogridenergy.com']
+  const TECHNICAL_EMAILS = ['greg@gomicrogridenergy.com', 'greg@energydevelopmentgroup.com', 'mark@gomicrogridenergy.com', 'mark@energydevelopmentgroup.com', 'mark@trismartsolar.com', 'zach@gomicrogridenergy.com', 'zach@energydevelopmentgroup.com', 'paul@gomicrogridenergy.com']
   const canSeeTechnical = TECHNICAL_EMAILS.includes(user?.email ?? '')
   const [tab, setTab] = useState<Tab>(isSales ? 'sales' : 'leadership')
   const [stats, setStats] = useState<LiveStats>(DEFAULTS)
