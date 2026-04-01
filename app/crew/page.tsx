@@ -261,9 +261,6 @@ function JobCard({ job, onStatusChange }: { job: JobWithProject; onStatusChange:
               <Row label="Special Equip." value={job.special_equipment} />
               <Row label="MSP Upgrade" value={job.msp_upgrade} />
               <Row label="WiFi Info" value={job.wifi_info} />
-              <Row label="Wind Speed" value={job.wind_speed} />
-              <Row label="Risk Category" value={job.risk_category} />
-              <Row label="Travel Adder" value={job.travel_adder} />
               {job.electrical_notes && (
                 <div className="mt-1">
                   <div className="text-gray-500 text-sm mb-1">Electrical Notes</div>

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { db } from '@/lib/db'
-import { cn, STAGE_LABELS, fmtDate, fmt$ } from '@/lib/utils'
-import type { Project, Schedule, Crew } from '@/types/database'
+import { cn, STAGE_LABELS, fmtDate } from '@/lib/utils'
+import type { Project } from '@/types/database'
 
 import { JOB_LABELS, JOB_COLORS } from '@/lib/tasks'
 

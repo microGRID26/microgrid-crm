@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { escapeIlike } from '@/lib/utils'
 import { JOB_TYPES, JOB_SCHEDULE_TASK, JOB_COMPLETE_TASK, JOB_COMPLETE_DATE } from '@/lib/tasks'
 import { clearQueryCache } from '@/lib/hooks'
-import type { Crew, Project, Schedule } from '@/types/database'
+import type { Crew, Project } from '@/types/database'
 
 interface Props {
   crewId: string | null
@@ -58,7 +58,6 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [conflict, setConflict] = useState<string | null>(null)
-  const [existingJob, setExistingJob] = useState<Schedule | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   function set(field: string, value: string) {
@@ -74,7 +73,6 @@ export function ScheduleAssignModal({ crewId, date, scheduleId, projectId, jobTy
     if (!scheduleId) return
     ;supabase.from('schedule').select('*').eq('id', scheduleId).single().then(({ data }: any) => {
       if (data) {
-        setExistingJob(data)
         setForm({
           crew_id: data.crew_id,
           date: data.date,
