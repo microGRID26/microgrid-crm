@@ -60,10 +60,15 @@ interface DrillFilter {
   fn: (p: OpsProject) => boolean
 }
 
-const isTestProject = (p: OpsProject) =>
-  p.name?.toLowerCase().startsWith('test') ||
-  p.name?.toLowerCase().includes('test -') ||
-  p.id?.startsWith('PROJ-TEST')
+const isTestProject = (p: OpsProject) => {
+  const name = p.name?.toLowerCase() ?? ''
+  return name.startsWith('test') ||
+    name.includes('test ') ||
+    name.includes(' test') ||
+    p.id?.startsWith('PROJ-TEST') ||
+    p.dealer?.toLowerCase() === 'microgrid' ||
+    p.consultant?.toLowerCase() === 'superman'
+}
 
 const sum = (arr: OpsProject[], fn: (p: OpsProject) => number) => arr.reduce((s, p) => s + fn(p), 0)
 const avg = (arr: OpsProject[], fn: (p: OpsProject) => number) => arr.length > 0 ? sum(arr, fn) / arr.length : 0
