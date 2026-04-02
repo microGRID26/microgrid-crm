@@ -30,6 +30,7 @@ export function UtilityManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
     setSaving(true)
     const { error } = await supabase.from('utilities').update({
       name: draft.name,
+      display_name: draft.display_name || null,
       phone: draft.phone,
       website: draft.website,
       notes: draft.notes,
@@ -103,6 +104,7 @@ export function UtilityManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       {editing && (
         <Modal title={`Edit Utility — ${editing.name}`} onClose={() => setEditing(null)}>
           <Input label="Name" value={draft.name ?? ''} onChange={v => setDraft(d => ({ ...d, name: v }))} />
+          <Input label="Display Name (short label for dropdowns)" value={draft.display_name ?? ''} onChange={v => setDraft(d => ({ ...d, display_name: v || null }))} />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Phone" value={draft.phone ?? ''} onChange={v => setDraft(d => ({ ...d, phone: v }))} />
             <Input label="Website" value={draft.website ?? ''} onChange={v => setDraft(d => ({ ...d, website: v }))} />

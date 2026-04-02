@@ -238,6 +238,7 @@ export interface RepFile {
 export interface AHJ {
   id: string
   name: string
+  display_name: string | null
   permit_phone: string | null
   permit_website: string | null
   max_duration: number | null
@@ -251,6 +252,7 @@ export interface AHJ {
 export interface Utility {
   id: string
   name: string
+  display_name: string | null
   phone: string | null
   website: string | null
   notes: string | null

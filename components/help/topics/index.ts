@@ -27,6 +27,9 @@ export const CATEGORIES = [
 ]
 
 export const WHATS_NEW = [
+  { date: 'Apr 2026', title: 'Rep Scorecard & Team Analytics', topicId: 'sales-teams' },
+  { date: 'Apr 2026', title: 'Rep Notes Log', topicId: 'sales-teams' },
+  { date: 'Apr 2026', title: 'Ticket Sales Rep Filter', topicId: 'ticketing-overview' },
   { date: 'Mar 2026', title: 'Ticketing System', topicId: 'ticketing-overview' },
   { date: 'Mar 2026', title: 'Compliance Tab', topicId: 'ticketing-overview' },
   { date: 'Mar 2026', title: 'EC/Non-EC Commissions & M1 Advances', topicId: 'ec-commissions' },

@@ -221,17 +221,17 @@ describe('optimizeRoute', () => {
 
 describe('getMonday', () => {
   it('returns Monday for a Wednesday', () => {
-    const monday = getMonday(new Date('2026-04-01T12:00:00')) // Wednesday
+    const monday = getMonday(new Date('2026-04-01T12:00:00Z')) // Wednesday UTC
     expect(monday).toBe('2026-03-30')
   })
 
   it('Monday returns itself', () => {
-    const monday = getMonday(new Date('2026-03-30T12:00:00')) // Monday
+    const monday = getMonday(new Date('2026-03-30T12:00:00Z')) // Monday UTC
     expect(monday).toBe('2026-03-30')
   })
 
   it('Sunday returns previous Monday', () => {
-    const monday = getMonday(new Date('2026-04-05T12:00:00')) // Sunday
+    const monday = getMonday(new Date('2026-04-05T12:00:00Z')) // Sunday UTC
     expect(monday).toBe('2026-03-30')
   })
 })
@@ -254,8 +254,8 @@ describe('getNextWeeks', () => {
   it('all entries are Mondays', () => {
     const weeks = getNextWeeks(4)
     for (const w of weeks) {
-      const d = new Date(w + 'T12:00:00')
-      expect(d.getDay()).toBe(1) // Monday
+      const d = new Date(w + 'T12:00:00Z')
+      expect(d.getUTCDay()).toBe(1) // Monday in UTC
     }
   })
 

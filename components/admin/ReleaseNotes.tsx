@@ -16,6 +16,53 @@ export function ReleaseNotes() {
       <h2 className="text-base font-semibold text-white mb-1">Release Notes</h2>
       <p className="text-xs text-gray-500 mb-4">Internal version history for MicroGRID CRM</p>
 
+      <div className={sectionCls}>Session 24 - April 2, 2026</div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Rep Scorecard & Team Analytics</div>
+        <div className={bodyCls}>
+          {bullet([
+            'Rep scorecard in Personnel tab — days since last sale, last install, last commission payment with color-coded thresholds (green ≤14d, amber ≤30d, red >30d)',
+            'Total deals, total kW, earned/paid/pending amounts per rep',
+            'Team scorecard in Teams tab — avg days since last sale/install aggregated across team members',
+          ])}
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Rep Notes & Ticket Integration</div>
+        <div className={bodyCls}>
+          {bullet([
+            'Timestamped notes log on each rep profile — chronological list with author and date, add/delete capability',
+            'Sales rep filter on Tickets page — filter tickets by linked rep to see per-rep complaint history',
+            'Ticket rep stats view for cross-referencing service vs sales tickets per rep',
+          ])}
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Display Names & Historical Data</div>
+        <div className={bodyCls}>
+          {bullet([
+            'AHJ and Utility short display names — dropdown labels use display_name for cleaner UI across Pipeline, Queue, and Ops dashboard',
+            'Editable in Admin portal (AHJ Manager, Utility Manager)',
+            'Ops dashboard Last Year period now includes 14,705 legacy projects for complete historical reporting',
+            'Legacy data lazy-loaded only when historical periods selected — no performance impact on current-period views',
+          ])}
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Bug Fixes & Performance</div>
+        <div className={bodyCls}>
+          {bullet([
+            'Fixed 2 timezone-sensitive flaky tests (digest SLA boundary, ramp planner Monday calculation)',
+            'CLAUDE.md restructured from 1,332 to 163 lines — 88% context reduction for faster AI sessions',
+            'Standardized display name loading across all pages (Promise.all pattern with error handling)',
+          ])}
+        </div>
+      </div>
+
       <div className={sectionCls}>Session 10 (cont.) - March 21, 2026</div>
 
       <div className={cardCls}>

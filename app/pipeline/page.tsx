@@ -465,20 +465,28 @@ export default function PipelinePage() {
   }, [allProjects, search, filterValues, currentUser, blockedOnly, daysRange])
 
   const pms = extractedDropdowns.pm ?? []
-  const ahjs = extractedDropdowns.ahj ?? []
-  const utilities = extractedDropdowns.utility ?? []
 
-  // Load known financiers from reference table to filter out customer names
+  // Load display_name maps from reference tables for short labels in dropdowns
   const [knownFinanciers, setKnownFinanciers] = useState<Set<string>>(new Set())
   const [financierDisplayNames, setFinancierDisplayNames] = useState<Map<string, string>>(new Map())
+  const [ahjDisplayNames, setAhjDisplayNames] = useState<Map<string, string>>(new Map())
+  const [utilityDisplayNames, setUtilityDisplayNames] = useState<Map<string, string>>(new Map())
   useEffect(() => {
-    db().from('financiers').select('name, display_name').order('name').limit(500)
-      .then(({ data }: any) => {
-        if (data) {
-          setKnownFinanciers(new Set(data.map((f: any) => f.name)))
-          setFinancierDisplayNames(new Map(data.map((f: any) => [f.name, f.display_name || f.name])))
-        }
-      })
+    Promise.all([
+      db().from('financiers').select('name, display_name').order('name').limit(500),
+      db().from('ahjs').select('name, display_name').order('name').limit(2000),
+      db().from('utilities').select('name, display_name').order('name').limit(500),
+    ]).then(([finRes, ahjRes, utilRes]) => {
+      const finData = (finRes.data ?? []) as any[]
+      setKnownFinanciers(new Set(finData.map((f: any) => f.name)))
+      setFinancierDisplayNames(new Map(finData.map((f: any) => [f.name, f.display_name || f.name])))
+      const ahjMap = new Map<string, string>()
+      for (const a of (ahjRes.data ?? []) as any[]) { if (a.display_name) ahjMap.set(a.name, a.display_name) }
+      setAhjDisplayNames(ahjMap)
+      const utilMap = new Map<string, string>()
+      for (const u of (utilRes.data ?? []) as any[]) { if (u.display_name) utilMap.set(u.name, u.display_name) }
+      setUtilityDisplayNames(utilMap)
+    }).catch(err => console.error('[display_name] load failed:', err))
   }, [])
   const financiers = useMemo(() => {
     const raw = extractedDropdowns.financier ?? []
@@ -488,6 +496,16 @@ export default function PipelinePage() {
       label: financierDisplayNames.get(f.label) ?? f.label,
     }))
   }, [extractedDropdowns.financier, knownFinanciers, financierDisplayNames])
+  const ahjs = useMemo(() => {
+    const raw = extractedDropdowns.ahj ?? []
+    if (ahjDisplayNames.size === 0) return raw
+    return raw.map(a => ({ ...a, label: ahjDisplayNames.get(a.label) ?? a.label }))
+  }, [extractedDropdowns.ahj, ahjDisplayNames])
+  const utilities = useMemo(() => {
+    const raw = extractedDropdowns.utility ?? []
+    if (utilityDisplayNames.size === 0) return raw
+    return raw.map(u => ({ ...u, label: utilityDisplayNames.get(u.label) ?? u.label }))
+  }, [extractedDropdowns.utility, utilityDisplayNames])
 
   // Auto-open project from URL params
   const [initialTab, setInitialTab] = useState<string | null>(null)

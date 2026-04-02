@@ -181,11 +181,11 @@ function SalesTeamsPersonnel() {
       <div className="space-y-2 text-xs">
         <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-green-500">
           <span className="text-green-400 font-bold">Teams Tab</span>
-          <p className="text-gray-400 mt-1">Create teams with leadership assignments (VP, Regional, Manager, Asst. Manager). Each team has a stack rate ($/W) that determines the override pool. Expand a team card to see its members, pay scales, and statuses.</p>
+          <p className="text-gray-400 mt-1">Create teams with leadership assignments (VP, Regional, Manager, Asst. Manager). Each team has a stack rate ($/W) that determines the override pool. Expand a team card to see its members, pay scales, statuses, and team scorecard (deals, total commission, paid, avg/deal, avg days since last sale/install).</p>
         </div>
         <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-blue-500">
           <span className="text-blue-400 font-bold">Personnel Tab</span>
-          <p className="text-gray-400 mt-1">Add, filter, and sort sales reps. Assign each rep to a team, pay scale tier, and role. Track status (Onboarding, Active, Inactive, Terminated). Expandable rows show onboarding document progress. CSV export available.</p>
+          <p className="text-gray-400 mt-1">Add, filter, and sort sales reps. Assign each rep to a team, pay scale tier, and role. Track status (Onboarding, Active, Inactive, Terminated). Expandable rows show onboarding doc progress, a rep scorecard (days since last sale, last install, last commission — color-coded green/amber/red), and a timestamped notes log. CSV export available.</p>
         </div>
         <div className="bg-gray-800 rounded-lg px-4 py-3 border-l-2 border-amber-500">
           <span className="text-amber-400 font-bold">Pay Scales Tab</span>

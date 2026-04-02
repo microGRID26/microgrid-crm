@@ -58,8 +58,11 @@ describe('SLA_THRESHOLDS (re-enabled)', () => {
 describe('getSLA with real thresholds', () => {
   function daysAgoDate(n: number): string {
     const d = new Date()
-    d.setUTCDate(d.getUTCDate() - n)
-    return d.toISOString().split('T')[0]
+    d.setDate(d.getDate() - n)
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
   }
 
   it('evaluation at 2 days = ok', async () => {

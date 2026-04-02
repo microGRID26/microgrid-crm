@@ -515,3 +515,126 @@ export function calculateTeamDistribution(
       amount: Math.round((totalStackAmount * d.percentage / 100) * 100) / 100,
     }))
 }
+
+// ── Rep Notes (timestamped log) ────────────────────────────────────────────
+
+export interface RepNote {
+  id: string
+  rep_id: string
+  text: string
+  author: string
+  author_id: string | null
+  created_at: string
+}
+
+export async function loadRepNotes(repId: string): Promise<RepNote[]> {
+  const { data, error } = await db().from('rep_notes')
+    .select('*')
+    .eq('rep_id', repId)
+    .order('created_at', { ascending: false })
+    .limit(200)
+  if (error) { console.error('[loadRepNotes]', error); return [] }
+  return (data ?? []) as RepNote[]
+}
+
+export async function addRepNote(repId: string, text: string, author: string, authorId?: string): Promise<RepNote | null> {
+  const { data, error } = await db().from('rep_notes')
+    .insert({ rep_id: repId, text, author, author_id: authorId ?? null })
+    .select()
+    .single()
+  if (error) { console.error('[addRepNote]', error); return null }
+  return data as RepNote
+}
+
+export async function deleteRepNote(noteId: string): Promise<boolean> {
+  const { error } = await db().from('rep_notes').delete().eq('id', noteId)
+  if (error) { console.error('[deleteRepNote]', error); return false }
+  return true
+}
+
+// ── Rep Scorecard ──────────────────────────────────────────────────────────
+
+export interface RepScorecard {
+  repId: string
+  repName: string
+  teamId: string | null
+  daysSinceLastSale: number | null
+  daysSinceLastInstall: number | null
+  daysSinceLastCommission: number | null
+  totalDeals: number
+  totalKw: number
+  totalCommission: number
+}
+
+/**
+ * Compute scorecards for all active reps by cross-referencing projects and commissions.
+ * Pure client-side computation from loaded data.
+ */
+export function computeRepScorecards(
+  reps: SalesRep[],
+  projects: { consultant?: string | null; advisor?: string | null; sale_date?: string | null; install_complete_date?: string | null; systemkw?: number | null }[],
+  commissionRecords: { user_name?: string | null; paid_at?: string | null; total_commission?: number | null }[]
+): RepScorecard[] {
+  const now = Date.now()
+  const daysSince = (dateStr: string | null | undefined): number | null => {
+    if (!dateStr) return null
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return null
+    return Math.floor((now - d.getTime()) / 86400000)
+  }
+
+  return reps.map(rep => {
+    const name = `${rep.first_name} ${rep.last_name}`.trim().toLowerCase()
+
+    // Find projects where this rep is consultant or advisor
+    const repProjects = projects.filter(p =>
+      p.consultant?.trim().toLowerCase() === name || p.advisor?.trim().toLowerCase() === name
+    )
+
+    const saleDates = repProjects.map(p => p.sale_date).filter(Boolean) as string[]
+    const installDates = repProjects.map(p => p.install_complete_date).filter(Boolean) as string[]
+    const lastSale = saleDates.length > 0 ? saleDates.sort().reverse()[0] : null
+    const lastInstall = installDates.length > 0 ? installDates.sort().reverse()[0] : null
+
+    // Find commission records for this rep
+    const repCommissions = commissionRecords.filter(c =>
+      c.user_name?.toLowerCase() === name
+    )
+    const paidDates = repCommissions.map(c => c.paid_at).filter(Boolean) as string[]
+    const lastPaid = paidDates.length > 0 ? paidDates.sort().reverse()[0] : null
+
+    return {
+      repId: rep.id,
+      repName: `${rep.first_name} ${rep.last_name}`,
+      teamId: rep.team_id ?? null,
+      daysSinceLastSale: daysSince(lastSale),
+      daysSinceLastInstall: daysSince(lastInstall),
+      daysSinceLastCommission: daysSince(lastPaid),
+      totalDeals: saleDates.length,
+      totalKw: repProjects.reduce((s, p) => s + (Number(p.systemkw) || 0), 0),
+      totalCommission: repCommissions.reduce((s, c) => s + (Number(c.total_commission) || 0), 0),
+    }
+  })
+}
+
+// ── Ticket Rep Stats ───────────────────────────────────────────────────────
+
+export interface TicketRepStats {
+  sales_rep_id: string
+  rep_name: string
+  team_id: string | null
+  total_tickets: number
+  open_tickets: number
+  resolved_tickets: number
+  service_tickets: number
+  sales_tickets: number
+  critical_tickets: number
+  escalated_tickets: number
+  avg_resolution_hours: number | null
+}
+
+export async function loadTicketRepStats(): Promise<TicketRepStats[]> {
+  const { data, error } = await db().from('ticket_rep_stats').select('*').limit(500)
+  if (error) { console.error('[loadTicketRepStats]', error); return [] }
+  return (data ?? []) as TicketRepStats[]
+}

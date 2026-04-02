@@ -90,12 +90,23 @@ function OpsContent({ embedded }: { embedded: boolean }) {
   const { user, loading: authLoading } = useCurrentUser()
   const isManager = user?.isManager ?? false
   const { orgId } = useOrg()
-  const [projects, setProjects] = useState<OpsProject[]>([])
+  const [activeProjects, setActiveProjects] = useState<OpsProject[]>([])
+  const [legacyProjects, setLegacyProjects] = useState<OpsProject[]>([])
+  const [legacyLoaded, setLegacyLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<Period>('this_month')
   const [panelProject, setPanelProject] = useState<Project | null>(null)
   const [drill, setDrill] = useState<DrillFilter | null>(null)
+  const [displayNames, setDisplayNames] = useState<Map<string, string>>(new Map())
 
+  // Merge active + legacy only when legacy is needed (historical periods)
+  const needsLegacy = period === 'last_year' || period === 'last_qtr'
+  const projects = useMemo(() => {
+    if (!needsLegacy || !legacyLoaded) return activeProjects
+    return [...activeProjects, ...legacyProjects]
+  }, [activeProjects, legacyProjects, needsLegacy, legacyLoaded])
+
+  // Load active projects once
   useEffect(() => {
     async function load() {
       setLoading(true)
@@ -104,11 +115,44 @@ function OpsContent({ embedded }: { embedded: boolean }) {
         .limit(5000)
       if (orgId) q = q.eq('org_id', orgId)
       const { data } = await q
-      setProjects(((data ?? []) as OpsProject[]).filter(p => !isTestProject(p)))
+      setActiveProjects(((data ?? []) as OpsProject[]).filter(p => !isTestProject(p)))
       setLoading(false)
     }
     load()
+    // Load display_name maps for utility and AHJ short labels
+    Promise.all([
+      db().from('utilities').select('name, display_name').limit(500),
+      db().from('ahjs').select('name, display_name').limit(2000),
+    ]).then(([utilRes, ahjRes]) => {
+      const map = new Map<string, string>()
+      for (const u of (utilRes.data ?? []) as any[]) { if (u.display_name) map.set(u.name, u.display_name) }
+      for (const a of (ahjRes.data ?? []) as any[]) { if (a.display_name) map.set(a.name, a.display_name) }
+      setDisplayNames(map)
+    }).catch(err => console.error('[display_name] load failed:', err))
   }, [orgId])
+
+  // Lazy-load legacy projects only when a historical period is selected
+  useEffect(() => {
+    if (!needsLegacy || legacyLoaded) return
+    async function loadLegacy() {
+      const { data } = await db().from('legacy_projects')
+        .select('id, name, sale_date, install_date, pto_date, contract, systemkw, financier, utility, ahj, city, pm, consultant, battery, module, module_qty, dealer, disposition')
+        .limit(15000)
+      const activeIds = new Set(activeProjects.map(p => p.id))
+      const mapped = ((data ?? []) as any[])
+        .filter(p => !activeIds.has(p.id) && !isTestProject(p as OpsProject))
+        .map(p => ({
+          ...p,
+          stage: 'complete',
+          install_complete_date: p.install_date ?? null,
+          blocker: null,
+          energy_community: false,
+        } as OpsProject))
+      setLegacyProjects(mapped)
+      setLegacyLoaded(true)
+    }
+    loadLegacy()
+  }, [needsLegacy, legacyLoaded, activeProjects])
 
   const { start, end } = getPeriodRange(period)
 
@@ -188,7 +232,7 @@ function OpsContent({ embedded }: { embedded: boolean }) {
     )
   }
 
-  const BreakdownTable = ({ title, field }: { title: string; field: keyof OpsProject }) => {
+  const BreakdownTable = ({ title, field, nameMap }: { title: string; field: keyof OpsProject; nameMap?: Map<string, string> }) => {
     const groups: Record<string, { sale: number; sch: number; ins: number; cncl: number; projects: OpsProject[] }> = {}
     for (const p of projects) {
       const raw = p[field]
@@ -231,7 +275,7 @@ function OpsContent({ embedded }: { embedded: boolean }) {
                     const val = raw === true ? 'Yes' : raw === false ? 'No' : String(raw ?? 'Unknown')
                     return val === name
                   })}>
-                  <td className="px-2 py-1 text-gray-300 truncate max-w-28">{name}</td>
+                  <td className="px-2 py-1 text-gray-300 truncate max-w-28">{nameMap?.get(name) ?? name}</td>
                   <td className="text-right px-1 py-1 text-white">{v.sale || ''}</td>
                   <td className="text-right px-1 py-1 text-gray-500">{v.sale ? pct(v.sale, totals.sale) : ''}</td>
                   <td className="text-right px-1 py-1 text-white">{v.sch || ''}</td>
@@ -292,7 +336,7 @@ function OpsContent({ embedded }: { embedded: boolean }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
               <BreakdownTable title="City" field="city" />
-              <BreakdownTable title="Utility" field="utility" />
+              <BreakdownTable title="Utility" field="utility" nameMap={displayNames} />
               <BreakdownTable title="Energy Community" field={'energy_community' as keyof OpsProject} />
 
               <div className="bg-gray-800 rounded-lg overflow-hidden">

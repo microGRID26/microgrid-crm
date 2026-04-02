@@ -374,6 +374,23 @@ function QueuePage() {
     return [...set].sort()
   }, [projects])
 
+  // Load display names for short dropdown labels (AHJ, financier)
+  const [ahjDisplayNames, setAhjDisplayNames] = useState<Map<string, string>>(new Map())
+  const [financierDisplayNames, setFinancierDisplayNames] = useState<Map<string, string>>(new Map())
+  useEffect(() => {
+    Promise.all([
+      db().from('ahjs').select('name, display_name').limit(2000),
+      db().from('financiers').select('name, display_name').limit(500),
+    ]).then(([ahjRes, finRes]) => {
+      const ahjMap = new Map<string, string>()
+      for (const a of (ahjRes.data ?? []) as any[]) { if (a.display_name) ahjMap.set(a.name, a.display_name) }
+      setAhjDisplayNames(ahjMap)
+      const finMap = new Map<string, string>()
+      for (const f of (finRes.data ?? []) as any[]) { if (f.display_name) finMap.set(f.name, f.display_name) }
+      setFinancierDisplayNames(finMap)
+    }).catch(err => console.error('[display_name] load failed:', err))
+  }, [])
+
   // ── Refresh all queries ────────────────────────────────────────────────
   const refreshAll = useCallback(() => {
     refreshProjects()
@@ -600,7 +617,7 @@ function QueuePage() {
             className="text-[11px] bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1 focus:outline-none focus:border-green-500"
           >
             <option value="">Financier: All</option>
-            {distinctFinanciers.map(f => <option key={f} value={f}>{f}</option>)}
+            {distinctFinanciers.map(f => <option key={f} value={f}>{financierDisplayNames.get(f) ?? f}</option>)}
           </select>
           {/* AHJ dropdown */}
           <select
@@ -609,7 +626,7 @@ function QueuePage() {
             className="text-[11px] bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1 focus:outline-none focus:border-green-500"
           >
             <option value="">AHJ: All</option>
-            {distinctAHJs.map(a => <option key={a} value={a}>{a}</option>)}
+            {distinctAHJs.map(a => <option key={a} value={a}>{ahjDisplayNames.get(a) ?? a}</option>)}
           </select>
           {/* Blocked toggle */}
           <button

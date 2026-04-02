@@ -16,13 +16,15 @@ import {
   loadOnboardingRequirements, loadRepDocuments, updateOnboardingDocStatus, updateDocFileUrl, initializeRepDocuments,
   calculateOverride,
   loadCommissionRecords,
+  loadRepNotes, addRepNote, deleteRepNote,
+  computeRepScorecards,
   REP_STATUSES, REP_STATUS_LABELS, REP_STATUS_BADGE,
   DOC_STATUS_LABELS, DOC_STATUS_BADGE,
   COMMISSION_STATUS_LABELS, COMMISSION_STATUS_BADGE,
-  loadUsers,
+  loadUsers, loadProjects,
 } from '@/lib/api'
 import { fmt$ } from '@/lib/utils'
-import type { PayScale, PayDistribution, SalesTeam, SalesRep, OnboardingRequirement, OnboardingDocument, RepStatus, OnboardingDocStatus } from '@/lib/api'
+import type { PayScale, PayDistribution, SalesTeam, SalesRep, OnboardingRequirement, OnboardingDocument, RepStatus, OnboardingDocStatus, RepNote, RepScorecard } from '@/lib/api'
 import {
   Users, UserPlus, DollarSign, PieChart, ClipboardCheck, Shield,
   ChevronDown, ChevronUp, Plus, X, Pencil, Trash2, Download,
@@ -342,25 +344,40 @@ function TeamsTab({ teams, reps, payScales, users, orgId, onRefresh }: {
 
   const teamReps = useCallback((teamId: string) => reps.filter(r => r.team_id === teamId), [reps])
 
-  // #13: Team scorecard — load all commission records once
-  const [teamCommissions, setTeamCommissions] = useState<Map<string, { deals: number; total: number; paid: number }>>(new Map())
+  // #13: Team scorecard — load commission records + project data for days-since
+  const [teamCommissions, setTeamCommissions] = useState<Map<string, { deals: number; total: number; paid: number; avgDaysSinceSale: number | null; avgDaysSinceInstall: number | null }>>(new Map())
   useEffect(() => {
-    loadCommissionRecords({}).then(records => {
-      const byTeam = new Map<string, { deals: number; total: number; paid: number }>()
+    Promise.all([loadCommissionRecords({ orgId: orgId ?? undefined }), loadProjects({ orgId: orgId ?? undefined })]).then(([records, projResult]) => {
+      // Compute per-rep scorecards then aggregate by team
+      const projects = (Array.isArray(projResult) ? projResult : (projResult as any)?.data ?? []) as any[]
+      const activeReps_ = reps.filter(r => r.team_id)
+      const cards = computeRepScorecards(activeReps_, projects, records as any[])
+      const byTeam = new Map<string, { deals: number; total: number; paid: number; avgDaysSinceSale: number | null; avgDaysSinceInstall: number | null }>()
       for (const r of records) {
         if (r.status === 'cancelled') continue
-        // Find the rep to get their team_id
         const rep = reps.find(rep => rep.user_id === r.user_id)
         if (!rep?.team_id) continue
-        const existing = byTeam.get(rep.team_id) ?? { deals: 0, total: 0, paid: 0 }
+        const existing = byTeam.get(rep.team_id) ?? { deals: 0, total: 0, paid: 0, avgDaysSinceSale: null, avgDaysSinceInstall: null }
         existing.deals++
         existing.total += r.total_commission ?? 0
         if (r.status === 'paid') existing.paid += r.total_commission ?? 0
         byTeam.set(rep.team_id, existing)
       }
+      // Aggregate days-since by team
+      for (const team of teams) {
+        const teamCards = cards.filter(c => c.teamId === team.id && c.daysSinceLastSale != null)
+        const existing = byTeam.get(team.id) ?? { deals: 0, total: 0, paid: 0, avgDaysSinceSale: null, avgDaysSinceInstall: null }
+        if (teamCards.length > 0) {
+          const saleDays = teamCards.filter(c => c.daysSinceLastSale != null).map(c => c.daysSinceLastSale!)
+          const installDays = teamCards.filter(c => c.daysSinceLastInstall != null).map(c => c.daysSinceLastInstall!)
+          existing.avgDaysSinceSale = saleDays.length > 0 ? Math.round(saleDays.reduce((s, d) => s + d, 0) / saleDays.length) : null
+          existing.avgDaysSinceInstall = installDays.length > 0 ? Math.round(installDays.reduce((s, d) => s + d, 0) / installDays.length) : null
+        }
+        byTeam.set(team.id, existing)
+      }
       setTeamCommissions(byTeam)
     })
-  }, [reps])
+  }, [reps, teams, orgId])
 
   return (
     <div className="space-y-6">
@@ -430,7 +447,7 @@ function TeamsTab({ teams, reps, payScales, users, orgId, onRefresh }: {
                   {(() => {
                     const tc = teamCommissions.get(team.id)
                     return tc && tc.deals > 0 ? (
-                      <div className="grid grid-cols-4 gap-2 mb-3">
+                      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
                         <div className="bg-gray-900/50 rounded p-2 text-center">
                           <div className="text-[9px] text-gray-500 uppercase">Deals</div>
                           <div className="text-sm font-bold text-white">{tc.deals}</div>
@@ -446,6 +463,14 @@ function TeamsTab({ teams, reps, payScales, users, orgId, onRefresh }: {
                         <div className="bg-gray-900/50 rounded p-2 text-center">
                           <div className="text-[9px] text-gray-500 uppercase">Avg/Deal</div>
                           <div className="text-sm font-bold text-blue-400">{fmt$(tc.total / tc.deals)}</div>
+                        </div>
+                        <div className="bg-gray-900/50 rounded p-2 text-center">
+                          <div className="text-[9px] text-gray-500 uppercase">Avg Last Sale</div>
+                          <div className={`text-sm font-bold ${tc.avgDaysSinceSale != null && tc.avgDaysSinceSale > 30 ? 'text-red-400' : tc.avgDaysSinceSale != null && tc.avgDaysSinceSale > 14 ? 'text-amber-400' : 'text-green-400'}`}>{tc.avgDaysSinceSale != null ? `${tc.avgDaysSinceSale}d` : '—'}</div>
+                        </div>
+                        <div className="bg-gray-900/50 rounded p-2 text-center">
+                          <div className="text-[9px] text-gray-500 uppercase">Avg Last Install</div>
+                          <div className={`text-sm font-bold ${tc.avgDaysSinceInstall != null && tc.avgDaysSinceInstall > 30 ? 'text-red-400' : tc.avgDaysSinceInstall != null && tc.avgDaysSinceInstall > 14 ? 'text-amber-400' : 'text-green-400'}`}>{tc.avgDaysSinceInstall != null ? `${tc.avgDaysSinceInstall}d` : '—'}</div>
                         </div>
                       </div>
                     ) : null
@@ -519,6 +544,25 @@ function PersonnelTab({ reps, teams, payScales, requirements, orgId, isAdmin, on
   const [showAdd, setShowAdd] = useState(false)
   const [repDocs, setRepDocs] = useState<Map<string, OnboardingDocument[]>>(new Map())
   const [repCommissions, setRepCommissions] = useState<Map<string, { total: number; paid: number; pending: number; count: number; projects: { id: string; amount: number; status: string }[] }>>(new Map())
+  const [repNotes, setRepNotes] = useState<Map<string, RepNote[]>>(new Map())
+  const [scorecards, setScorecards] = useState<Map<string, RepScorecard>>(new Map())
+
+  // Load scorecard data (projects + commissions) once for all reps
+  useEffect(() => {
+    if (reps.length === 0) return
+    async function loadScorecardData() {
+      const [projResult, commRecords] = await Promise.all([
+        loadProjects({ orgId: orgId ?? undefined }),
+        loadCommissionRecords(),
+      ])
+      const projects = (Array.isArray(projResult) ? projResult : (projResult as any)?.data ?? []) as any[]
+      const cards = computeRepScorecards(reps, projects, commRecords as any[])
+      const map = new Map<string, RepScorecard>()
+      cards.forEach(c => map.set(c.repId, c))
+      setScorecards(map)
+    }
+    loadScorecardData()
+  }, [reps, orgId])
   const [editingRepId, setEditingRepId] = useState<string | null>(null)
   const [repDraft, setRepDraft] = useState<{ recheck_id: string; blacklisted: boolean; blacklist_reason: string; notes: string }>({ recheck_id: '', blacklisted: false, blacklist_reason: '', notes: '' })
   const [page, setPage] = useState(1)
@@ -539,6 +583,11 @@ function PersonnelTab({ reps, teams, payScales, requirements, orgId, isAdmin, on
   const loadDocs = useCallback(async (repId: string) => {
     const docs = await loadRepDocuments(repId)
     setRepDocs(prev => new Map(prev).set(repId, docs))
+  }, [])
+
+  const loadNotes = useCallback(async (repId: string) => {
+    const notes = await loadRepNotes(repId)
+    setRepNotes(prev => new Map(prev).set(repId, notes))
   }, [])
 
   const loadRepCommissions = useCallback(async (rep: SalesRep) => {
@@ -581,10 +630,11 @@ function PersonnelTab({ reps, teams, payScales, requirements, orgId, isAdmin, on
     } else {
       setExpandedId(repId)
       if (!repDocs.has(repId)) loadDocs(repId)
+      if (!repNotes.has(repId)) loadNotes(repId)
       const rep = reps.find(r => r.id === repId)
       if (rep && !repCommissions.has(repId)) loadRepCommissions(rep)
     }
-  }, [expandedId, repDocs, loadDocs, reps, repCommissions, loadRepCommissions])
+  }, [expandedId, repDocs, loadDocs, repNotes, loadNotes, reps, repCommissions, loadRepCommissions])
 
   const filtered = useMemo(() => {
     let list = [...reps]
@@ -882,69 +932,90 @@ function PersonnelTab({ reps, teams, payScales, requirements, orgId, isAdmin, on
 
                           {/* #12: Rep Scorecard */}
                           <div className="mt-3 pt-3 border-t border-gray-700/50">
-                            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                              {(() => {
-                                const cs = repCommissions.get(rep.id)
-                                const lastSale = cs?.projects?.filter(p => p.status !== 'cancelled').sort((a, b) => b.id.localeCompare(a.id))[0]
-                                return <>
+                            {(() => {
+                              const cs = repCommissions.get(rep.id)
+                              const sc = scorecards.get(rep.id)
+                              const daysColor = (d: number | null | undefined) => {
+                                if (d == null) return 'text-gray-600'
+                                if (d <= 14) return 'text-green-400'
+                                if (d <= 30) return 'text-amber-400'
+                                return 'text-red-400'
+                              }
+                              return (
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                                   <div className="bg-gray-800/50 rounded-lg p-2.5 text-center">
                                     <div className="text-[10px] text-gray-500 uppercase">Deals</div>
-                                    <div className="text-lg font-bold text-white">{cs?.count ?? 0}</div>
+                                    <div className="text-lg font-bold text-white">{sc?.totalDeals ?? cs?.count ?? 0}</div>
+                                    <div className="text-[9px] text-gray-500">{sc ? `${Math.round(sc.totalKw)} kW total` : ''}</div>
                                   </div>
                                   <div className="bg-gray-800/50 rounded-lg p-2.5 text-center">
                                     <div className="text-[10px] text-gray-500 uppercase">Total Earned</div>
                                     <div className="text-lg font-bold text-green-400">{fmt$(cs?.total ?? 0)}</div>
+                                    <div className="text-[9px] text-gray-500">{cs && cs.count > 0 ? `${fmt$(cs.total / cs.count)} avg` : ''}</div>
                                   </div>
                                   <div className="bg-gray-800/50 rounded-lg p-2.5 text-center">
                                     <div className="text-[10px] text-gray-500 uppercase">Paid</div>
                                     <div className="text-lg font-bold text-emerald-400">{fmt$(cs?.paid ?? 0)}</div>
+                                    <div className="text-[9px] text-amber-400">{cs && cs.pending > 0 ? `${fmt$(cs.pending)} pending` : ''}</div>
                                   </div>
                                   <div className="bg-gray-800/50 rounded-lg p-2.5 text-center">
-                                    <div className="text-[10px] text-gray-500 uppercase">Pending</div>
-                                    <div className="text-lg font-bold text-amber-400">{fmt$(cs?.pending ?? 0)}</div>
+                                    <div className="text-[10px] text-gray-500 uppercase">Last Commission</div>
+                                    <div className={`text-lg font-bold ${daysColor(sc?.daysSinceLastCommission)}`}>{sc?.daysSinceLastCommission != null ? `${sc.daysSinceLastCommission}d` : '—'}</div>
                                   </div>
                                   <div className="bg-gray-800/50 rounded-lg p-2.5 text-center">
-                                    <div className="text-[10px] text-gray-500 uppercase">Avg / Deal</div>
-                                    <div className="text-lg font-bold text-blue-400">{cs && cs.count > 0 ? fmt$(cs.total / cs.count) : '$0'}</div>
+                                    <div className="text-[10px] text-gray-500 uppercase">Last Sale</div>
+                                    <div className={`text-lg font-bold ${daysColor(sc?.daysSinceLastSale)}`}>{sc?.daysSinceLastSale != null ? `${sc.daysSinceLastSale}d` : '—'}</div>
                                   </div>
-                                </>
-                              })()}
-                            </div>
+                                  <div className="bg-gray-800/50 rounded-lg p-2.5 text-center">
+                                    <div className="text-[10px] text-gray-500 uppercase">Last Install</div>
+                                    <div className={`text-lg font-bold ${daysColor(sc?.daysSinceLastInstall)}`}>{sc?.daysSinceLastInstall != null ? `${sc.daysSinceLastInstall}d` : '—'}</div>
+                                  </div>
+                                </div>
+                              )
+                            })()}
                           </div>
 
-                          {/* #11: Notes Section */}
+                          {/* #11: Notes Section — timestamped log */}
                           <div className="mt-3 pt-3 border-t border-gray-700/50">
                             <div className="flex items-center justify-between mb-2">
                               <h4 className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Notes</h4>
+                              <span className="text-[9px] text-gray-600">{repNotes.get(rep.id)?.length ?? 0} notes</span>
                             </div>
-                            {rep.notes ? (
-                              <div className="space-y-1 max-h-24 overflow-y-auto">
-                                {rep.notes.split('\n').filter(Boolean).map((line, i) => (
-                                  <p key={i} className="text-[11px] text-gray-400">{line}</p>
+                            {(repNotes.get(rep.id) ?? []).length > 0 ? (
+                              <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                                {(repNotes.get(rep.id) ?? []).map(note => (
+                                  <div key={note.id} className="flex justify-between items-start group">
+                                    <div>
+                                      <span className="text-[10px] text-gray-500">{new Date(note.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {note.author} — </span>
+                                      <span className="text-[11px] text-gray-300">{note.text}</span>
+                                    </div>
+                                    {isAdmin && (
+                                      <button onClick={async (e) => { e.stopPropagation(); await deleteRepNote(note.id); loadNotes(rep.id) }}
+                                        className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 ml-2 flex-shrink-0">
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
                                 ))}
                               </div>
                             ) : (
                               <p className="text-[10px] text-gray-600">No notes yet</p>
                             )}
-                            {isAdmin && editingRepId !== rep.id && (
-                              <div className="mt-2 flex gap-2" onClick={e => e.stopPropagation()}>
-                                <input
-                                  placeholder="Add a note..."
-                                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                                  onKeyDown={async (e) => {
-                                    if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
-                                      const input = e.target as HTMLInputElement
-                                      const stamp = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                                      const newNote = `[${stamp}] ${input.value.trim()}`
-                                      const updated = rep.notes ? `${newNote}\n${rep.notes}` : newNote
-                                      await updateSalesRep(rep.id, { notes: updated })
-                                      input.value = ''
-                                      onRefresh()
-                                    }
-                                  }}
-                                />
-                              </div>
-                            )}
+                            <div className="mt-2 flex gap-2" onClick={e => e.stopPropagation()}>
+                              <input
+                                placeholder="Add a note..."
+                                className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                onKeyDown={async (e) => {
+                                  if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                    const input = e.target as HTMLInputElement
+                                    const userName = document.cookie.match(/mg_user_name=([^;]+)/)?.[1] ?? 'Admin'
+                                    await addRepNote(rep.id, input.value.trim(), decodeURIComponent(userName))
+                                    input.value = ''
+                                    loadNotes(rep.id)
+                                  }
+                                }}
+                              />
+                            </div>
                           </div>
                         </td>
                       </tr>

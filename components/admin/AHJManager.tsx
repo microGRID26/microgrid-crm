@@ -37,6 +37,7 @@ export function AHJManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
     setSaving(true)
     const { error } = await supabase.from('ahjs').update({
       name: draft.name,
+      display_name: draft.display_name || null,
       permit_required: (draft as any).permit_required ?? true,
       permit_phone: draft.permit_phone,
       permit_website: draft.permit_website,
@@ -153,6 +154,7 @@ export function AHJManager({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       {editing && (
         <Modal title={`Edit AHJ — ${editing.name}`} onClose={() => setEditing(null)}>
           <Input label="Name" value={draft.name ?? ''} onChange={v => setDraft(d => ({ ...d, name: v }))} />
+          <Input label="Display Name (short label for dropdowns)" value={draft.display_name ?? ''} onChange={v => setDraft(d => ({ ...d, display_name: v || null }))} />
           <div className="flex items-center gap-3 py-1">
             <label className="text-xs text-gray-400">Permit Required</label>
             <button onClick={() => setDraft(d => ({ ...d, permit_required: !(d as any).permit_required } as any))}

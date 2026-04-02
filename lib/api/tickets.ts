@@ -181,6 +181,7 @@ export async function loadTickets(filters?: {
   category?: string
   priority?: string
   assignedToId?: string
+  salesRepId?: string
   projectId?: string
   orgId?: string | null
 }): Promise<Ticket[]> {
@@ -189,6 +190,7 @@ export async function loadTickets(filters?: {
   if (filters?.category) q = q.eq('category', filters.category)
   if (filters?.priority) q = q.eq('priority', filters.priority)
   if (filters?.assignedToId) q = q.eq('assigned_to_id', filters.assignedToId)
+  if (filters?.salesRepId) q = q.eq('sales_rep_id', filters.salesRepId)
   if (filters?.projectId) q = q.eq('project_id', filters.projectId)
   if (filters?.orgId) q = q.eq('org_id', filters.orgId)
   const { data, error } = await q

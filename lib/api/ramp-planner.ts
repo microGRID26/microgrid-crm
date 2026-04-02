@@ -501,9 +501,9 @@ export function clusterProjectsForCrews(
 
 export function getMonday(date: Date): string {
   const d = new Date(date)
-  const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  d.setDate(diff)
+  const day = d.getUTCDay()
+  const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1)
+  d.setUTCDate(diff)
   return d.toISOString().slice(0, 10)
 }
 
@@ -517,9 +517,10 @@ export function getWeekLabel(mondayStr: string): string {
 export function getNextWeeks(count: number): string[] {
   const weeks: string[] = []
   const now = new Date()
+  now.setUTCHours(12, 0, 0, 0) // midday UTC avoids day-boundary drift
   for (let i = 0; i < count; i++) {
     const d = new Date(now)
-    d.setDate(d.getDate() + i * 7)
+    d.setUTCDate(d.getUTCDate() + i * 7)
     weeks.push(getMonday(d))
   }
   return weeks

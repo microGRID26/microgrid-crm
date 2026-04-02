@@ -3,7 +3,7 @@ import type { HelpTopicData } from './index'
 function TicketingOverview() {
   return (
     <div>
-      <p className="text-xs text-gray-400 mb-3">The Tickets page tracks issues, complaints, and requests tied to projects. Every ticket has a category, priority, SLA targets, and a full audit trail.</p>
+      <p className="text-xs text-gray-400 mb-3">The Tickets page tracks issues, complaints, and requests tied to projects. Every ticket has a category, priority, SLA targets, and a full audit trail. Tickets can be linked to sales reps for per-rep complaint tracking — filter by rep to see their ticket history and complaint ratio.</p>
       <div className="bg-gray-800/50 rounded-lg p-3 mb-3">
         <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">8 TICKET CATEGORIES</div>
         <div className="flex flex-wrap gap-1.5">

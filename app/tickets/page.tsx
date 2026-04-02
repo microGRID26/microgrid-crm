@@ -7,6 +7,7 @@ import { Pagination } from '@/components/Pagination'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { useOrg } from '@/lib/hooks'
 import { fmtDate, cn, INTERNAL_DOMAINS } from '@/lib/utils'
+import { db } from '@/lib/db'
 import { loadProjectById, loadUsers, searchProjects } from '@/lib/api'
 import {
   loadTickets, createTicket, updateTicket, updateTicketStatus,
@@ -56,6 +57,8 @@ function TicketsPageInner() {
   const [filterSLA, setFilterSLA] = useState(false)
   const [filterResolved, setFilterResolved] = useState(false)
   const [filterAssigned, setFilterAssigned] = useState(assignedParam ?? '')
+  const [filterRepId, setFilterRepId] = useState('')
+  const [repNames, setRepNames] = useState<Map<string, string>>(new Map())
   const [showAnalytics, setShowAnalytics] = useState(false)
 
   // UI state
@@ -109,6 +112,13 @@ function TicketsPageInner() {
 
   useEffect(() => { loadAll() }, [loadAll])
   useEffect(() => { loadUsers(INTERNAL_DOMAINS).then(r => setUsers((r.data ?? []).map((x: any) => ({ id: x.id, name: x.name })))).catch(() => {}) }, [])
+  // Load sales rep names for the rep filter dropdown
+  useEffect(() => {
+    db().from('sales_reps').select('id, first_name, last_name').limit(500)
+      .then(({ data }: any) => {
+        if (data) setRepNames(new Map(data.map((r: any) => [r.id, `${r.first_name} ${r.last_name}`])))
+      }).catch(() => {})
+  }, [])
 
   // Realtime — auto-refresh on ticket changes
   useRealtimeSubscription('tickets' as any, { onChange: loadAll, debounceMs: 500 })
@@ -233,6 +243,7 @@ function TicketsPageInner() {
     if (filterSLA) list = list.filter(t => { const s = getSLAStatus(t); return !['resolved', 'closed'].includes(t.status) && (s.response === 'breached' || s.resolution === 'breached') })
     if (filterResolved) list = list.filter(t => t.resolved_at && t.resolved_at.slice(0, 10) === new Date().toISOString().slice(0, 10))
     if (filterAssigned) list = list.filter(t => t.assigned_to === filterAssigned)
+    if (filterRepId) list = list.filter(t => t.sales_rep_id === filterRepId)
 
     list.sort((a, b) => {
       let cmp = 0
@@ -249,7 +260,7 @@ function TicketsPageInner() {
       return sortAsc ? cmp : -cmp
     })
     return list
-  }, [tickets, search, filterStatus, filterCategory, filterPriority, filterSLA, filterResolved, filterAssigned, sortCol, sortAsc])
+  }, [tickets, search, filterStatus, filterCategory, filterPriority, filterRepId, filterSLA, filterResolved, filterAssigned, sortCol, sortAsc])
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -502,7 +513,19 @@ function TicketsPageInner() {
             <option value="">All Priorities</option>
             {TICKET_PRIORITIES.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
           </select>
-          {(filterStatus || filterCategory || filterPriority || search || filterSLA || filterResolved || filterAssigned) && (
+          {/* Sales rep filter — shows reps with tickets */}
+          {(() => {
+            const repIds = [...new Set(tickets.filter(t => t.sales_rep_id).map(t => t.sales_rep_id!))]
+            return repIds.length > 0 ? (
+              <select value={filterRepId} onChange={e => { setFilterRepId(e.target.value); setPage(1) }}
+                className="bg-gray-800 border border-gray-700 rounded-md px-3 py-1.5 text-xs text-white">
+                <option value="">All Reps</option>
+                {repIds.sort((a, b) => (repNames.get(a) ?? a).localeCompare(repNames.get(b) ?? b))
+                  .map(id => <option key={id} value={id}>{repNames.get(id) ?? id.slice(0, 8)}</option>)}
+              </select>
+            ) : null
+          })()}
+          {(filterStatus || filterCategory || filterPriority || filterRepId || search || filterSLA || filterResolved || filterAssigned) && (
             <button onClick={() => { setFilterStatus(''); setFilterCategory(''); setFilterPriority(''); setSearch(''); setFilterSLA(false); setFilterResolved(false); setFilterAssigned('') }}
               className="text-xs text-gray-400 hover:text-white">Clear All</button>
           )}
