@@ -2,23 +2,26 @@ import { useState, useEffect, useCallback } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, TextInput, RefreshControl, ActivityIndicator, Modal, KeyboardAvoidingView, Platform } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
-import { theme } from '../../lib/theme'
+import { theme, useThemeColors } from '../../lib/theme'
 import { getCustomerAccount, loadTickets, createTicket } from '../../lib/api'
 import { TICKET_CATEGORIES } from '../../lib/constants'
 import type { CustomerAccount, CustomerTicket } from '../../lib/types'
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  open: { label: 'Open', color: theme.colors.info },
-  assigned: { label: 'Assigned', color: theme.colors.info },
-  in_progress: { label: 'In Progress', color: theme.colors.warm },
-  waiting_on_customer: { label: 'Waiting on You', color: theme.colors.warm },
-  waiting_on_vendor: { label: 'In Progress', color: theme.colors.warm },
-  escalated: { label: 'Escalated', color: theme.colors.error },
-  resolved: { label: 'Resolved', color: theme.colors.accent },
-  closed: { label: 'Closed', color: theme.colors.textMuted },
+function getStatusConfig(colors: any): Record<string, { label: string; color: string }> {
+  return {
+    open: { label: 'Open', color: colors.info },
+    assigned: { label: 'Assigned', color: colors.info },
+    in_progress: { label: 'In Progress', color: colors.warm },
+    waiting_on_customer: { label: 'Waiting on You', color: colors.warm },
+    waiting_on_vendor: { label: 'In Progress', color: colors.warm },
+    escalated: { label: 'Escalated', color: colors.error },
+    resolved: { label: 'Resolved', color: colors.accent },
+    closed: { label: 'Closed', color: colors.textMuted },
+  }
 }
 
 export default function TicketsScreen() {
+  const colors = useThemeColors()
   const [account, setAccount] = useState<CustomerAccount | null>(null)
   const [tickets, setTickets] = useState<CustomerTicket[]>([])
   const [loading, setLoading] = useState(true)
@@ -64,8 +67,8 @@ export default function TicketsScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.bg }}>
-        <ActivityIndicator size="large" color={theme.colors.accent} />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg }}>
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     )
   }
@@ -73,16 +76,16 @@ export default function TicketsScreen() {
   const openCount = tickets.filter(t => !['resolved', 'closed'].includes(t.status)).length
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: 32 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
       >
         {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View>
-            <Text style={{ fontSize: 22, fontWeight: '700', color: theme.colors.text, fontFamily: 'Inter_700Bold' }}>Support</Text>
-            <Text style={{ fontSize: 12, color: theme.colors.textMuted, fontFamily: 'Inter_400Regular' }}>
+            <Text style={{ fontSize: 22, fontWeight: '700', color: colors.text, fontFamily: 'Inter_700Bold' }}>Support</Text>
+            <Text style={{ fontSize: 12, color: colors.textMuted, fontFamily: 'Inter_400Regular' }}>
               {openCount > 0 ? `${openCount} open request${openCount > 1 ? 's' : ''}` : 'No open requests'}
             </Text>
           </View>
@@ -91,12 +94,12 @@ export default function TicketsScreen() {
             activeOpacity={0.8}
             style={{
               flexDirection: 'row', alignItems: 'center', gap: 6,
-              backgroundColor: theme.colors.accent, borderRadius: theme.radius.xl,
+              backgroundColor: colors.accent, borderRadius: theme.radius.xl,
               paddingHorizontal: 16, paddingVertical: 10,
             }}
           >
-            <Feather name="plus" size={16} color={theme.colors.accentText} />
-            <Text style={{ fontSize: 14, fontWeight: '600', color: theme.colors.accentText, fontFamily: 'Inter_600SemiBold' }}>
+            <Feather name="plus" size={16} color={colors.accentText} />
+            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.accentText, fontFamily: 'Inter_600SemiBold' }}>
               New Request
             </Text>
           </TouchableOpacity>
@@ -106,28 +109,29 @@ export default function TicketsScreen() {
         <View style={{ marginTop: 16, gap: 8 }}>
           {tickets.length === 0 ? (
             <View style={{
-              backgroundColor: theme.colors.surface, borderRadius: theme.radius.xl,
+              backgroundColor: colors.surface, borderRadius: theme.radius.xl,
               padding: 32, alignItems: 'center',
-              borderWidth: 1, borderColor: theme.colors.borderLight,
+              borderWidth: 1, borderColor: colors.borderLight,
             }}>
-              <Feather name="message-square" size={40} color={theme.colors.border} />
-              <Text style={{ fontSize: 14, fontWeight: '500', color: theme.colors.text, marginTop: 12, fontFamily: 'Inter_500Medium' }}>
+              <Feather name="message-square" size={40} color={colors.border} />
+              <Text style={{ fontSize: 14, fontWeight: '500', color: colors.text, marginTop: 12, fontFamily: 'Inter_500Medium' }}>
                 No support requests yet
               </Text>
-              <Text style={{ fontSize: 12, color: theme.colors.textMuted, marginTop: 4, textAlign: 'center', fontFamily: 'Inter_400Regular' }}>
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 4, textAlign: 'center', fontFamily: 'Inter_400Regular' }}>
                 Tap &quot;New Request&quot; if you need help.
               </Text>
             </View>
           ) : tickets.map(ticket => {
-            const status = STATUS_CONFIG[ticket.status] ?? STATUS_CONFIG.open
+            const statusMap = getStatusConfig(colors)
+            const status = statusMap[ticket.status] ?? statusMap.open
             return (
               <TouchableOpacity key={ticket.id} activeOpacity={0.7}
                 style={{
-                  backgroundColor: theme.colors.surface, borderRadius: theme.radius.xl,
-                  padding: 16, borderWidth: 1, borderColor: theme.colors.borderLight,
+                  backgroundColor: colors.surface, borderRadius: theme.radius.xl,
+                  padding: 16, borderWidth: 1, borderColor: colors.borderLight,
                   ...theme.shadow.card,
                 }}>
-                <Text style={{ fontSize: 14, fontWeight: '500', color: theme.colors.text, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
+                <Text style={{ fontSize: 14, fontWeight: '500', color: colors.text, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
                   {ticket.title}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
@@ -139,7 +143,7 @@ export default function TicketsScreen() {
                       {status.label}
                     </Text>
                   </View>
-                  <Text style={{ fontSize: 10, color: theme.colors.textMuted }}>
+                  <Text style={{ fontSize: 10, color: colors.textMuted }}>
                     {new Date(ticket.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </Text>
                 </View>
@@ -151,53 +155,53 @@ export default function TicketsScreen() {
 
       {/* Create ticket modal */}
       <Modal visible={showCreate} animationType="slide" presentationStyle="pageSheet">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: colors.bg }}>
           <View style={{ padding: 16, paddingTop: 20 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: theme.colors.text, fontFamily: 'Inter_700Bold' }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, fontFamily: 'Inter_700Bold' }}>
                 New Request
               </Text>
               <TouchableOpacity onPress={() => setShowCreate(false)}>
-                <Feather name="x" size={24} color={theme.colors.textMuted} />
+                <Feather name="x" size={24} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
-            <Text style={{ fontSize: 13, fontWeight: '500', color: theme.colors.textSecondary, marginBottom: 6, fontFamily: 'Inter_500Medium' }}>
+            <Text style={{ fontSize: 13, fontWeight: '500', color: colors.textSecondary, marginBottom: 6, fontFamily: 'Inter_500Medium' }}>
               What do you need help with?
             </Text>
             <TextInput
               value={title}
               onChangeText={setTitle}
               placeholder="Describe your issue briefly"
-              placeholderTextColor={theme.colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               autoFocus
               style={{
-                backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border,
+                backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
                 borderRadius: theme.radius.xl, paddingHorizontal: 16, paddingVertical: 14,
-                fontSize: 16, color: theme.colors.text, fontFamily: 'Inter_400Regular',
+                fontSize: 16, color: colors.text, fontFamily: 'Inter_400Regular',
               }}
             />
 
-            <Text style={{ fontSize: 13, fontWeight: '500', color: theme.colors.textSecondary, marginTop: 16, marginBottom: 6, fontFamily: 'Inter_500Medium' }}>
+            <Text style={{ fontSize: 13, fontWeight: '500', color: colors.textSecondary, marginTop: 16, marginBottom: 6, fontFamily: 'Inter_500Medium' }}>
               Details (optional)
             </Text>
             <TextInput
               value={description}
               onChangeText={setDescription}
               placeholder="Provide additional details..."
-              placeholderTextColor={theme.colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
               style={{
-                backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border,
+                backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
                 borderRadius: theme.radius.xl, paddingHorizontal: 16, paddingVertical: 14,
-                fontSize: 14, color: theme.colors.text, fontFamily: 'Inter_400Regular',
+                fontSize: 14, color: colors.text, fontFamily: 'Inter_400Regular',
                 minHeight: 100,
               }}
             />
 
-            <Text style={{ fontSize: 13, fontWeight: '500', color: theme.colors.textSecondary, marginTop: 16, marginBottom: 6, fontFamily: 'Inter_500Medium' }}>
+            <Text style={{ fontSize: 13, fontWeight: '500', color: colors.textSecondary, marginTop: 16, marginBottom: 6, fontFamily: 'Inter_500Medium' }}>
               Category
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -206,13 +210,13 @@ export default function TicketsScreen() {
                   style={{
                     paddingHorizontal: 14, paddingVertical: 8,
                     borderRadius: theme.radius.pill,
-                    backgroundColor: category === cat.value ? theme.colors.accent : theme.colors.surface,
+                    backgroundColor: category === cat.value ? colors.accent : colors.surface,
                     borderWidth: 1,
-                    borderColor: category === cat.value ? theme.colors.accent : theme.colors.border,
+                    borderColor: category === cat.value ? colors.accent : colors.border,
                   }}>
                   <Text style={{
                     fontSize: 13, fontWeight: '500',
-                    color: category === cat.value ? theme.colors.accentText : theme.colors.textSecondary,
+                    color: category === cat.value ? colors.accentText : colors.textSecondary,
                     fontFamily: 'Inter_500Medium',
                   }}>
                     {cat.label}
@@ -226,15 +230,15 @@ export default function TicketsScreen() {
               disabled={creating || !title.trim()}
               activeOpacity={0.8}
               style={{
-                backgroundColor: theme.colors.accent, borderRadius: theme.radius.xl,
+                backgroundColor: colors.accent, borderRadius: theme.radius.xl,
                 paddingVertical: 14, marginTop: 24, alignItems: 'center',
                 opacity: creating || !title.trim() ? 0.5 : 1,
               }}
             >
               {creating ? (
-                <ActivityIndicator color={theme.colors.accentText} />
+                <ActivityIndicator color={colors.accentText} />
               ) : (
-                <Text style={{ fontSize: 16, fontWeight: '600', color: theme.colors.accentText, fontFamily: 'Inter_600SemiBold' }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: colors.accentText, fontFamily: 'Inter_600SemiBold' }}>
                   Submit Request
                 </Text>
               )}

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useColorScheme } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter'
 import { supabase } from '../lib/supabase'
+import { ThemeContext, getThemeColors } from '../lib/theme'
 import type { Session } from '@supabase/supabase-js'
 
 SplashScreen.preventAutoHideAsync()
@@ -13,6 +15,9 @@ export default function RootLayout() {
   const [initializing, setInitializing] = useState(true)
   const router = useRouter()
   const segments = useSegments()
+  const scheme = useColorScheme()
+  const mode = scheme === 'dark' ? 'dark' : 'light'
+  const colors = getThemeColors(mode)
 
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -47,7 +52,6 @@ export default function RootLayout() {
     if (initializing) return
 
     const inAuthGroup = segments[0] === '(auth)'
-    const inTabsGroup = segments[0] === '(tabs)'
 
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/login')
@@ -59,13 +63,13 @@ export default function RootLayout() {
   if (!fontsLoaded || initializing) return null
 
   return (
-    <>
-      <StatusBar style="dark" backgroundColor="#FAFAF7" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FAFAF7' } }}>
+    <ThemeContext.Provider value={colors}>
+      <StatusBar style={colors.statusBar} backgroundColor={colors.bg} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="ticket/[id]" options={{ presentation: 'modal', headerShown: true, headerTitle: 'Ticket Detail' }} />
       </Stack>
-    </>
+    </ThemeContext.Provider>
   )
 }

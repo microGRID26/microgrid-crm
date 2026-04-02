@@ -1,18 +1,20 @@
 import { Tabs } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
-import { theme } from '../../lib/theme'
+import { useThemeColors, theme } from '../../lib/theme'
 import * as Haptics from 'expo-haptics'
 
 export default function TabLayout() {
+  const colors = useThemeColors()
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: theme.colors.accent,
-        tabBarInactiveTintColor: theme.colors.textMuted,
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.borderLight,
+          backgroundColor: colors.tabBar,
+          borderTopColor: colors.tabBarBorder,
           borderTopWidth: 1,
           paddingTop: 4,
           height: 84,

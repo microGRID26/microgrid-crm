@@ -2,12 +2,13 @@ import { useState, useRef, useEffect } from 'react'
 import { View, Text, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
-import { theme } from '../../lib/theme'
+import { theme, useThemeColors } from '../../lib/theme'
 import { getCustomerAccount, sendAtlasMessage } from '../../lib/api'
 import { ATLAS_SUGGESTIONS } from '../../lib/constants'
 import type { ChatMessage } from '../../lib/types'
 
 export default function ChatScreen() {
+  const colors = useThemeColors()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -52,7 +53,7 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{ flex: 1, backgroundColor: theme.colors.bg }}
+      style={{ flex: 1, backgroundColor: colors.bg }}
       keyboardVerticalOffset={90}
     >
       <ScrollView
@@ -65,15 +66,15 @@ export default function ChatScreen() {
           <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 80 }}>
             <View style={{
               width: 64, height: 64, borderRadius: 32,
-              backgroundColor: theme.colors.accentLight,
+              backgroundColor: colors.accentLight,
               alignItems: 'center', justifyContent: 'center', marginBottom: 16,
             }}>
-              <Feather name="zap" size={28} color={theme.colors.accent} />
+              <Feather name="zap" size={28} color={colors.accent} />
             </View>
-            <Text style={{ fontSize: 20, fontWeight: '600', color: theme.colors.text, fontFamily: 'Inter_600SemiBold' }}>
+            <Text style={{ fontSize: 20, fontWeight: '600', color: colors.text, fontFamily: 'Inter_600SemiBold' }}>
               Hi {customerName}, I&apos;m Atlas
             </Text>
-            <Text style={{ fontSize: 14, color: theme.colors.textMuted, marginTop: 4, fontFamily: 'Inter_400Regular' }}>
+            <Text style={{ fontSize: 14, color: colors.textMuted, marginTop: 4, fontFamily: 'Inter_400Regular' }}>
               Your energy assistant
             </Text>
 
@@ -81,10 +82,10 @@ export default function ChatScreen() {
               {ATLAS_SUGGESTIONS.map(prompt => (
                 <TouchableOpacity key={prompt} onPress={() => send(prompt)} activeOpacity={0.7}
                   style={{
-                    backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border,
+                    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
                     borderRadius: theme.radius.xl, paddingHorizontal: 12, paddingVertical: 8,
                   }}>
-                  <Text style={{ fontSize: 12, color: theme.colors.textSecondary, fontFamily: 'Inter_400Regular' }}>
+                  <Text style={{ fontSize: 12, color: colors.textSecondary, fontFamily: 'Inter_400Regular' }}>
                     {prompt}
                   </Text>
                 </TouchableOpacity>
@@ -100,26 +101,26 @@ export default function ChatScreen() {
                 maxWidth: '85%', marginBottom: 8,
               }}>
                 <View style={{
-                  backgroundColor: msg.role === 'user' ? theme.colors.accent : theme.colors.surface,
+                  backgroundColor: msg.role === 'user' ? colors.accent : colors.surface,
                   borderRadius: theme.radius.xl,
                   borderBottomRightRadius: msg.role === 'user' ? 4 : theme.radius.xl,
                   borderBottomLeftRadius: msg.role === 'assistant' ? 4 : theme.radius.xl,
                   paddingHorizontal: 16, paddingVertical: 12,
                   borderWidth: msg.role === 'assistant' ? 1 : 0,
-                  borderColor: theme.colors.borderLight,
+                  borderColor: colors.borderLight,
                   ...theme.shadow.card,
                 }}>
                   {msg.role === 'assistant' && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                      <Feather name="zap" size={10} color={theme.colors.accent} />
-                      <Text style={{ fontSize: 10, fontWeight: '600', color: theme.colors.accent, fontFamily: 'Inter_600SemiBold' }}>
+                      <Feather name="zap" size={10} color={colors.accent} />
+                      <Text style={{ fontSize: 10, fontWeight: '600', color: colors.accent, fontFamily: 'Inter_600SemiBold' }}>
                         Atlas
                       </Text>
                     </View>
                   )}
                   <Text style={{
                     fontSize: 14, lineHeight: 20,
-                    color: msg.role === 'user' ? theme.colors.accentText : theme.colors.text,
+                    color: msg.role === 'user' ? colors.accentText : colors.text,
                     fontFamily: 'Inter_400Regular',
                   }}>
                     {msg.content}
@@ -131,15 +132,15 @@ export default function ChatScreen() {
             {sending && (
               <View style={{ alignSelf: 'flex-start', maxWidth: '85%' }}>
                 <View style={{
-                  backgroundColor: theme.colors.surface, borderRadius: theme.radius.xl,
+                  backgroundColor: colors.surface, borderRadius: theme.radius.xl,
                   borderBottomLeftRadius: 4, paddingHorizontal: 16, paddingVertical: 12,
-                  borderWidth: 1, borderColor: theme.colors.borderLight,
+                  borderWidth: 1, borderColor: colors.borderLight,
                 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                    <Feather name="zap" size={10} color={theme.colors.accent} />
-                    <Text style={{ fontSize: 10, fontWeight: '600', color: theme.colors.accent, fontFamily: 'Inter_600SemiBold' }}>Atlas</Text>
+                    <Feather name="zap" size={10} color={colors.accent} />
+                    <Text style={{ fontSize: 10, fontWeight: '600', color: colors.accent, fontFamily: 'Inter_600SemiBold' }}>Atlas</Text>
                   </View>
-                  <ActivityIndicator size="small" color={theme.colors.textMuted} />
+                  <ActivityIndicator size="small" color={colors.textMuted} />
                 </View>
               </View>
             )}
@@ -151,19 +152,19 @@ export default function ChatScreen() {
       <View style={{
         flexDirection: 'row', gap: 8,
         paddingHorizontal: 16, paddingVertical: 12,
-        backgroundColor: theme.colors.surface,
-        borderTopWidth: 1, borderTopColor: theme.colors.borderLight,
+        backgroundColor: colors.surface,
+        borderTopWidth: 1, borderTopColor: colors.borderLight,
       }}>
         <TextInput
           value={input}
           onChangeText={setInput}
           placeholder="Ask Atlas anything..."
-          placeholderTextColor={theme.colors.textMuted}
+          placeholderTextColor={colors.textMuted}
           style={{
-            flex: 1, backgroundColor: theme.colors.bg,
-            borderWidth: 1, borderColor: theme.colors.border,
+            flex: 1, backgroundColor: colors.bg,
+            borderWidth: 1, borderColor: colors.border,
             borderRadius: theme.radius.xl, paddingHorizontal: 16, paddingVertical: 12,
-            fontSize: 16, color: theme.colors.text, fontFamily: 'Inter_400Regular',
+            fontSize: 16, color: colors.text, fontFamily: 'Inter_400Regular',
           }}
           onSubmitEditing={() => send(input)}
           returnKeyType="send"
@@ -174,12 +175,12 @@ export default function ChatScreen() {
           disabled={sending || !input.trim()}
           activeOpacity={0.7}
           style={{
-            backgroundColor: theme.colors.accent, borderRadius: theme.radius.xl,
+            backgroundColor: colors.accent, borderRadius: theme.radius.xl,
             width: 48, height: 48, alignItems: 'center', justifyContent: 'center',
             opacity: sending || !input.trim() ? 0.3 : 1,
           }}
         >
-          <Feather name="send" size={20} color={theme.colors.accentText} />
+          <Feather name="send" size={20} color={colors.accentText} />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

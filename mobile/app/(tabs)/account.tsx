@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
-import { theme } from '../../lib/theme'
+import { theme, useThemeColors } from '../../lib/theme'
 import { supabase } from '../../lib/supabase'
 import { getCustomerAccount, loadProject } from '../../lib/api'
 import type { CustomerAccount, CustomerProject } from '../../lib/types'
 
 export default function AccountScreen() {
+  const colors = useThemeColors()
   const [account, setAccount] = useState<CustomerAccount | null>(null)
   const [project, setProject] = useState<CustomerProject | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,8 +41,8 @@ export default function AccountScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.bg }}>
-        <ActivityIndicator size="large" color={theme.colors.accent} />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg }}>
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     )
   }
@@ -50,47 +51,47 @@ export default function AccountScreen() {
 
   const Row = ({ icon, label, value }: { icon: string; label: string; value: string }) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }}>
-      <Feather name={icon as any} size={16} color={theme.colors.accent} />
+      <Feather name={icon as any} size={16} color={colors.accent} />
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 11, color: theme.colors.textMuted, fontFamily: 'Inter_400Regular' }}>{label}</Text>
-        <Text style={{ fontSize: 14, color: theme.colors.text, fontFamily: 'Inter_500Medium', marginTop: 1 }}>{value}</Text>
+        <Text style={{ fontSize: 11, color: colors.textMuted, fontFamily: 'Inter_400Regular' }}>{label}</Text>
+        <Text style={{ fontSize: 14, color: colors.text, fontFamily: 'Inter_500Medium', marginTop: 1 }}>{value}</Text>
       </View>
     </View>
   )
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }}
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }}
       contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: 32 }}>
-      <Text style={{ fontSize: 22, fontWeight: '700', color: theme.colors.text, fontFamily: 'Inter_700Bold' }}>Account</Text>
+      <Text style={{ fontSize: 22, fontWeight: '700', color: colors.text, fontFamily: 'Inter_700Bold' }}>Account</Text>
 
       {/* Profile */}
       <View style={{
-        backgroundColor: theme.colors.surface, borderRadius: theme.radius.xl,
+        backgroundColor: colors.surface, borderRadius: theme.radius.xl,
         padding: 20, marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 16,
-        borderWidth: 1, borderColor: theme.colors.borderLight, ...theme.shadow.card,
+        borderWidth: 1, borderColor: colors.borderLight, ...theme.shadow.card,
       }}>
         <View style={{
           width: 56, height: 56, borderRadius: 28,
-          backgroundColor: theme.colors.accentLight,
+          backgroundColor: colors.accentLight,
           alignItems: 'center', justifyContent: 'center',
         }}>
-          <Text style={{ fontSize: 22, fontWeight: '700', color: theme.colors.accent }}>
+          <Text style={{ fontSize: 22, fontWeight: '700', color: colors.accent }}>
             {account.name.charAt(0).toUpperCase()}
           </Text>
         </View>
         <View>
-          <Text style={{ fontSize: 16, fontWeight: '600', color: theme.colors.text, fontFamily: 'Inter_600SemiBold' }}>{account.name}</Text>
-          <Text style={{ fontSize: 13, color: theme.colors.textMuted, fontFamily: 'Inter_400Regular' }}>{account.email}</Text>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, fontFamily: 'Inter_600SemiBold' }}>{account.name}</Text>
+          <Text style={{ fontSize: 13, color: colors.textMuted, fontFamily: 'Inter_400Regular' }}>{account.email}</Text>
         </View>
       </View>
 
       {/* Contact */}
       <View style={{
-        backgroundColor: theme.colors.surface, borderRadius: theme.radius.xl,
+        backgroundColor: colors.surface, borderRadius: theme.radius.xl,
         padding: 20, marginTop: 12,
-        borderWidth: 1, borderColor: theme.colors.borderLight, ...theme.shadow.card,
+        borderWidth: 1, borderColor: colors.borderLight, ...theme.shadow.card,
       }}>
-        <Text style={{ fontSize: 11, fontWeight: '600', color: theme.colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, fontFamily: 'Inter_600SemiBold' }}>
+        <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, fontFamily: 'Inter_600SemiBold' }}>
           Contact
         </Text>
         <Row icon="mail" label="Email" value={account.email} />
@@ -100,11 +101,11 @@ export default function AccountScreen() {
 
       {/* Project */}
       <View style={{
-        backgroundColor: theme.colors.surface, borderRadius: theme.radius.xl,
+        backgroundColor: colors.surface, borderRadius: theme.radius.xl,
         padding: 20, marginTop: 12,
-        borderWidth: 1, borderColor: theme.colors.borderLight, ...theme.shadow.card,
+        borderWidth: 1, borderColor: colors.borderLight, ...theme.shadow.card,
       }}>
-        <Text style={{ fontSize: 11, fontWeight: '600', color: theme.colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, fontFamily: 'Inter_600SemiBold' }}>
+        <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, fontFamily: 'Inter_600SemiBold' }}>
           Project
         </Text>
         <Row icon="hash" label="Project ID" value={account.project_id} />
@@ -114,19 +115,19 @@ export default function AccountScreen() {
 
       {/* Security */}
       <View style={{
-        backgroundColor: theme.colors.surface, borderRadius: theme.radius.xl,
+        backgroundColor: colors.surface, borderRadius: theme.radius.xl,
         padding: 20, marginTop: 12,
-        borderWidth: 1, borderColor: theme.colors.borderLight, ...theme.shadow.card,
+        borderWidth: 1, borderColor: colors.borderLight, ...theme.shadow.card,
       }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <Feather name="shield" size={16} color={theme.colors.accent} />
-          <Text style={{ fontSize: 11, fontWeight: '600', color: theme.colors.textMuted, textTransform: 'uppercase', fontFamily: 'Inter_600SemiBold' }}>Security</Text>
+          <Feather name="shield" size={16} color={colors.accent} />
+          <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', fontFamily: 'Inter_600SemiBold' }}>Security</Text>
         </View>
-        <Text style={{ fontSize: 12, color: theme.colors.textMuted, fontFamily: 'Inter_400Regular', lineHeight: 18 }}>
+        <Text style={{ fontSize: 12, color: colors.textMuted, fontFamily: 'Inter_400Regular', lineHeight: 18 }}>
           Signed in via secure email link. Your data is encrypted and protected.
         </Text>
         {account.last_login_at && (
-          <Text style={{ fontSize: 10, color: theme.colors.textMuted, marginTop: 4 }}>
+          <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 4 }}>
             Last login: {new Date(account.last_login_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
           </Text>
         )}
@@ -135,19 +136,19 @@ export default function AccountScreen() {
       {/* Sign Out */}
       <TouchableOpacity onPress={handleSignOut} activeOpacity={0.7}
         style={{
-          backgroundColor: theme.colors.surface, borderRadius: theme.radius.xl,
+          backgroundColor: colors.surface, borderRadius: theme.radius.xl,
           padding: 16, marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-          borderWidth: 1, borderColor: theme.colors.borderLight,
+          borderWidth: 1, borderColor: colors.borderLight,
         }}>
-        <Feather name="log-out" size={16} color={theme.colors.error} />
-        <Text style={{ fontSize: 14, fontWeight: '500', color: theme.colors.error, fontFamily: 'Inter_500Medium' }}>Sign Out</Text>
+        <Feather name="log-out" size={16} color={colors.error} />
+        <Text style={{ fontSize: 14, fontWeight: '500', color: colors.error, fontFamily: 'Inter_500Medium' }}>Sign Out</Text>
       </TouchableOpacity>
 
       {/* Branding */}
       <View style={{ alignItems: 'center', marginTop: 32 }}>
-        <Text style={{ fontSize: 13, fontWeight: '500', color: theme.colors.textMuted, fontFamily: 'Inter_500Medium' }}>MicroGRID</Text>
-        <Text style={{ fontSize: 10, color: theme.colors.textMuted }}>powered by EDGE</Text>
-        <Text style={{ fontSize: 9, color: theme.colors.textMuted, marginTop: 4 }}>Dependable Power. Predictable Cost.</Text>
+        <Text style={{ fontSize: 13, fontWeight: '500', color: colors.textMuted, fontFamily: 'Inter_500Medium' }}>MicroGRID</Text>
+        <Text style={{ fontSize: 10, color: colors.textMuted }}>powered by EDGE</Text>
+        <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 4 }}>Dependable Power. Predictable Cost.</Text>
       </View>
     </ScrollView>
   )
