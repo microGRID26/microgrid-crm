@@ -153,7 +153,7 @@ export default function DashboardScreen() {
       </View>
 
       {/* SLA Countdown */}
-      {!isComplete && slaRemaining !== null && (
+      {!isComplete && slaRemaining !== null && slaRemaining > 0 && (
         <View style={{
           backgroundColor: colors.surface, borderRadius: theme.radius.xl,
           padding: 20, marginTop: 12,

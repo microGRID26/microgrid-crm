@@ -12,12 +12,12 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
-  const [customerName, setCustomerName] = useState('there')
+  const [customerName, setCustomerName] = useState<string | null>(null)
   const scrollRef = useRef<ScrollView>(null)
 
   useEffect(() => {
     getCustomerAccount().then(acct => {
-      if (acct) setCustomerName(acct.name.split(' ')[0])
+      setCustomerName(acct ? acct.name.split(' ')[0] : 'there')
     })
   }, [])
 
@@ -61,7 +61,7 @@ export default function ChatScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: 16 }}
       >
-        {messages.length === 0 ? (
+        {messages.length === 0 && customerName ? (
           /* Welcome */
           <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 80 }}>
             <View style={{

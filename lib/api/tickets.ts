@@ -313,6 +313,20 @@ export async function addTicketComment(ticketId: string, author: string, authorI
   // Touch updated_at so mobile badge can detect new activity
   await db().from('tickets').update({ updated_at: new Date().toISOString() }).eq('id', ticketId)
 
+  // Send push notification to customer (fire-and-forget, non-internal only)
+  if (!isInternal && ticket?.project_id) {
+    fetch('/api/portal/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId: ticket.project_id,
+        title: 'MicroGRID Support',
+        body: message.length > 100 ? message.slice(0, 100) + '...' : message,
+        data: { type: 'ticket_reply', ticketId },
+      }),
+    }).catch(() => {}) // fire-and-forget
+  }
+
   return true
 }
 

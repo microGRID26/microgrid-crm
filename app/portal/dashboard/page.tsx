@@ -124,7 +124,7 @@ export default function PortalDashboard() {
       </div>
 
       {/* SLA Countdown — only show if not complete */}
-      {!isComplete && slaRemaining !== null && (
+      {!isComplete && slaRemaining !== null && slaRemaining > 0 && (
         <div className="rounded-2xl p-5 border" style={{ backgroundColor: 'var(--portal-surface)', borderColor: 'var(--portal-border-light)' }}>
           <div className="flex items-center gap-3">
             <div className="relative w-16 h-16">

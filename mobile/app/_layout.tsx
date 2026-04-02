@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen'
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter'
 import { supabase } from '../lib/supabase'
 import { ThemeContext, getThemeColors } from '../lib/theme'
+import { registerForPushNotifications } from '../lib/notifications'
 import type { Session } from '@supabase/supabase-js'
 
 SplashScreen.preventAutoHideAsync()
@@ -57,6 +58,11 @@ export default function RootLayout() {
       router.replace('/(auth)/login')
     } else if (session && inAuthGroup) {
       router.replace('/(tabs)')
+    }
+
+    // Register for push notifications once authenticated
+    if (session && !inAuthGroup) {
+      registerForPushNotifications().catch(() => {})
     }
   }, [session, segments, initializing])
 
