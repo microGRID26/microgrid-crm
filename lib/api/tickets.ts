@@ -312,6 +312,12 @@ export async function addTicketComment(ticketId: string, author: string, authorI
   return true
 }
 
+export async function deleteTicketComment(commentId: string): Promise<boolean> {
+  const { error } = await db().from('ticket_comments').delete().eq('id', commentId)
+  if (error) { console.error('[deleteTicketComment]', error.message); return false }
+  return true
+}
+
 // ── History ──────────────────────────────────────────────────────────────────
 
 export async function loadTicketHistory(ticketId: string): Promise<TicketHistory[]> {

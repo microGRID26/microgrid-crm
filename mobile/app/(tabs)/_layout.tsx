@@ -1,28 +1,57 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Tabs } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import { useThemeColors, theme } from '../../lib/theme'
-import { getCustomerAccount, loadTickets } from '../../lib/api'
+import { getCustomerAccount } from '../../lib/api'
+import { supabase } from '../../lib/supabase'
+import * as SecureStore from 'expo-secure-store'
 import * as Haptics from 'expo-haptics'
 
 export default function TabLayout() {
   const colors = useThemeColors()
-  const [openTickets, setOpenTickets] = useState(0)
+  const [unreadCount, setUnreadCount] = useState(0)
 
-  // Load badge counts
-  const loadBadges = useCallback(async () => {
-    const acct = await getCustomerAccount()
-    if (!acct) return
-    const tickets = await loadTickets(acct.project_id)
-    setOpenTickets(tickets.filter(t => !['resolved', 'closed'].includes(t.status)).length)
+  const checkUnread = useCallback(async () => {
+    try {
+      const acct = await getCustomerAccount()
+      if (!acct) return
+      const lastSeen = await SecureStore.getItemAsync('mg_support_seen') ?? '2000-01-01T00:00:00Z'
+
+      // Get all tickets for this project
+      const { data: tickets } = await supabase
+        .from('tickets')
+        .select('id')
+        .eq('project_id', acct.project_id)
+        .not('status', 'in', '("closed")')
+
+      if (!tickets?.length) { setUnreadCount(0); return }
+
+      // Check each ticket for new non-customer comments since last seen
+      const ticketIds = tickets.map((t: any) => t.id)
+      const { count } = await supabase
+        .from('ticket_comments')
+        .select('id', { count: 'exact', head: true })
+        .in('ticket_id', ticketIds)
+        .neq('author', acct.name)
+        .eq('is_internal', false)
+        .gt('created_at', lastSeen)
+
+      setUnreadCount(count ?? 0)
+    } catch (err) {
+      console.log('[badge] check failed:', err)
+    }
+  }, [])
+
+  const markSeen = useCallback(async () => {
+    await SecureStore.setItemAsync('mg_support_seen', new Date().toISOString())
+    setUnreadCount(0)
   }, [])
 
   useEffect(() => {
-    loadBadges()
-    // Refresh badges every 30 seconds
-    const interval = setInterval(loadBadges, 30000)
+    checkUnread()
+    const interval = setInterval(checkUnread, 30000)
     return () => clearInterval(interval)
-  }, [loadBadges])
+  }, [checkUnread])
 
   return (
     <Tabs
@@ -45,9 +74,12 @@ export default function TabLayout() {
         },
       }}
       screenListeners={{
-        tabPress: () => {
+        tabPress: (e) => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-          loadBadges()
+          // Clear badge when Support tab is tapped
+          if (e.target?.startsWith('tickets')) {
+            markSeen()
+          }
         },
       }}
     >
@@ -63,7 +95,7 @@ export default function TabLayout() {
         options={{
           title: 'Support',
           tabBarIcon: ({ color, size }) => <Feather name="message-square" size={size} color={color} />,
-          tabBarBadge: openTickets > 0 ? openTickets : undefined,
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
           tabBarBadgeStyle: {
             backgroundColor: colors.accent,
             color: colors.accentText,

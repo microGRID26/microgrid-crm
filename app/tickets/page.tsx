@@ -11,7 +11,7 @@ import { db } from '@/lib/db'
 import { loadProjectById, loadUsers, searchProjects } from '@/lib/api'
 import {
   loadTickets, createTicket, updateTicket, updateTicketStatus,
-  loadTicketComments, addTicketComment, loadTicketHistory, addTicketHistory,
+  loadTicketComments, addTicketComment, deleteTicketComment, loadTicketHistory, addTicketHistory,
   loadTicketCategories, loadResolutionCodes,
   getValidTransitions, getSLAStatus,
   TICKET_STATUSES, TICKET_STATUS_LABELS, TICKET_STATUS_COLORS,
@@ -71,6 +71,7 @@ function TicketsPageInner() {
   const [comments, setComments] = useState<TicketComment[]>([])
   const [history, setHistory] = useState<TicketHistory[]>([])
   const [newComment, setNewComment] = useState('')
+  const [commentInternal, setCommentInternal] = useState(false)
   const [detailTab, setDetailTab] = useState<'comments' | 'history' | 'details'>('comments')
 
   // Resolution modal
@@ -735,29 +736,60 @@ function TicketsPageInner() {
                                 <div className="space-y-2">
                                   {comments.length === 0 && <p className="text-[11px] text-gray-500">No comments yet.</p>}
                                   {comments.map(c => (
-                                    <div key={c.id} className={cn('rounded-lg p-2.5 text-xs', c.is_internal ? 'bg-amber-900/20 border border-amber-700/30' : 'bg-gray-800')}>
+                                    <div key={c.id} className={cn('rounded-lg p-2.5 text-xs group relative', c.is_internal ? 'bg-amber-900/20 border border-amber-700/30' : 'bg-gray-800')}>
                                       <div className="flex justify-between mb-1">
                                         <span className="text-white font-medium">{c.author}</span>
-                                        <span className="text-gray-500 text-[10px]">{new Date(c.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-gray-500 text-[10px]">{new Date(c.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                                          {user?.isSuperAdmin && (
+                                            <button
+                                              onClick={async () => {
+                                                if (!confirm('Delete this comment?')) return
+                                                await deleteTicketComment(c.id)
+                                                const updated = await loadTicketComments(t.id)
+                                                setComments(updated)
+                                              }}
+                                              className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all">
+                                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                              </svg>
+                                            </button>
+                                          )}
+                                        </div>
                                       </div>
                                       <p className="text-gray-300 whitespace-pre-wrap">{c.message.split(/(@[A-Z][a-z]+ [A-Z][a-z]+)/g).map((part, i) =>
                                         part.startsWith('@') ? <span key={i} className="text-green-400 font-medium">{part}</span> : <React.Fragment key={i}>{part}</React.Fragment>
                                       )}</p>
-                                      {c.is_internal && <span className="text-[9px] text-amber-400 font-medium mt-1 block">INTERNAL NOTE</span>}
+                                      {c.is_internal && <span className="text-[9px] text-amber-400 font-medium mt-1 block">INTERNAL NOTE — not visible to customer</span>}
                                     </div>
                                   ))}
                                   <div className="mt-2">
                                     <MentionNoteInput
                                       compact
-                                      placeholder="Add a comment... Type @ to mention someone"
+                                      placeholder={commentInternal ? "Internal note (hidden from customer)..." : "Reply to customer... Type @ to mention someone"}
                                       projectId={t.project_id ?? ''}
                                       currentUserName={userName ?? 'Unknown'}
                                       onSubmit={async (text) => {
-                                        await addTicketComment(t.id, userName ?? 'Unknown', user?.id, text)
+                                        await addTicketComment(t.id, userName ?? 'Unknown', user?.id, text, commentInternal)
                                         const c = await loadTicketComments(t.id)
                                         setComments(c)
                                       }}
                                     />
+                                    <div className="flex items-center gap-2 mt-1.5">
+                                      <button
+                                        onClick={() => setCommentInternal(!commentInternal)}
+                                        className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                                          commentInternal
+                                            ? 'bg-amber-900/30 text-amber-400 border border-amber-700/50'
+                                            : 'bg-gray-800 text-gray-500 hover:text-gray-300'
+                                        }`}>
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={commentInternal ? "M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M3 3l18 18" : "M15 12a3 3 0 11-6 0 3 3 0 016 0z"} />
+                                          {!commentInternal && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />}
+                                        </svg>
+                                        {commentInternal ? 'Internal (hidden from customer)' : 'Visible to customer'}
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               )}

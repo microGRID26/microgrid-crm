@@ -46,13 +46,17 @@ export default function TicketDetailScreen() {
   const [feedbackGiven, setFeedbackGiven] = useState(false)
 
   const loadAll = useCallback(async () => {
-    if (!id) return
-    const [c, acct] = await Promise.all([
-      loadComments(id),
-      getCustomerAccount(),
-    ])
-    setComments(c)
-    if (acct) setCustomerName(acct.name)
+    if (!id) { setLoading(false); return }
+    try {
+      const [c, acct] = await Promise.all([
+        loadComments(id).catch(() => []),
+        getCustomerAccount().catch(() => null),
+      ])
+      setComments(c as any[])
+      if (acct) setCustomerName(acct.name)
+    } catch (err) {
+      console.error('[ticket detail] load failed:', err)
+    }
     setLoading(false)
   }, [id])
 
