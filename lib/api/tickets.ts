@@ -295,7 +295,12 @@ export async function updateTicketStatus(
 // ── Comments ─────────────────────────────────────────────────────────────────
 
 export async function loadTicketComments(ticketId: string): Promise<TicketComment[]> {
-  const { data, error } = await db().from('ticket_comments').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true }).limit(500)
+  const { data, error } = await db().from('ticket_comments')
+    .select('*')
+    .eq('ticket_id', ticketId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+    .limit(500)
   if (error) console.error('[loadTicketComments]', error.message)
   return (data ?? []) as TicketComment[]
 }
@@ -330,10 +335,23 @@ export async function addTicketComment(ticketId: string, author: string, authorI
   return true
 }
 
-export async function deleteTicketComment(commentId: string): Promise<boolean> {
-  const { error } = await db().from('ticket_comments').delete().eq('id', commentId)
+export async function deleteTicketComment(commentId: string, deletedBy: string): Promise<boolean> {
+  const { error } = await db().from('ticket_comments')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy })
+    .eq('id', commentId)
   if (error) { console.error('[deleteTicketComment]', error.message); return false }
   return true
+}
+
+export async function loadDeletedComments(ticketId: string): Promise<TicketComment[]> {
+  const { data, error } = await db().from('ticket_comments')
+    .select('*')
+    .eq('ticket_id', ticketId)
+    .not('deleted_at', 'is', null)
+    .order('created_at', { ascending: true })
+    .limit(200)
+  if (error) console.error('[loadDeletedComments]', error.message)
+  return (data ?? []) as TicketComment[]
 }
 
 // ── History ──────────────────────────────────────────────────────────────────

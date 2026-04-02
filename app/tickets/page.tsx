@@ -11,7 +11,7 @@ import { db } from '@/lib/db'
 import { loadProjectById, loadUsers, searchProjects } from '@/lib/api'
 import {
   loadTickets, createTicket, updateTicket, updateTicketStatus,
-  loadTicketComments, addTicketComment, deleteTicketComment, loadTicketHistory, addTicketHistory,
+  loadTicketComments, addTicketComment, deleteTicketComment, loadDeletedComments, loadTicketHistory, addTicketHistory,
   loadTicketCategories, loadResolutionCodes,
   getValidTransitions, getSLAStatus,
   TICKET_STATUSES, TICKET_STATUS_LABELS, TICKET_STATUS_COLORS,
@@ -72,6 +72,8 @@ function TicketsPageInner() {
   const [history, setHistory] = useState<TicketHistory[]>([])
   const [newComment, setNewComment] = useState('')
   const [commentInternal, setCommentInternal] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [deletedComments, setDeletedComments] = useState<any[]>([])
   const [detailTab, setDetailTab] = useState<'comments' | 'history' | 'details'>('comments')
 
   // Resolution modal
@@ -744,8 +746,8 @@ function TicketsPageInner() {
                                           {user?.isSuperAdmin && (
                                             <button
                                               onClick={async () => {
-                                                if (!confirm('Delete this comment?')) return
-                                                await deleteTicketComment(c.id)
+                                                if (!confirm('Delete this comment? It will be hidden but preserved in audit history.')) return
+                                                await deleteTicketComment(c.id, userName ?? 'Admin')
                                                 const updated = await loadTicketComments(t.id)
                                                 setComments(updated)
                                               }}
@@ -789,7 +791,53 @@ function TicketsPageInner() {
                                         </svg>
                                         {commentInternal ? 'Internal (hidden from customer)' : 'Visible to customer'}
                                       </button>
+                                      {user?.isAdmin && (
+                                        <button
+                                          onClick={async () => {
+                                            if (showDeleted) {
+                                              setShowDeleted(false)
+                                              setDeletedComments([])
+                                            } else {
+                                              const del = await loadDeletedComments(t.id)
+                                              setDeletedComments(del)
+                                              setShowDeleted(true)
+                                            }
+                                          }}
+                                          className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                                            showDeleted
+                                              ? 'bg-red-900/30 text-red-400 border border-red-700/50'
+                                              : 'bg-gray-800 text-gray-500 hover:text-gray-300'
+                                          }`}>
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                          </svg>
+                                          {showDeleted ? 'Hide audit history' : 'Show deleted'}
+                                        </button>
+                                      )}
                                     </div>
+                                    {/* Deleted comments audit trail */}
+                                    {showDeleted && deletedComments.length > 0 && (
+                                      <div className="mt-3 pt-3 border-t border-red-800/30">
+                                        <p className="text-[10px] text-red-400 font-medium uppercase tracking-wider mb-2">Deleted Comments (Audit Trail)</p>
+                                        <div className="space-y-2">
+                                          {deletedComments.map((c: any) => (
+                                            <div key={c.id} className="rounded-lg p-2.5 text-xs bg-red-900/10 border border-red-800/20 opacity-70">
+                                              <div className="flex justify-between mb-1">
+                                                <span className="text-gray-400 font-medium">{c.author}</span>
+                                                <span className="text-gray-600 text-[10px]">{new Date(c.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                                              </div>
+                                              <p className="text-gray-500 whitespace-pre-wrap line-through">{c.message}</p>
+                                              <span className="text-[9px] text-red-400 mt-1 block">
+                                                Deleted by {c.deleted_by} on {new Date(c.deleted_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {showDeleted && deletedComments.length === 0 && (
+                                      <p className="mt-2 text-[10px] text-gray-600">No deleted comments for this ticket.</p>
+                                    )}
                                   </div>
                                 </div>
                               )}
