@@ -16,9 +16,14 @@ interface CacheEntry<T> {
  * Get cached data. Returns null if no cache or expired beyond hard limit (24h).
  */
 export function getCache<T>(key: string): T | null {
-  // SecureStore is async but we need sync for instant render
-  // Use the in-memory fallback
-  return memCache[CACHE_PREFIX + key]?.data ?? null
+  const entry = memCache[CACHE_PREFIX + key]
+  if (!entry) return null
+  // Expire after 24 hours
+  if (Date.now() - entry.timestamp > 24 * 60 * 60 * 1000) {
+    delete memCache[CACHE_PREFIX + key]
+    return null
+  }
+  return entry.data
 }
 
 /**

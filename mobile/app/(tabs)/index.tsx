@@ -87,7 +87,7 @@ export default function DashboardScreen() {
   }
 
   const firstName = account.name.split(' ')[0]
-  const currentStageIdx = STAGE_ORDER.indexOf(project.stage)
+  const currentStageIdx = Math.max(0, STAGE_ORDER.indexOf(project.stage))
   const isComplete = project.stage === 'complete'
 
   // SLA countdown

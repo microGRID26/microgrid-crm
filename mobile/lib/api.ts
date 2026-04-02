@@ -35,7 +35,7 @@ export async function loadProject(projectId: string): Promise<CustomerProject | 
     .eq('id', projectId)
     .single()
 
-  if (error) return null
+  if (error) { console.error('[loadProject]', error.message); return null }
   return data as CustomerProject
 }
 

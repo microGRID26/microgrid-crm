@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { View, Text, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Image } from 'react-native'
+import { View, Text, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Keyboard } from 'react-native'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
@@ -83,7 +83,7 @@ export default function TicketDetailScreen() {
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    return () => { channel.unsubscribe(); supabase.removeChannel(channel) }
   }, [id])
 
   // Realtime subscription for ticket status changes
@@ -103,7 +103,7 @@ export default function TicketDetailScreen() {
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    return () => { channel.unsubscribe(); supabase.removeChannel(channel) }
   }, [id])
 
   const scrollToBottom = useCallback(() => {
@@ -116,10 +116,10 @@ export default function TicketDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     await addComment(id, newComment.trim(), customerName)
     setNewComment('')
+    Keyboard.dismiss()
     const c = await loadComments(id)
     setComments(c)
     setSending(false)
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100)
   }
 
   const handleFeedback = async (positive: boolean) => {

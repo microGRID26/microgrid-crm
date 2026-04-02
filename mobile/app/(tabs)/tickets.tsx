@@ -67,7 +67,7 @@ export default function TicketsScreen() {
     if (!account) return
     const interval = setInterval(() => {
       loadTickets(account.project_id).then(setTickets)
-    }, 10000)
+    }, 30000)
     return () => clearInterval(interval)
   }, [account])
 
