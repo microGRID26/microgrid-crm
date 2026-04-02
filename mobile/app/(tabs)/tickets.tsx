@@ -3,9 +3,9 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, RefreshControl, Ac
 import { Feather } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { theme, useThemeColors } from '../../lib/theme'
-import { getCustomerAccount, loadTickets, createTicket } from '../../lib/api'
+import { getCustomerAccount, loadTickets, createTicket, loadComments, addComment } from '../../lib/api'
 import { TICKET_CATEGORIES } from '../../lib/constants'
-import type { CustomerAccount, CustomerTicket } from '../../lib/types'
+import type { CustomerAccount, CustomerTicket, TicketComment } from '../../lib/types'
 
 function getStatusConfig(colors: any): Record<string, { label: string; color: string }> {
   return {
@@ -28,6 +28,9 @@ export default function TicketsScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [comments, setComments] = useState<TicketComment[]>([])
+  const [newComment, setNewComment] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('service')
@@ -42,6 +45,14 @@ export default function TicketsScreen() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Auto-refresh every 15 seconds for real-time status updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (account) loadTickets(account.project_id).then(setTickets)
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [account])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -124,30 +135,133 @@ export default function TicketsScreen() {
           ) : tickets.map(ticket => {
             const statusMap = getStatusConfig(colors)
             const status = statusMap[ticket.status] ?? statusMap.open
+            const isExpanded = expandedId === ticket.id
             return (
-              <TouchableOpacity key={ticket.id} activeOpacity={0.7}
-                style={{
-                  backgroundColor: colors.surface, borderRadius: theme.radius.xl,
-                  padding: 16, borderWidth: 1, borderColor: colors.borderLight,
-                  ...theme.shadow.card,
-                }}>
-                <Text style={{ fontSize: 14, fontWeight: '500', color: colors.text, fontFamily: 'Inter_500Medium' }} numberOfLines={1}>
-                  {ticket.title}
-                </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                  <View style={{
-                    backgroundColor: status.color + '20', paddingHorizontal: 8, paddingVertical: 2,
-                    borderRadius: theme.radius.pill,
+              <View key={ticket.id}>
+                <TouchableOpacity activeOpacity={0.7}
+                  onPress={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                    if (isExpanded) {
+                      setExpandedId(null)
+                    } else {
+                      setExpandedId(ticket.id)
+                      const c = await loadComments(ticket.id)
+                      setComments(c)
+                    }
+                  }}
+                  style={{
+                    backgroundColor: colors.surface, borderRadius: isExpanded ? theme.radius.xl : theme.radius.xl,
+                    borderBottomLeftRadius: isExpanded ? 0 : theme.radius.xl,
+                    borderBottomRightRadius: isExpanded ? 0 : theme.radius.xl,
+                    padding: 16, borderWidth: 1, borderColor: isExpanded ? colors.accent : colors.borderLight,
+                    borderBottomWidth: isExpanded ? 0 : 1,
+                    ...theme.shadow.card,
                   }}>
-                    <Text style={{ fontSize: 10, fontWeight: '500', color: status.color, fontFamily: 'Inter_500Medium' }}>
-                      {status.label}
-                    </Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: colors.text, fontFamily: 'Inter_500Medium' }} numberOfLines={isExpanded ? undefined : 1}>
+                        {ticket.title}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                        <View style={{
+                          backgroundColor: status.color + '20', paddingHorizontal: 8, paddingVertical: 2,
+                          borderRadius: theme.radius.pill,
+                        }}>
+                          <Text style={{ fontSize: 10, fontWeight: '500', color: status.color, fontFamily: 'Inter_500Medium' }}>
+                            {status.label}
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 10, color: colors.textMuted }}>
+                          {new Date(ticket.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </Text>
+                      </View>
+                    </View>
+                    <Feather name={isExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textMuted} />
                   </View>
-                  <Text style={{ fontSize: 10, color: colors.textMuted }}>
-                    {new Date(ticket.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+
+                {/* Expanded detail with comments */}
+                {isExpanded && (
+                  <View style={{
+                    backgroundColor: colors.surfaceAlt, borderWidth: 1, borderTopWidth: 0,
+                    borderColor: colors.accent,
+                    borderBottomLeftRadius: theme.radius.xl, borderBottomRightRadius: theme.radius.xl,
+                    padding: 16,
+                  }}>
+                    {ticket.description ? (
+                      <Text style={{ fontSize: 13, color: colors.textSecondary, fontFamily: 'Inter_400Regular', marginBottom: 12 }}>
+                        {ticket.description}
+                      </Text>
+                    ) : null}
+
+                    <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, fontFamily: 'Inter_600SemiBold' }}>
+                      Conversation
+                    </Text>
+
+                    {comments.length === 0 ? (
+                      <Text style={{ fontSize: 12, color: colors.textMuted, fontFamily: 'Inter_400Regular' }}>
+                        No messages yet
+                      </Text>
+                    ) : (
+                      <View style={{ gap: 8, maxHeight: 200 }}>
+                        {comments.map(c => (
+                          <View key={c.id} style={{ backgroundColor: colors.surface, borderRadius: theme.radius.lg, padding: 12 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                              <Text style={{ fontSize: 10, fontWeight: '500', color: colors.accent, fontFamily: 'Inter_500Medium' }}>{c.author}</Text>
+                              <Text style={{ fontSize: 10, color: colors.textMuted }}>
+                                {new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                              </Text>
+                            </View>
+                            <Text style={{ fontSize: 13, color: colors.text, fontFamily: 'Inter_400Regular', marginTop: 4 }}>{c.message}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Reply input */}
+                    {!['resolved', 'closed'].includes(ticket.status) && (
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                        <TextInput
+                          value={newComment}
+                          onChangeText={setNewComment}
+                          placeholder="Type a reply..."
+                          placeholderTextColor={colors.textMuted}
+                          style={{
+                            flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+                            borderRadius: theme.radius.xl, paddingHorizontal: 12, paddingVertical: 10,
+                            fontSize: 14, color: colors.text, fontFamily: 'Inter_400Regular',
+                          }}
+                          returnKeyType="send"
+                          onSubmitEditing={async () => {
+                            if (!newComment.trim() || !account) return
+                            await addComment(ticket.id, newComment.trim(), account.name)
+                            setNewComment('')
+                            const c = await loadComments(ticket.id)
+                            setComments(c)
+                          }}
+                        />
+                        <TouchableOpacity
+                          onPress={async () => {
+                            if (!newComment.trim() || !account) return
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                            await addComment(ticket.id, newComment.trim(), account.name)
+                            setNewComment('')
+                            const c = await loadComments(ticket.id)
+                            setComments(c)
+                          }}
+                          disabled={!newComment.trim()}
+                          style={{
+                            backgroundColor: colors.accent, borderRadius: theme.radius.xl,
+                            width: 44, height: 44, alignItems: 'center', justifyContent: 'center',
+                            opacity: !newComment.trim() ? 0.3 : 1,
+                          }}>
+                          <Feather name="send" size={16} color={colors.accentText} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
             )
           })}
         </View>

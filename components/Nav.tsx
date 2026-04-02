@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { ConstructionBanner } from '@/components/ConstructionBanner'
 import { Menu, X, ChevronDown, ChevronLeft } from 'lucide-react'
@@ -198,8 +199,18 @@ export function Nav({ active, right, onNewProject }: NavProps) {
   const { user: currentUser, loading } = useCurrentUser()
   const { flags } = useFeatureFlags()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [customerTicketCount, setCustomerTicketCount] = useState(0)
   const isSales = !loading && !!currentUser?.isSales
   const navLinks = isSales ? SALES_LINKS : PRIMARY_LINKS
+
+  // Load customer portal ticket count for badge
+  useEffect(() => {
+    if (loading || !currentUser?.isManager) return
+    db().from('tickets').select('id', { count: 'exact', head: true })
+      .eq('source', 'customer_portal')
+      .not('status', 'in', '("resolved","closed")')
+      .then(({ count }: { count: number | null }) => { if (count) setCustomerTicketCount(count) })
+  }, [loading, currentUser?.isManager])
 
   async function signOut() {
     const supabase = createClient()
@@ -220,12 +231,17 @@ export function Nav({ active, right, onNewProject }: NavProps) {
         <div className="hidden md:flex items-center gap-2">
           {navLinks.map(v => (
             <a key={v.label} href={v.href}
-              className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
+              className={`text-xs px-3 py-1.5 rounded-md transition-colors relative ${
                 v.label === active
                   ? 'bg-gray-800 text-white'
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}>
               {v.label}
+              {v.label === 'Tickets' && customerTicketCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {customerTicketCount}
+                </span>
+              )}
             </a>
           ))}
 

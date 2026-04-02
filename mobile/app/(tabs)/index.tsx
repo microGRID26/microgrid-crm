@@ -37,6 +37,12 @@ export default function DashboardScreen() {
 
   useEffect(() => { load() }, [load])
 
+  // Auto-refresh every 30 seconds for real-time project updates
+  useEffect(() => {
+    const interval = setInterval(load, 30000)
+    return () => clearInterval(interval)
+  }, [load])
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
     await load()
