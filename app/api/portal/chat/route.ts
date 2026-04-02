@@ -162,8 +162,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ response: text })
   } catch (err: any) {
     console.error('[portal chat] error:', err?.message ?? err, err?.status, err?.error)
-    const detail = process.env.NODE_ENV !== 'production' ? `: ${err?.message}` : ''
-    return NextResponse.json({ error: `Unable to process your question right now${detail}` }, { status: 500 })
+    return NextResponse.json({ error: `Atlas error: ${err?.message ?? 'unknown'}` }, { status: 500 })
   }
 }
 
