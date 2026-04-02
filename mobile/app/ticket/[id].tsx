@@ -96,9 +96,9 @@ export default function TicketDetailScreen() {
     return () => { supabase.removeChannel(channel) }
   }, [id])
 
-  useEffect(() => {
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 200)
-  }, [comments])
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100)
+  }, [])
 
   const handleSend = async () => {
     if (!newComment.trim() || !id || sending) return
@@ -161,6 +161,7 @@ export default function TicketDetailScreen() {
           ref={scrollRef}
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: 16, paddingBottom: 8 }}
+          onContentSizeChange={scrollToBottom}
         >
           {/* Description as first message */}
           {description ? (

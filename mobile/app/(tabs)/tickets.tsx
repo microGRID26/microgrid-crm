@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, TextInput, RefreshControl, ActivityIndicator, Modal, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, TextInput, RefreshControl, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, AppState } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
@@ -54,21 +54,21 @@ export default function TicketsScreen() {
 
   useEffect(() => { load() }, [load])
 
-  // Realtime subscription for ticket changes
+  // Refresh when tab gains focus (returning from conversation, app foregrounded)
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && account) loadTickets(account.project_id).then(setTickets)
+    })
+    return () => sub.remove()
+  }, [account])
+
+  // Poll every 10 seconds for status changes (realtime requires REPLICA IDENTITY FULL)
   useEffect(() => {
     if (!account) return
-    const channel = supabase
-      .channel('customer-tickets')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'tickets',
-      }, () => {
-        if (account) loadTickets(account.project_id).then(setTickets)
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
+    const interval = setInterval(() => {
+      loadTickets(account.project_id).then(setTickets)
+    }, 10000)
+    return () => clearInterval(interval)
   }, [account])
 
   const onRefresh = useCallback(async () => {
