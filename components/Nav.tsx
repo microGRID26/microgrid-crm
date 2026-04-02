@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { ConstructionBanner } from '@/components/ConstructionBanner'
-import { Menu, X, ChevronDown } from 'lucide-react'
+import { Menu, X, ChevronDown, ChevronLeft } from 'lucide-react'
 import { NotificationBell } from '@/components/NotificationBell'
 import { GlobalSearch } from '@/components/GlobalSearch'
 import { OrgSwitcher } from '@/components/OrgSwitcher'
@@ -210,7 +210,11 @@ export function Nav({ active, right, onNewProject }: NavProps) {
   return (
     <>
       <nav className="bg-gray-950 border-b border-gray-800 flex items-center gap-2 px-4 py-2 sticky top-0 z-[9998] flex-shrink-0">
-        <span className="text-green-400 font-bold text-base mr-2">MicroGRID</span>
+        {/* Mobile: back button + centered logo */}
+        <button onClick={() => window.history.back()} className="md:hidden text-gray-400 hover:text-white p-1 -ml-1" aria-label="Go back">
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <span className="text-green-400 font-bold text-base mr-2 md:mr-2 md:text-left text-center flex-1 md:flex-initial">MicroGRID</span>
 
         {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-2">
