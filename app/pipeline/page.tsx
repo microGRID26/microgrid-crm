@@ -470,15 +470,24 @@ export default function PipelinePage() {
 
   // Load known financiers from reference table to filter out customer names
   const [knownFinanciers, setKnownFinanciers] = useState<Set<string>>(new Set())
+  const [financierDisplayNames, setFinancierDisplayNames] = useState<Map<string, string>>(new Map())
   useEffect(() => {
-    db().from('financiers').select('name').order('name').limit(500)
-      .then(({ data }: any) => { if (data) setKnownFinanciers(new Set(data.map((f: any) => f.name))) })
+    db().from('financiers').select('name, display_name').order('name').limit(500)
+      .then(({ data }: any) => {
+        if (data) {
+          setKnownFinanciers(new Set(data.map((f: any) => f.name)))
+          setFinancierDisplayNames(new Map(data.map((f: any) => [f.name, f.display_name || f.name])))
+        }
+      })
   }, [])
   const financiers = useMemo(() => {
     const raw = extractedDropdowns.financier ?? []
     if (knownFinanciers.size === 0) return raw
-    return raw.filter(f => knownFinanciers.has(f.label))
-  }, [extractedDropdowns.financier, knownFinanciers])
+    return raw.filter(f => knownFinanciers.has(f.label)).map(f => ({
+      ...f,
+      label: financierDisplayNames.get(f.label) ?? f.label,
+    }))
+  }, [extractedDropdowns.financier, knownFinanciers, financierDisplayNames])
 
   // Auto-open project from URL params
   const [initialTab, setInitialTab] = useState<string | null>(null)
