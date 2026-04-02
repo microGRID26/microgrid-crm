@@ -40,37 +40,40 @@ export async function loadProject(projectId: string): Promise<CustomerProject | 
 }
 
 export async function loadTimeline(projectId: string): Promise<StageHistoryEntry[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('stage_history')
     .select('id, project_id, stage, entered')
     .eq('project_id', projectId)
     .order('entered', { ascending: true })
     .limit(100)
 
+  if (error) console.error('[loadTimeline]', error.message)
   return (data ?? []) as StageHistoryEntry[]
 }
 
 export async function loadSchedule(projectId: string): Promise<CustomerScheduleEntry[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('schedule')
     .select('id, project_id, job_type, date, end_date, time, status, arrival_window')
     .eq('project_id', projectId)
     .order('date', { ascending: true })
     .limit(50)
 
+  if (error) console.error('[loadSchedule]', error.message)
   return (data ?? []) as CustomerScheduleEntry[]
 }
 
 // ── Tickets ─────────────────────────────────────────────────────────────────
 
 export async function loadTickets(projectId: string): Promise<CustomerTicket[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('tickets')
     .select('id, ticket_number, title, description, category, priority, status, created_at, resolved_at')
     .eq('project_id', projectId)
     .order('created_at', { ascending: false })
     .limit(100)
 
+  if (error) console.error('[loadTickets]', error.message)
   return (data ?? []) as CustomerTicket[]
 }
 
@@ -190,8 +193,6 @@ export async function sendAtlasMessage(
   if (!session?.access_token) throw new Error('Not authenticated')
 
   const url = `${API_BASE}/api/portal/chat`
-  console.log('[atlas] POST', url)
-
   const res = await fetch(url, {
     method: 'POST',
     headers: {

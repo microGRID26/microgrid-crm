@@ -19,6 +19,56 @@ export function ReleaseNotes() {
       <div className={sectionCls}>Session 24 - April 2, 2026</div>
 
       <div className={cardCls}>
+        <div className={titleCls}>Customer Portal (Web)</div>
+        <div className={bodyCls}>
+          {bullet([
+            'New /portal/* routes — customer-facing PWA with light theme, bottom tab navigation, and safe-area support',
+            'Dashboard — project stage progress bar, 60-day SLA countdown, upcoming schedule, timeline milestones, system specs',
+            'Support Tickets — create tickets, view status, threaded comments with photo/file attachments via Supabase Storage',
+            'Atlas AI Chat — customer-facing Claude assistant with project context and suggested prompts',
+            'Account page — notification preferences and contact info',
+            'Separate auth flow via customer_accounts table with invite/active/suspended status gating',
+            'Customer-safe data projection — no contract, blocker, pricing, or internal fields exposed',
+          ])}
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Native Mobile App (iOS & Android)</div>
+        <div className={bodyCls}>
+          {bullet([
+            'Standalone Expo React Native app in /mobile directory — same 4-tab layout as web portal (Home, Support, Atlas, Account)',
+            'Push notifications via expo-notifications — permission request, Expo Push Token saved to customer_accounts',
+            'Persistent cache for instant render — stale-while-revalidate pattern with SecureStore',
+            'Dark/light mode support via useColorScheme with ThemeContext',
+            'Haptic feedback on tab switches, pull-to-refresh, ticket unread badge with 30s polling',
+            'Photo and file attachments on tickets via expo-image-picker and expo-document-picker',
+          ])}
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Atlas AI Improvements</div>
+        <div className={bodyCls}>
+          {bullet([
+            'Customer-facing Atlas chat on both web portal and native app — project-aware responses with suggested prompts',
+            'Customer Atlas uses same Claude Sonnet backend but scoped to customer-safe project data only',
+          ])}
+        </div>
+      </div>
+
+      <div className={cardCls}>
+        <div className={titleCls}>Ticket Photo Attachments</div>
+        <div className={bodyCls}>
+          {bullet([
+            'File/photo uploads on ticket comments via Supabase Storage bucket (ticket-attachments)',
+            'Inline image preview for photos, file links for documents',
+            'Supported on internal CRM tickets page, web portal, and native mobile app',
+          ])}
+        </div>
+      </div>
+
+      <div className={cardCls}>
         <div className={titleCls}>Rep Scorecard & Team Analytics</div>
         <div className={bodyCls}>
           {bullet([

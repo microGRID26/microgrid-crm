@@ -33,6 +33,16 @@ Auto-deploys to Vercel on push to `main`.
 - **date-fns** — date manipulation
 - **lucide-react** — icons
 
+### Native Mobile App (`/mobile`)
+
+A standalone Expo React Native app lives in the `/mobile` directory with its own `package.json` and `app.json`. It is the customer-facing companion to the web portal (`/portal/*`). **Not part of the Next.js build** — it has its own dependency tree and dev server.
+
+- **Expo SDK 54** + React Native 0.81 + React 19 + TypeScript
+- **Expo Router 6** (file-based routing) with tab navigation (Home, Support, Atlas, Account)
+- **Supabase** client with `expo-secure-store` for token persistence
+- **Push notifications** via `expo-notifications` (Expo Push Token saved to `customer_accounts.push_token`)
+- **Commands**: `cd mobile && npm install && npx expo start`
+
 ## Testing
 
 **Vitest** + React Testing Library with jsdom. 2,504 tests across 74 files. Supabase globally mocked in `vitest.setup.ts`. Tests focus on business logic, not rendering. When adding features, add corresponding tests.

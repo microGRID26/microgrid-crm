@@ -27,6 +27,10 @@ export const CATEGORIES = [
 ]
 
 export const WHATS_NEW = [
+  { date: 'Apr 2026', title: 'Customer Portal (Web)', topicId: 'getting-started' },
+  { date: 'Apr 2026', title: 'Native Mobile App (iOS & Android)', topicId: 'getting-started' },
+  { date: 'Apr 2026', title: 'Atlas AI for Customers', topicId: 'atlas-reports' },
+  { date: 'Apr 2026', title: 'Ticket Photo Attachments', topicId: 'ticketing-overview' },
   { date: 'Apr 2026', title: 'Rep Scorecard & Team Analytics', topicId: 'sales-teams' },
   { date: 'Apr 2026', title: 'Rep Notes Log', topicId: 'sales-teams' },
   { date: 'Apr 2026', title: 'Ticket Sales Rep Filter', topicId: 'ticketing-overview' },

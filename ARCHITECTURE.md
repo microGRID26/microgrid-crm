@@ -347,6 +347,88 @@ Mobile-responsive company dashboard at `/infographic`. EDGE-scoped data queries 
 ## Task System
 Each stage has prerequisite tasks defined in `lib/tasks.ts` (`TASKS`). Tasks have status lifecycle and automation chain (see CLAUDE.md). AHJ-conditional requirements: WP1 and WPI 2&8 are optional but required for Corpus Christi and Texas City (`AHJ_REQUIRED_TASKS`).
 
+## Customer Portal (Web)
+
+Customer-facing web portal at `/portal/*` routes. PWA-capable with `manifest.json`, safe-area insets, and bottom tab navigation. Light-themed (CSS custom properties via `portal.css`). Completely separate auth flow from the internal CRM — customers authenticate via `customer_accounts` table (not the `users` table).
+
+### Auth Flow
+- `CustomerAuthProvider` wraps all portal pages (in `app/portal/layout.tsx`)
+- `useCustomerAuth()` hook resolves `customer_accounts` by `auth_user_id`, loads project, timeline, and schedule
+- Login at `/portal/login` — Google OAuth or magic link
+- Account status gating: only `active` accounts can access portal (not `invited` or `suspended`)
+- Customer-safe field projection — no contract, blocker, pm_id, org_id, or pricing data exposed
+
+### Pages
+| Route | Description |
+|-------|-------------|
+| `/portal` | Redirects to dashboard |
+| `/portal/login` | Customer login (Google OAuth / magic link) |
+| `/portal/dashboard` | Project status — stage progress bar, 60-day SLA countdown, upcoming schedule, timeline milestones, system specs |
+| `/portal/tickets` | Support tickets — create tickets, view status, threaded comments, photo attachments via Supabase Storage |
+| `/portal/chat` | Atlas AI — customer-facing Claude chat with project context, suggested prompts |
+| `/portal/account` | Account settings — notification preferences, contact info |
+
+### API Layer
+`lib/api/customer-portal.ts` — all queries scoped to a single `project_id`. Exports: `CustomerAccount`, `CustomerProject`, `StageHistoryEntry`, `CustomerScheduleEntry`, `CUSTOMER_STAGE_LABELS`, `CUSTOMER_STAGE_DESCRIPTIONS`, `JOB_TYPE_LABELS`.
+
+### File Attachments (Supabase Storage)
+Ticket comments support photo and file attachments uploaded to the `ticket-attachments` Supabase Storage bucket. Upload flow: file selected → uploaded to `ticket-attachments/{ticket_id}/{timestamp}.{ext}` → public URL retrieved → embedded in comment as image or file link. Supported by both the web portal (`/portal/tickets`) and native mobile app (via `expo-image-picker` and `expo-document-picker`).
+
+## Native Mobile App (`/mobile`)
+
+Standalone React Native app in the `/mobile` directory with its own `package.json` and Expo config. Customer-facing companion to the web portal — same data, native experience.
+
+### Tech Stack
+- **Expo SDK 54** with Expo Router 6 (file-based routing)
+- **React Native 0.81** + React 19 + TypeScript
+- **Supabase** — direct client queries (same project as web CRM)
+- Inter font family via `@expo-google-fonts/inter`
+- `lucide-react-native` for icons, `expo-haptics` for tactile feedback
+- Dark/light mode via `useColorScheme()` + `ThemeContext`
+
+### Bundle IDs
+- iOS: `com.microgridenergy.portal`
+- Android: `com.microgridenergy.portal`
+
+### Architecture
+- `mobile/app/_layout.tsx` — root layout with auth guard, font loading, splash screen, theme provider
+- `mobile/app/(auth)/` — login and OAuth callback screens
+- `mobile/app/(tabs)/` — 4-tab bottom navigation: Home, Support, Atlas, Account
+- `mobile/app/ticket/[id].tsx` — ticket detail screen with threaded comments
+- `mobile/lib/supabase.ts` — Supabase client with `expo-secure-store` for token persistence
+- `mobile/lib/api.ts` — data access layer (mirrors `lib/api/customer-portal.ts`, direct Supabase queries)
+- `mobile/lib/theme.ts` — dark/light theme colors with `ThemeContext`
+- `mobile/lib/cache.ts` — persistent LRU cache for instant render (stale-while-revalidate)
+- `mobile/lib/notifications.ts` — Expo push notification registration and handling
+- `mobile/lib/constants.ts` — stage labels, descriptions, job type labels
+- `mobile/lib/types.ts` — TypeScript types (mirrors web portal types)
+
+### Screens
+| Screen | Tab | Description |
+|--------|-----|-------------|
+| Dashboard | Home | Project status with stage progress, SLA countdown, schedule, milestones |
+| Tickets | Support | Ticket list with unread badge (30s polling), create ticket, photo/file attachments |
+| Ticket Detail | (stack) | Threaded comments, status display, attachment support |
+| Chat | Atlas | AI assistant with project context and suggested prompts |
+| Account | Account | Profile, notification preferences, logout |
+
+### Push Notifications
+- Registration via `expo-notifications` on app startup after auth
+- Permission request flow (iOS/Android)
+- Android notification channel: "MicroGRID" with MAX importance
+- Expo Push Token saved to `customer_accounts.push_token` for server-side sends
+- Notification tap handler for deep linking to relevant screens
+- Badge count from unread ticket updates (via `expo-secure-store` last-seen timestamp)
+
+### Commands
+```bash
+cd mobile
+npm install        # Install dependencies
+npx expo start    # Start dev server (Expo Go or dev client)
+npx expo start --ios     # iOS simulator
+npx expo start --android # Android emulator
+```
+
 ## Route Protection
 
 ### Role Hierarchy

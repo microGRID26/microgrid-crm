@@ -15,7 +15,7 @@ export default function TabLayout() {
   const checkUnread = useCallback(async () => {
     try {
       const acct = await getCustomerAccount()
-      if (!acct) { console.log('[badge] no account'); return }
+      if (!acct) return
       const lastSeen = await SecureStore.getItemAsync('mg_support_seen') ?? '2000-01-01T00:00:00Z'
 
       const { count, error } = await supabase
@@ -26,7 +26,7 @@ export default function TabLayout() {
 
       setUnreadCount(count ?? 0)
     } catch (err) {
-      console.log('[badge] check failed:', err)
+      // Badge check failed silently — not critical
     }
   }, [])
 

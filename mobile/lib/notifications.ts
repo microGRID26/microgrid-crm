@@ -52,7 +52,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
     projectId: undefined, // Uses app.json's extra.eas.projectId
   })
   const token = tokenData.data
-  console.log('[push] Token:', token)
+  // Token saved to customer_accounts for push notifications
 
   // Save token to customer_accounts
   const acct = await getCustomerAccount()

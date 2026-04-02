@@ -39,7 +39,8 @@ export default function ChatScreen() {
       const response = await sendAtlasMessage(updated)
       setMessages(prev => [...prev, { role: 'assistant', content: response }])
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    } catch {
+    } catch (err) {
+      console.error('[atlas] chat failed:', err)
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: 'I\'m having trouble connecting right now. Please try again, or use the Support tab to create a ticket.',
