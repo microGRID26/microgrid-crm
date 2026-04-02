@@ -52,7 +52,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'AI service not configured' }, { status: 503 })
   }
 
-  // Validate auth
+  // Validate auth — supports both cookie-based (web) and Bearer token (mobile)
+  const bearerToken = request.headers.get('authorization')?.replace('Bearer ', '')
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -69,7 +70,16 @@ export async function POST(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Mobile app sends Bearer token — use it to get the user
+  let user = null
+  if (bearerToken) {
+    const { data } = await supabase.auth.getUser(bearerToken)
+    user = data?.user ?? null
+  } else {
+    const { data } = await supabase.auth.getUser()
+    user = data?.user ?? null
+  }
+
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
