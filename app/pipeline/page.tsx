@@ -471,7 +471,7 @@ export default function PipelinePage() {
   // Load known financiers from reference table to filter out customer names
   const [knownFinanciers, setKnownFinanciers] = useState<Set<string>>(new Set())
   useEffect(() => {
-    db().from('financiers').select('name').eq('active', true).order('name').limit(500)
+    db().from('financiers').select('name').order('name').limit(500)
       .then(({ data }: any) => { if (data) setKnownFinanciers(new Set(data.map((f: any) => f.name))) })
   }, [])
   const financiers = useMemo(() => {
