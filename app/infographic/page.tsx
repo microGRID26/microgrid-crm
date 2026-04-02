@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Nav } from '@/components/Nav'
 import { useCurrentUser } from '@/lib/useCurrentUser'
+import { useOrg } from '@/lib/hooks'
 import { db } from '@/lib/db'
 import { fmt$, INTERNAL_DOMAINS, STAGE_LABELS } from '@/lib/utils'
 import { Printer } from 'lucide-react'
@@ -44,6 +45,7 @@ const DEFAULTS: LiveStats = {
 
 export default function InfographicPage() {
   const { user } = useCurrentUser()
+  const { orgId } = useOrg()
   const isSales = user?.isSales ?? false
   const isMicrogridEmployee = INTERNAL_DOMAINS.some(d => user?.email?.endsWith(`@${d}`)) ?? false
   const isAdmin = user?.isAdmin ?? false
@@ -60,7 +62,9 @@ export default function InfographicPage() {
   useEffect(() => {
     async function load() {
       const supabase = db()
-      const { data: projects } = await supabase.from('projects').select('stage, contract').not('disposition', 'in', '("In Service","Loyalty","Cancelled")').limit(5000)
+      let q = supabase.from('projects').select('stage, contract').not('disposition', 'in', '("In Service","Loyalty","Cancelled")').limit(5000)
+      if (orgId) q = q.eq('org_id', orgId)
+      const { data: projects } = await q
       if (!projects) { setLoading(false); return }
       const byStage: Record<string, { count: number; value: number }> = {}
       let totalValue = 0
@@ -76,11 +80,14 @@ export default function InfographicPage() {
         const meta = STAGE_META[s]; const d = byStage[s] ?? { count: 0, value: 0 }
         if (d.count > 0) pipeline.push({ stage: s, count: d.count, value: d.value, label: meta.label, color: meta.color })
       }
+      let ticketsQ = supabase.from('tickets').select('id', { count: 'exact', head: true })
+      let crewsQ = supabase.from('crews').select('id', { count: 'exact', head: true }).eq('active', 'TRUE')
+      if (orgId) { ticketsQ = ticketsQ.eq('org_id', orgId); crewsQ = crewsQ.eq('org_id', orgId) }
       const [tickets, notes, users, crews, ahjs, equipment] = await Promise.all([
-        supabase.from('tickets').select('id', { count: 'exact', head: true }),
+        ticketsQ,
         supabase.from('notes').select('id', { count: 'exact', head: true }),
         supabase.from('users').select('id', { count: 'exact', head: true }).eq('active', true),
-        supabase.from('crews').select('id', { count: 'exact', head: true }).eq('active', 'TRUE'),
+        crewsQ,
         supabase.from('ahjs').select('id', { count: 'exact', head: true }),
         supabase.from('equipment').select('id', { count: 'exact', head: true }),
       ])
@@ -93,7 +100,7 @@ export default function InfographicPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [orgId])
 
   const maxCount = Math.max(...stats.pipeline.map(s => s.count), 1)
 
