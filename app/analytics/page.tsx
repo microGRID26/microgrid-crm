@@ -124,14 +124,20 @@ export default function AnalyticsPage() {
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
       <Nav active="Analytics" />
+
+      {/* Main tabs — top level, bigger text */}
+      <div className="bg-gray-900 border-b border-gray-800 flex flex-wrap px-4 flex-shrink-0" role="tablist" aria-label="Analytics tabs">
+        {(Object.keys(TAB_LABELS) as Tab[]).map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            role="tab" aria-selected={tab === t} aria-controls={`panel-${t}`}
+            className={`text-sm px-5 py-3 font-medium transition-colors border-b-2 whitespace-nowrap ${tab === t ? 'border-green-400 text-green-400' : 'border-transparent text-gray-400 hover:text-white'}`}>
+            {TAB_LABELS[t]}
+          </button>
+        ))}
+      </div>
+
+      {/* Period picker + refresh — below tabs */}
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-2 flex flex-wrap items-center gap-2">
-        <button onClick={handleRefresh} disabled={refreshing}
-          className="text-xs text-gray-400 hover:text-white border border-gray-700 rounded-md px-2 py-1.5 transition-colors disabled:opacity-50 flex items-center gap-1"
-          title="Refresh data"
-          aria-label="Refresh analytics data">
-          <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
-          <span className="hidden sm:inline">Refresh</span>
-        </button>
         <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5">
           {(Object.entries(PERIOD_LABELS) as [Period, string][]).map(([k, v]) => (
             <button key={k} onClick={() => handlePeriodChange(k)}
@@ -151,17 +157,13 @@ export default function AnalyticsPage() {
               className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5" />
           </div>
         )}
-      </div>
-
-      {/* Sub-tabs — wraps on mobile */}
-      <div className="bg-gray-900 border-b border-gray-800 flex flex-wrap px-4 flex-shrink-0" role="tablist" aria-label="Analytics tabs">
-        {(Object.keys(TAB_LABELS) as Tab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            role="tab" aria-selected={tab === t} aria-controls={`panel-${t}`}
-            className={`text-xs px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap ${tab === t ? 'border-green-400 text-green-400' : 'border-transparent text-gray-400 hover:text-white'}`}>
-            {TAB_LABELS[t]}
-          </button>
-        ))}
+        <button onClick={handleRefresh} disabled={refreshing}
+          className="text-xs text-gray-400 hover:text-white border border-gray-700 rounded-md px-2 py-1.5 transition-colors disabled:opacity-50 flex items-center gap-1 ml-auto"
+          title="Refresh data"
+          aria-label="Refresh analytics data">
+          <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
+          <span className="hidden sm:inline">Refresh</span>
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6" role="tabpanel" id={`panel-${tab}`} aria-label={TAB_LABELS[tab]}>
