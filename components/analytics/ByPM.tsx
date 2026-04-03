@@ -3,211 +3,397 @@
 import { useMemo, useState } from 'react'
 import { fmt$, daysAgo, SLA_THRESHOLDS, STAGE_LABELS, STAGE_ORDER } from '@/lib/utils'
 import {
-  MetricCard, MiniBar, PeriodBar, ExportButton, downloadCSV, SortHeader, useSortable, ProjectListModal,
+  MetricCard, PeriodBar, ExportButton, downloadCSV, SortHeader, useSortable, ProjectListModal,
   inRange, PERIOD_LABELS, type AnalyticsData,
 } from './shared'
 import type { Project } from '@/types/database'
 
+// ── Types ────────────────────────────────────────────────────────────────────
+
 interface PMRow {
   pm: string
-  total: number
+  pmId: string
   active: number
   blocked: number
-  value: number
+  portfolioValue: number
   installs: number
-  avgDealSize: number
   avgCycleDays: number
-  slaCompliance: number
+  slaPct: number
+  revenue: number
+  throughput: number
 }
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export function ByPM({ data }: { data: AnalyticsData }) {
   const { projects, period } = data
   const [drillDown, setDrillDown] = useState<{ title: string; projects: Project[] } | null>(null)
 
-  const pmStats = useMemo(() => {
+  // ── PM Row Computation ───────────────────────────────────────────────────
+  const pmRows = useMemo(() => {
+    const now = new Date()
+    const d28 = new Date(now); d28.setDate(d28.getDate() - 28)
+
     const pmMap = new Map<string, string>()
     projects.forEach(p => { if (p.pm_id && p.pm) pmMap.set(p.pm_id, p.pm) })
-    const pmPairs = [...pmMap.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-    return pmPairs.map(({ id: pmId, name: pm }) => {
+
+    const rows: PMRow[] = [...pmMap.entries()].map(([pmId, pm]) => {
       const ps = projects.filter(p => p.pm_id === pmId)
-      const activePs = ps.filter(p => p.stage !== 'complete')
-      const value = activePs.reduce((s, p) => s + (Number(p.contract) || 0), 0)
-      // Avg cycle days for active projects
-      // Avg days in current stage (not days since sale)
-      const cycleDays = activePs.map(p => daysAgo(p.stage_date)).filter(d => d > 0)
-      const avgCycleDays = cycleDays.length > 0 ? Math.round(cycleDays.reduce((s, d) => s + d, 0) / cycleDays.length) : 0
-      // SLA compliance: % of active projects on track
+      const activePs = ps.filter(p => p.stage !== 'complete' && p.disposition !== 'Cancelled' && p.disposition !== 'In Service')
+      const portfolioValue = activePs.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+      const blocked = activePs.filter(p => p.blocker).length
+
+      // Installs in period
+      const installs = ps.filter(p => inRange(p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null), period)).length
+
+      // Avg cycle days (sale to install for completed)
+      const withInstall = ps.filter(p => p.sale_date && p.install_complete_date)
+      const avgCycleDays = withInstall.length > 0
+        ? Math.round(withInstall.reduce((s, p) => {
+            const sale = new Date(p.sale_date! + 'T00:00:00').getTime()
+            const inst = new Date(p.install_complete_date! + 'T00:00:00').getTime()
+            return s + (inst - sale) / 86400000
+          }, 0) / withInstall.length)
+        : 0
+
+      // SLA compliance
       const onTrack = activePs.filter(p => {
         const t = SLA_THRESHOLDS[p.stage] ?? { target: 5, risk: 10, crit: 15 }
         return daysAgo(p.stage_date) <= t.target
       }).length
-      const slaCompliance = activePs.length > 0 ? Math.round((onTrack / activePs.length) * 100) : 100
-      return {
-        pm,
-        total: ps.length,
-        active: activePs.length,
-        blocked: activePs.filter(p => p.blocker).length,
-        value,
-        installs: ps.filter(p => inRange(p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null), period)).length,
-        avgDealSize: activePs.length > 0 ? Math.round(value / activePs.length) : 0,
-        avgCycleDays,
-        slaCompliance,
-      }
-    })
+      const slaPct = activePs.length > 0 ? Math.round((onTrack / activePs.length) * 100) : 100
+
+      // Revenue: SUM(contract) for projects where install_complete_date falls in period
+      const periodCompleted = ps.filter(p => inRange(p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null), period))
+      const revenue = periodCompleted.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+
+      // Throughput: installs in last 28 days / 4
+      const last28Installs = ps.filter(p => {
+        const icd = p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null)
+        if (!icd) return false
+        const d = new Date(icd + 'T00:00:00')
+        return d >= d28 && d <= now
+      })
+      const throughput = Math.round((last28Installs.length / 4) * 10) / 10
+
+      return { pm, pmId, active: activePs.length, blocked, portfolioValue, installs, avgCycleDays, slaPct, revenue, throughput }
+    }).sort((a, b) => a.pm.localeCompare(b.pm))
+
+    return rows
   }, [projects, period])
 
-  const { sorted, sortKey, sortDir, toggleSort } = useSortable<PMRow>(pmStats, 'active')
+  const { sorted, sortKey, sortDir, toggleSort } = useSortable<PMRow>(pmRows, 'active')
 
-  const handleExport = () => {
-    const headers = ['PM', 'Active', 'Blocked', 'Portfolio', 'Avg Deal', 'Avg Cycle', 'SLA %', `Installs (${PERIOD_LABELS[period]})`]
-    const rows = sorted.map(pm => [pm.pm, pm.active, pm.blocked, pm.value, pm.avgDealSize, pm.avgCycleDays, pm.slaCompliance + '%', pm.installs])
-    downloadCSV(`pm-performance-${period}.csv`, headers, rows)
-  }
+  // ── Headline Metrics ─────────────────────────────────────────────────────
+  const headline = useMemo(() => {
+    const totalActive = sorted.reduce((s, pm) => s + pm.active, 0)
+    const totalRevenue = sorted.reduce((s, pm) => s + pm.revenue, 0)
 
-  const handleRowClick = (pm: PMRow) => {
-    const ps = projects.filter(p => p.pm === pm.pm && p.stage !== 'complete')
-    setDrillDown({ title: `${pm.pm} — Active Projects`, projects: ps })
-  }
+    // Avg throughput: total installs in last 28 days / 4
+    const totalThroughput = sorted.reduce((s, pm) => s + pm.throughput, 0)
+    const avgThroughput = sorted.length > 0 ? Math.round((totalThroughput / sorted.length) * 10) / 10 : 0
 
-  // Summary metrics
-  const totalActive = sorted.reduce((s, pm) => s + pm.active, 0)
-  const totalBlocked = sorted.reduce((s, pm) => s + pm.blocked, 0)
-  const totalPortfolio = sorted.reduce((s, pm) => s + pm.value, 0)
-  const totalInstalls = sorted.reduce((s, pm) => s + pm.installs, 0)
-  const avgSLA = sorted.length > 0 ? Math.round(sorted.reduce((s, pm) => s + pm.slaCompliance, 0) / sorted.length) : 0
-  const maxActive = Math.max(...sorted.map(pm => pm.active), 1)
+    // Workload balance: std dev of active projects per PM
+    const mean = sorted.length > 0 ? totalActive / sorted.length : 0
+    const variance = sorted.length > 0
+      ? sorted.reduce((s, pm) => s + Math.pow(pm.active - mean, 2), 0) / sorted.length
+      : 0
+    const stdDev = Math.round(Math.sqrt(variance) * 10) / 10
+    const balanced = stdDev < 5
 
-  // Stage distribution per PM
-  const pmStageData = useMemo(() => {
+    // SLA compliance (weighted average)
+    const totalActiveForSla = sorted.reduce((s, pm) => s + pm.active, 0)
+    const weightedSla = totalActiveForSla > 0
+      ? Math.round(sorted.reduce((s, pm) => s + (pm.slaPct * pm.active), 0) / totalActiveForSla)
+      : 100
+
+    return { totalActive, totalRevenue, avgThroughput, totalThroughput, stdDev, balanced, weightedSla }
+  }, [sorted])
+
+  // ── PM Comparison Bars (normalized 0-100) ────────────────────────────────
+  const comparisonBars = useMemo(() => {
+    const maxPortfolio = Math.max(...sorted.map(pm => pm.active), 1)
+    const maxCycle = Math.max(...sorted.map(pm => pm.avgCycleDays), 1)
+    const maxThroughput = Math.max(...sorted.map(pm => pm.throughput), 0.1)
+    const maxBlockerRate = Math.max(...sorted.map(pm => pm.active > 0 ? (pm.blocked / pm.active) * 100 : 0), 1)
+
     return sorted.map(pm => {
-      const ps = projects.filter(p => p.pm === pm.pm && p.stage !== 'complete')
-      const stages: Record<string, number> = {}
-      STAGE_ORDER.filter(s => s !== 'complete').forEach(s => { stages[s] = 0 })
-      ps.forEach(p => { stages[p.stage] = (stages[p.stage] ?? 0) + 1 })
-      return { pm: pm.pm, stages }
+      const portfolioNorm = Math.round((pm.active / maxPortfolio) * 100)
+      const cycleEfficiency = pm.avgCycleDays > 0 ? Math.round((1 - pm.avgCycleDays / maxCycle) * 100) : 100
+      const sla = pm.slaPct
+      const throughputNorm = Math.round((pm.throughput / maxThroughput) * 100)
+      const blockerRate = pm.active > 0 ? (pm.blocked / pm.active) * 100 : 0
+      const blockerNorm = Math.round((1 - blockerRate / maxBlockerRate) * 100)
+      return { pm: pm.pm, portfolioNorm, cycleEfficiency, sla, throughputNorm, blockerNorm }
+    })
+  }, [sorted])
+
+  // ── Workload Distribution (stacked bars by stage) ────────────────────────
+  const workloadData = useMemo(() => {
+    const stages = STAGE_ORDER.filter(s => s !== 'complete')
+    return sorted.map(pm => {
+      const ps = projects.filter(p => p.pm_id === pm.pmId && p.stage !== 'complete' && p.disposition !== 'Cancelled' && p.disposition !== 'In Service')
+      const stageMap: Record<string, number> = {}
+      stages.forEach(s => { stageMap[s] = 0 })
+      ps.forEach(p => { stageMap[p.stage] = (stageMap[p.stage] ?? 0) + 1 })
+      return { pm: pm.pm, pmId: pm.pmId, total: ps.length, stages: stageMap }
+    })
+  }, [sorted, projects])
+  const maxWorkload = Math.max(...workloadData.map(w => w.total), 1)
+
+  const STAGE_COLORS: Record<string, string> = {
+    evaluation: '#3b82f6', survey: '#8b5cf6', design: '#ec4899',
+    permit: '#f59e0b', install: '#f97316', inspection: '#06b6d4',
+  }
+
+  // ── PM Trend (this month vs last month) ──────────────────────────────────
+  const pmTrend = useMemo(() => {
+    const now = new Date()
+    const thisMonth = now.getMonth()
+    const thisYear = now.getFullYear()
+    const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1
+    const lastYear = thisMonth === 0 ? thisYear - 1 : thisYear
+
+    return sorted.map(pm => {
+      const ps = projects.filter(p => p.pm_id === pm.pmId)
+      const thisMonthInstalls = ps.filter(p => {
+        const icd = p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null)
+        if (!icd) return false
+        const d = new Date(icd + 'T00:00:00')
+        return d.getMonth() === thisMonth && d.getFullYear() === thisYear
+      }).length
+      const lastMonthInstalls = ps.filter(p => {
+        const icd = p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null)
+        if (!icd) return false
+        const d = new Date(icd + 'T00:00:00')
+        return d.getMonth() === lastMonth && d.getFullYear() === lastYear
+      }).length
+      const delta = thisMonthInstalls - lastMonthInstalls
+      return { pm: pm.pm, thisMonth: thisMonthInstalls, lastMonth: lastMonthInstalls, delta }
     })
   }, [sorted, projects])
 
+  // ── Export ───────────────────────────────────────────────────────────────
+  const handleExport = () => {
+    const headers = ['PM', 'Active', 'Blocked', 'Portfolio Value', `Installs (${PERIOD_LABELS[period]})`, 'Avg Cycle Days', 'SLA %', 'Revenue', 'Throughput/wk']
+    const rows = sorted.map(pm => [pm.pm, pm.active, pm.blocked, pm.portfolioValue, pm.installs, pm.avgCycleDays, pm.slaPct + '%', pm.revenue, pm.throughput])
+    downloadCSV(`pm-performance-${period}.csv`, headers, rows)
+  }
+
+  // ── Drill-down helpers ───────────────────────────────────────────────────
+  const drillPm = (pmId: string, pm: string, filter?: (p: Project) => boolean, label?: string) => {
+    let ps = projects.filter(p => p.pm_id === pmId)
+    if (filter) ps = ps.filter(filter)
+    setDrillDown({ title: `${pm} — ${label || 'Projects'}`, projects: ps })
+  }
+
   return (
-    <div className="max-w-6xl space-y-6">
-      {/* Summary cards */}
+    <div className="max-w-6xl space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} />}
+        <ExportButton onClick={handleExport} />
+      </div>
+
+      {/* ── 5 Headline MetricCards ─────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <MetricCard label="Total PMs" value={String(sorted.length)} />
-        <MetricCard label="Active Projects" value={String(totalActive)} sub={fmt$(totalPortfolio)} />
-        <MetricCard label="Blocked" value={String(totalBlocked)} color={totalBlocked > 0 ? 'text-red-400' : undefined} />
-        <MetricCard label={`Installs (${PERIOD_LABELS[period]})`} value={String(totalInstalls)} color="text-green-400" />
-        <MetricCard label="Avg SLA Compliance" value={`${avgSLA}%`} color={avgSLA >= 80 ? 'text-green-400' : avgSLA >= 50 ? 'text-amber-400' : 'text-red-400'} />
+        <MetricCard
+          label="Total Active"
+          value={String(headline.totalActive)}
+          sub={`${sorted.length} PMs`}
+          formula="Count of all active projects (non-complete, non-cancelled, non-in-service) across all PMs."
+        />
+        <MetricCard
+          label="Revenue This Period"
+          value={fmt$(headline.totalRevenue)}
+          sub={PERIOD_LABELS[period]}
+          color="text-green-400"
+          formula={`SUM of contract values for projects where install_complete_date falls within the selected period (${PERIOD_LABELS[period]}). Measures revenue generated by completed installations.`}
+        />
+        <MetricCard
+          label="Avg Throughput"
+          value={`${headline.avgThroughput}/wk`}
+          sub={`${headline.totalThroughput.toFixed(1)} total/wk`}
+          color="text-blue-400"
+          formula="Average installs per week per PM over trailing 28 days. Total throughput is the sum across all PMs."
+        />
+        <MetricCard
+          label="Workload Balance"
+          value={headline.balanced ? 'Balanced' : 'Imbalanced'}
+          sub={`Spread: ${headline.stdDev}`}
+          color={headline.balanced ? 'text-green-400' : headline.stdDev < 10 ? 'text-amber-400' : 'text-red-400'}
+          formula={`Standard deviation of active project counts across PMs. Green (Balanced) if std dev < 5, amber if < 10, red otherwise. Current spread: ${headline.stdDev} projects.`}
+        />
+        <MetricCard
+          label="SLA Compliance"
+          value={`${headline.weightedSla}%`}
+          sub="Weighted by portfolio"
+          color={headline.weightedSla >= 80 ? 'text-green-400' : headline.weightedSla >= 50 ? 'text-amber-400' : 'text-red-400'}
+          formula="Weighted average of SLA compliance across PMs. Each PM's compliance is weighted by their active project count. A project is 'on track' if days-in-stage is within the SLA target for that stage."
+        />
       </div>
 
-      <div className="flex items-center justify-between">{data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} />}<ExportButton onClick={handleExport} /></div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse min-w-[500px]">
-          <thead>
-            <tr className="border-b border-gray-700">
-              <SortHeader label="PM" field={'pm' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-              <SortHeader label="Active" field={'active' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-              <SortHeader label="Blocked" field={'blocked' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-              <SortHeader label="Portfolio" field={'value' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-              <SortHeader label="Avg Deal" field={'avgDealSize' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-              <SortHeader label="Avg Cycle" field={'avgCycleDays' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-              <SortHeader label="SLA %" field={'slaCompliance' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-              <SortHeader label={`Installs (${PERIOD_LABELS[period]})`} field={'installs' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map(pm => (
-              <tr key={pm.pm} className="border-b border-gray-800 hover:bg-gray-800 cursor-pointer" onClick={() => handleRowClick(pm)}>
-                <td className="px-3 py-2 font-medium text-white">{pm.pm}</td>
-                <td className="px-3 py-2 text-gray-300 font-mono">{pm.active}</td>
-                <td className="px-3 py-2">
-                  {pm.blocked > 0
-                    ? <span className="text-red-400 font-mono">{pm.blocked}</span>
-                    : <span className="text-gray-600">—</span>}
-                </td>
-                <td className="px-3 py-2 text-gray-300 font-mono">{fmt$(pm.value)}</td>
-                <td className="px-3 py-2 text-gray-300 font-mono">{fmt$(pm.avgDealSize)}</td>
-                <td className="px-3 py-2 text-gray-300 font-mono">{pm.avgCycleDays > 0 ? `${pm.avgCycleDays}d` : '—'}</td>
-                <td className="px-3 py-2 font-mono">
-                  <span className={pm.slaCompliance >= 80 ? 'text-green-400' : pm.slaCompliance >= 50 ? 'text-amber-400' : 'text-red-400'}>
-                    {pm.slaCompliance}%
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-green-400 font-mono">{pm.installs}</td>
+      {/* ── PM Scorecard Table ─────────────────────────────────────────────── */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">PM Scorecard</div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse min-w-[850px]">
+            <thead>
+              <tr className="border-b border-gray-700">
+                <SortHeader label="PM Name" field={'pm' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortHeader label="Active" field={'active' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortHeader label="Blocked" field={'blocked' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortHeader label="Portfolio Value" field={'portfolioValue' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortHeader label={`Installs`} field={'installs' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortHeader label="Avg Cycle" field={'avgCycleDays' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortHeader label="SLA %" field={'slaPct' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortHeader label="Revenue" field={'revenue' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortHeader label="Throughput" field={'throughput' as keyof PMRow} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* PM Workload Chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
-          <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">PM Workload</div>
-          <div className="space-y-2">
-            {sorted.map(pm => (
-              <div key={pm.pm} className="flex items-center gap-3">
-                <div className="text-xs text-gray-400 w-24 flex-shrink-0 truncate">{pm.pm.split(' ')[0]}</div>
-                <div className="flex-1 bg-gray-700 rounded-full h-5 relative overflow-hidden">
-                  {/* Active (green) */}
-                  <div
-                    className="absolute left-0 top-0 h-full bg-green-600 rounded-l-full"
-                    style={{ width: `${((pm.active - pm.blocked) / maxActive) * 100}%` }}
-                  />
-                  {/* Blocked (red, stacked on top) */}
-                  {pm.blocked > 0 && (
-                    <div
-                      className="absolute top-0 h-full bg-red-600 rounded-r-full"
-                      style={{ left: `${((pm.active - pm.blocked) / maxActive) * 100}%`, width: `${(pm.blocked / maxActive) * 100}%` }}
-                    />
-                  )}
-                  <div className="absolute inset-0 flex items-center justify-end pr-2">
-                    <span className="text-[10px] text-white font-bold">{pm.active}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-4 mt-3 text-[10px] text-gray-500">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-600" /> Active</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-600" /> Blocked</span>
-          </div>
-        </div>
-
-        {/* Stage Distribution Heatmap */}
-        <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
-          <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Projects by Stage per PM</div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-[10px]">
-              <thead>
-                <tr>
-                  <th className="text-left px-1 py-1 text-gray-500">PM</th>
-                  {STAGE_ORDER.filter(s => s !== 'complete').map(s => (
-                    <th key={s} className="px-1 py-1 text-gray-500 text-center">{(STAGE_LABELS[s] ?? s).slice(0, 4)}</th>
-                  ))}
+            </thead>
+            <tbody>
+              {sorted.map(pm => (
+                <tr
+                  key={pm.pmId}
+                  className="border-b border-gray-800 hover:bg-gray-700/30 cursor-pointer"
+                  onClick={() => drillPm(pm.pmId, pm.pm, p => p.stage !== 'complete', 'Active Projects')}
+                >
+                  <td className="px-3 py-2 font-medium text-white">{pm.pm}</td>
+                  <td className="px-3 py-2 text-gray-300 font-mono">{pm.active}</td>
+                  <td className="px-3 py-2">
+                    <span className={pm.blocked > 3 ? 'text-red-400 font-bold' : pm.blocked > 0 ? 'text-red-400' : 'text-gray-600'}>
+                      {pm.blocked > 0 ? pm.blocked : '\u2014'}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-gray-300 font-mono">{fmt$(pm.portfolioValue)}</td>
+                  <td className="px-3 py-2 text-green-400 font-mono">{pm.installs}</td>
+                  <td className="px-3 py-2 font-mono">
+                    <span className={pm.avgCycleDays > 0 ? (pm.avgCycleDays < 45 ? 'text-green-400' : pm.avgCycleDays < 60 ? 'text-amber-400' : 'text-red-400') : 'text-gray-600'}>
+                      {pm.avgCycleDays > 0 ? `${pm.avgCycleDays}d` : '\u2014'}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 font-mono">
+                    <span className={pm.slaPct >= 80 ? 'text-green-400' : pm.slaPct >= 50 ? 'text-amber-400' : 'text-red-400'}>
+                      {pm.slaPct}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-gray-300 font-mono">{fmt$(pm.revenue)}</td>
+                  <td className="px-3 py-2 text-blue-400 font-mono">{pm.throughput}/wk</td>
                 </tr>
-              </thead>
-              <tbody>
-                {pmStageData.map(row => (
-                  <tr key={row.pm}>
-                    <td className="px-1 py-1 text-gray-300 font-medium truncate max-w-[80px]">{row.pm.split(' ')[0]}</td>
-                    {STAGE_ORDER.filter(s => s !== 'complete').map(s => {
-                      const count = row.stages[s] ?? 0
-                      const bg = count === 0 ? '' : count <= 5 ? 'bg-green-900/40' : count <= 20 ? 'bg-amber-900/40' : 'bg-red-900/40'
-                      const text = count === 0 ? 'text-gray-700' : count <= 5 ? 'text-green-400' : count <= 20 ? 'text-amber-400' : 'text-red-400'
-                      return (
-                        <td key={s} className={`px-1 py-1 text-center font-mono rounded ${bg} ${text}`}>
-                          {count > 0 ? count : '·'}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
+      {/* ── PM Comparison Bars ─────────────────────────────────────────────── */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">PM Comparison — Normalized (0-100)</div>
+        <div className="space-y-4">
+          {comparisonBars.map(cb => (
+            <div key={cb.pm}>
+              <div className="text-xs text-white font-medium mb-1.5">{cb.pm}</div>
+              <div className="grid grid-cols-5 gap-1">
+                {[
+                  { label: 'Portfolio', value: cb.portfolioNorm, color: 'bg-blue-600' },
+                  { label: 'Cycle Eff.', value: cb.cycleEfficiency, color: 'bg-green-600' },
+                  { label: 'SLA', value: cb.sla, color: 'bg-purple-600' },
+                  { label: 'Throughput', value: cb.throughputNorm, color: 'bg-amber-600' },
+                  { label: 'Low Blockers', value: cb.blockerNorm, color: 'bg-cyan-600' },
+                ].map(bar => (
+                  <div key={bar.label} className="flex flex-col items-center">
+                    <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
+                      <div
+                        className={`h-full ${bar.color} rounded-full transition-all`}
+                        style={{ width: `${Math.max(bar.value, 3)}%` }}
+                      />
+                    </div>
+                    <div className="text-[9px] text-gray-500 mt-0.5">{bar.label}</div>
+                    <div className="text-[9px] text-gray-400 font-mono">{bar.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-3 mt-4 text-[10px] text-gray-500 flex-wrap">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-600" /> Portfolio Size</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-600" /> Cycle Efficiency</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-600" /> SLA Compliance</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-600" /> Throughput</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-600" /> Low Blockers</span>
+        </div>
+      </div>
+
+      {/* ── Workload Distribution (stacked bars by stage) ──────────────────── */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Workload Distribution by Stage</div>
+        <div className="space-y-2">
+          {workloadData.map(w => (
+            <div
+              key={w.pm}
+              className="flex items-center gap-3 cursor-pointer group"
+              onClick={() => drillPm(w.pmId, w.pm, p => p.stage !== 'complete', 'Active Projects')}
+            >
+              <div className="text-xs text-gray-400 w-28 flex-shrink-0 truncate">{w.pm.split(' ')[0]}</div>
+              <div className="flex-1 bg-gray-700 rounded-full h-6 overflow-hidden flex">
+                {STAGE_ORDER.filter(s => s !== 'complete').map(stage => {
+                  const count = w.stages[stage] ?? 0
+                  if (count === 0) return null
+                  const pct = (count / maxWorkload) * 100
+                  return (
+                    <div
+                      key={stage}
+                      className="h-full flex items-center justify-center group-hover:opacity-80 transition-opacity"
+                      style={{ width: `${pct}%`, backgroundColor: STAGE_COLORS[stage] ?? '#6b7280' }}
+                      title={`${STAGE_LABELS[stage] ?? stage}: ${count}`}
+                    >
+                      {pct > 6 && <span className="text-[9px] text-white font-bold">{count}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="text-xs text-gray-300 font-mono w-8 text-right">{w.total}</div>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-3 mt-3 text-[10px] text-gray-500 flex-wrap">
+          {STAGE_ORDER.filter(s => s !== 'complete').map(s => (
+            <span key={s} className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: STAGE_COLORS[s] }} />
+              {(STAGE_LABELS[s] ?? s).slice(0, 6)}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* ── PM Trend (this month vs last month) ────────────────────────────── */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">PM Trend — Installs This Month vs Last Month</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {pmTrend.map(t => {
+            const arrow = t.delta > 0 ? '\u2191' : t.delta < 0 ? '\u2193' : '\u2014'
+            const arrowColor = t.delta > 0 ? 'text-green-400' : t.delta < 0 ? 'text-red-400' : 'text-gray-500'
+            return (
+              <div key={t.pm} className="bg-gray-900 rounded-lg p-3 border border-gray-700">
+                <div className="text-xs text-gray-400 truncate mb-1">{t.pm}</div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-lg font-bold text-white font-mono">{t.thisMonth}</span>
+                  <span className={`text-sm font-bold ${arrowColor}`}>{arrow}</span>
+                  <span className="text-xs text-gray-500 font-mono">vs {t.lastMonth}</span>
+                </div>
+                {t.delta !== 0 && (
+                  <div className={`text-[10px] font-mono mt-0.5 ${arrowColor}`}>
+                    {t.delta > 0 ? '+' : ''}{t.delta} from last month
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Drill-down modal */}
       {drillDown && <ProjectListModal title={drillDown.title} projects={drillDown.projects} onClose={() => setDrillDown(null)} />}
     </div>
   )
