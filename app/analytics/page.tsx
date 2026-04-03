@@ -1,21 +1,27 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Nav } from '@/components/Nav'
 import { useSupabaseQuery, clearQueryCache } from '@/lib/hooks'
 import { useCurrentUser } from '@/lib/useCurrentUser'
+import { db } from '@/lib/db'
 import { RefreshCw } from 'lucide-react'
-import { Executive, CashFlow, InstallVelocity, Leadership, PipelineHealth, ByPM, FundingTab, CycleTimes, Dealers, PERIOD_LABELS, setCustomRange } from '@/components/analytics'
-import type { Period, AnalyticsData } from '@/components/analytics'
+import { Executive, CashFlow, InstallVelocity, PipelineHealth, ByPM, Dealers, PERIOD_LABELS, setCustomRange } from '@/components/analytics'
+import { CrewPerformance } from '@/components/analytics/CrewPerformance'
+import { Forecasting } from '@/components/analytics/Forecasting'
+import { JobCosting } from '@/components/analytics/JobCosting'
+import type { Period, AnalyticsData, RampScheduleRow, WorkOrderRow, SalesRepRow } from '@/components/analytics'
 import type { ProjectFunding } from '@/types/database'
 
 import { OpsTabContent } from '@/app/ops/page'
 
-type Tab = 'executive' | 'cash_flow' | 'velocity' | 'pipeline' | 'pm' | 'sales' | 'ops'
+type Tab = 'executive' | 'cash_flow' | 'velocity' | 'pipeline' | 'pm' | 'sales' | 'crew' | 'forecast' | 'job_costing' | 'ops'
 
 const TAB_LABELS: Record<Tab, string> = {
   executive: 'Executive', cash_flow: 'Cash Flow', velocity: 'Install Velocity',
-  pipeline: 'Pipeline', pm: 'By PM', sales: 'Sales', ops: 'Operations',
+  pipeline: 'Pipeline', pm: 'By PM', sales: 'Sales',
+  crew: 'Crew', forecast: 'Forecast', job_costing: 'Job Costing',
+  ops: 'Operations',
 }
 
 export default function AnalyticsPage() {
@@ -53,6 +59,20 @@ export default function AnalyticsPage() {
     limit: 50000,
   })
 
+  // Crew + schedule data for Crew Performance tab
+  const [rampSchedule, setRampSchedule] = useState<RampScheduleRow[]>([])
+  const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([])
+  const [salesReps, setSalesReps] = useState<SalesRepRow[]>([])
+  useEffect(() => {
+    const supabase = db()
+    supabase.from('ramp_schedule').select('id, project_id, crew_id, crew_name, scheduled_week, scheduled_day, slot, status, completed_at, drive_minutes, distance_miles').limit(5000)
+      .then(({ data }: any) => { if (data) setRampSchedule(data) })
+    supabase.from('work_orders').select('id, project_id, assigned_crew, status, scheduled_date, started_at, completed_at, time_on_site_minutes, type').limit(5000)
+      .then(({ data }: any) => { if (data) setWorkOrders(data) })
+    supabase.from('sales_reps').select('id, first_name, last_name, team_id, status, role_key').limit(500)
+      .then(({ data }: any) => { if (data) setSalesReps(data) })
+  }, [])
+
   const funding = useMemo(() => {
     const map: Record<string, ProjectFunding> = {}
     fundingRows.forEach((f) => { map[f.project_id] = f })
@@ -84,8 +104,10 @@ export default function AnalyticsPage() {
   const complete = useMemo(() => realProjects.filter(p => p.stage === 'complete'), [realProjects])
 
   const analyticsData: AnalyticsData = useMemo(() => ({
-    projects: realProjects, active, complete, funding, taskMap, period, onPeriodChange: handlePeriodChange,
-  }), [realProjects, active, complete, funding, taskMap, period])
+    projects: realProjects, active, complete, funding, taskMap,
+    rampSchedule, workOrders, salesReps,
+    period, onPeriodChange: handlePeriodChange,
+  }), [realProjects, active, complete, funding, taskMap, rampSchedule, workOrders, salesReps, period])
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true)
@@ -143,6 +165,9 @@ export default function AnalyticsPage() {
         {tab === 'pipeline' && <PipelineHealth data={analyticsData} />}
         {tab === 'pm' && <ByPM data={analyticsData} />}
         {tab === 'sales' && <Dealers data={analyticsData} />}
+        {tab === 'crew' && <CrewPerformance data={analyticsData} />}
+        {tab === 'forecast' && <Forecasting data={analyticsData} />}
+        {tab === 'job_costing' && <JobCosting data={analyticsData} />}
         {tab === 'ops' && <OpsTabContent />}
       </div>
     </div>

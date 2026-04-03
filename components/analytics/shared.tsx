@@ -66,6 +66,23 @@ export interface TaskStateRow {
   status: string
 }
 
+export interface RampScheduleRow {
+  id: string; project_id: string; crew_id?: string; crew_name?: string
+  scheduled_week: string; scheduled_day?: string; slot?: number
+  status: string; completed_at?: string; drive_minutes?: number; distance_miles?: number
+}
+
+export interface WorkOrderRow {
+  id: string; project_id: string; assigned_crew?: string; status: string
+  scheduled_date?: string; started_at?: string; completed_at?: string
+  time_on_site_minutes?: number; type?: string
+}
+
+export interface SalesRepRow {
+  id: string; first_name: string; last_name: string
+  team_id?: string; status: string; role_key?: string
+}
+
 export interface AnalyticsData {
   projects: Project[]
   active: Project[]
@@ -73,6 +90,12 @@ export interface AnalyticsData {
   funding: Record<string, ProjectFunding>
   /** task_id -> status map per project: taskMap[project_id][task_id] = status */
   taskMap: Record<string, Record<string, string>>
+  /** Ramp schedule entries for crew analytics */
+  rampSchedule: RampScheduleRow[]
+  /** Work orders for crew time-on-site analytics */
+  workOrders: WorkOrderRow[]
+  /** Sales reps for leaderboard */
+  salesReps: SalesRepRow[]
   period: Period
   onPeriodChange?: (p: Period) => void
 }

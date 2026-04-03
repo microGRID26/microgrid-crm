@@ -67,12 +67,101 @@ export function PipelineHealth({ data }: { data: AnalyticsData }) {
     downloadCSV('pipeline-health.csv', headers, rows)
   }
 
+  // Conversion funnel: what % of projects advance from each stage
+  const funnel = useMemo(() => {
+    const stageIdx: Record<string, number> = {}
+    STAGE_ORDER.forEach((s, i) => { stageIdx[s] = i })
+    const stages = STAGE_ORDER.filter(s => s !== 'complete')
+    return stages.map((stage, i) => {
+      const inStageOrBeyond = projects.filter(p => (stageIdx[p.stage] ?? 0) >= i)
+      const advanced = projects.filter(p => (stageIdx[p.stage] ?? 0) > i)
+      const rate = inStageOrBeyond.length > 0 ? Math.round((advanced.length / inStageOrBeyond.length) * 100) : 0
+      return { stage, label: STAGE_LABELS[stage], entered: inStageOrBeyond.length, advanced: advanced.length, rate }
+    })
+  }, [projects])
+
+  // Stage velocity: avg days in stage + bottleneck
+  const stageVelocity = useMemo(() => {
+    const stages = STAGE_ORDER.filter(s => s !== 'complete')
+    const result = stages.map(stage => {
+      const inStage = active.filter(p => p.stage === stage)
+      const avgDays = inStage.length > 0 ? Math.round(inStage.reduce((s, p) => s + daysAgo(p.stage_date), 0) / inStage.length) : 0
+      const blockedCount = inStage.filter(p => p.blocker).length
+      return { stage, label: STAGE_LABELS[stage], count: inStage.length, avgDays, blockedCount }
+    }).filter(s => s.count > 0)
+    return result
+  }, [active])
+  const bottleneck = useMemo(() => stageVelocity.reduce((worst, s) => s.avgDays > worst.avgDays ? s : worst, stageVelocity[0] ?? { stage: '', label: '', avgDays: 0, count: 0, blockedCount: 0 }), [stageVelocity])
+
+  const STAGE_COLORS: Record<string, string> = {
+    evaluation: '#3b82f6', survey: '#8b5cf6', design: '#ec4899',
+    permit: '#f59e0b', install: '#f97316', inspection: '#06b6d4',
+  }
+
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-6xl space-y-6">
       <div className="flex items-center justify-between">{data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} />}<ExportButton onClick={handleExport} /></div>
 
+      {/* Headline metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <MetricCard label="Active Projects" value={String(active.length)} sub={fmt$(active.reduce((s, p) => s + (Number(p.contract) || 0), 0))}
+          formula="All non-complete, non-cancelled, non-in-service projects" />
+        <MetricCard label="Bottleneck" value={bottleneck?.label ?? '—'} sub={`avg ${bottleneck?.avgDays ?? 0}d · ${bottleneck?.blockedCount ?? 0} blocked`} color="text-amber-400"
+          formula={`The stage with the longest average days-in-stage. Currently ${bottleneck?.label} at ${bottleneck?.avgDays}d avg with ${bottleneck?.count} projects.`} />
+        <MetricCard label="Blocked" value={String(blocked.length)} color={blocked.length > 10 ? 'text-red-400' : 'text-amber-400'}
+          sub={fmt$(blocked.reduce((s, p) => s + (Number(p.contract) || 0), 0))}
+          onClick={() => setDrillDown({ title: 'Blocked Projects', projects: blocked })}
+          formula="Projects with a blocker field set. These cannot advance until the blocker is resolved." />
+        <MetricCard label="SLA Critical" value={String(slaGroups.crit.length)} color="text-red-400"
+          onClick={() => setDrillDown({ title: 'SLA Critical', projects: slaGroups.crit })}
+          formula="Projects that have exceeded the critical SLA threshold for their current stage (e.g., >45 days in permitting)." />
+      </div>
+
+      {/* Conversion Funnel */}
       <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
-        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Stage Distribution</div>
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Conversion Funnel</div>
+        <div className="space-y-1">
+          {funnel.map((f, i) => (
+            <div key={f.stage} className="flex items-center gap-3">
+              <div className="w-20 text-right text-xs font-medium" style={{ color: STAGE_COLORS[f.stage] ?? '#6b7280' }}>{f.label}</div>
+              <div className="flex-1 h-8 bg-gray-700/30 rounded overflow-hidden">
+                <div className="h-full rounded flex items-center px-3 justify-between transition-all"
+                  style={{ width: `${Math.max(f.rate, 5)}%`, backgroundColor: `${STAGE_COLORS[f.stage] ?? '#6b7280'}25`, borderLeft: `3px solid ${STAGE_COLORS[f.stage] ?? '#6b7280'}` }}>
+                  <span className="text-xs font-bold text-white">{f.entered}</span>
+                  {f.rate > 0 && <span className="text-[10px] text-gray-400">{f.rate}% advance</span>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-gray-600 mt-2">Shows what % of projects that entered each stage have advanced beyond it. Based on all active + complete projects.</p>
+      </div>
+
+      {/* Stage Velocity */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Stage Velocity — Avg Days in Stage</div>
+        <div className="space-y-2">
+          {stageVelocity.map(s => (
+            <div key={s.stage} className="flex items-center gap-3">
+              <div className="w-20 text-right text-xs font-medium" style={{ color: STAGE_COLORS[s.stage] }}>{s.label}</div>
+              <div className="flex-1 bg-gray-700/30 rounded-full h-5 relative overflow-hidden">
+                <div className={`h-5 rounded-full flex items-center px-2 transition-all ${s.stage === bottleneck?.stage ? 'bg-amber-600/60' : 'bg-gray-600/60'}`}
+                  style={{ width: `${Math.min(Math.max(s.avgDays / 60 * 100, 8), 100)}%` }}>
+                  <span className="text-[10px] text-white font-bold">{s.avgDays}d</span>
+                </div>
+              </div>
+              <div className="w-20 text-right text-xs text-gray-500">
+                {s.count} projects
+                {s.blockedCount > 0 && <span className="text-red-400 ml-1">({s.blockedCount} blocked)</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Original Stage Distribution */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Stage Distribution by Value</div>
         {stageDist.map(s => (
           <MiniBar key={s.stage} label={s.label} count={s.count} value={s.value} max={maxStageCount} />
         ))}
