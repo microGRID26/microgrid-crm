@@ -837,12 +837,13 @@ export default function RampUpPage() {
                     // Check if already exists in schedule
                     const { data: existing } = await db().from('schedule').select('id').eq('project_id', entry.project_id).eq('crew_id', crew.id).eq('job_type', 'install').gte('date', entry.scheduled_week).limit(1)
                     if (existing && existing.length > 0) continue
-                    await db().from('schedule').insert({
+                    const { error: insertErr } = await db().from('schedule').insert({
                       id: crypto.randomUUID(), project_id: entry.project_id, crew_id: crew.id,
                       job_type: 'install', date: installDate, status: 'scheduled',
                       notes: `Ramp-up sync: ${entry.crew_name}`, pm: project.pm,
                     })
-                    synced++
+                    if (insertErr) { console.error('[sync] insert failed:', insertErr.message, { project_id: entry.project_id, crew_id: crew.id, date: installDate }) }
+                    else synced++
                   }
                   setToast({ message: synced > 0 ? `Synced ${synced} jobs to Schedule page` : 'All jobs already synced', type: 'success' })
                   setTimeout(() => setToast(null), 3000)
@@ -907,11 +908,27 @@ export default function RampUpPage() {
                                   className="text-[10px] px-2 py-0.5 bg-red-900/40 text-red-400 rounded hover:opacity-80"><X className="w-3 h-3 inline" /> Cancel</button>
                               </div>
                             </div>
-                          ) : (
-                            <div className="text-xs text-gray-600">
-                              Empty slot — assign from suggestions below
-                            </div>
-                          )}
+                          ) : (() => {
+                            // Show top suggestion for this crew with one-click assign
+                            const crewSugs = crewSuggestions.get(crew) ?? []
+                            const alreadyScheduled = new Set(crewJobs.map(j => j.project_id))
+                            const topSug = crewSugs.find(s => !alreadyScheduled.has(s.id))
+                            return topSug ? (
+                              <button onClick={() => handleSchedule(topSug.id, crew, slot)}
+                                className="w-full text-left hover:bg-gray-800/50 rounded p-1 -m-1 transition-colors group">
+                                <div className="text-xs text-green-400 group-hover:text-green-300">
+                                  + Assign: {topSug.name}
+                                </div>
+                                <div className="text-[10px] text-gray-600 mt-0.5">
+                                  {topSug.city} · {topSug.distanceMiles}mi · Score {topSug.priorityScore}
+                                </div>
+                              </button>
+                            ) : (
+                              <div className="text-xs text-gray-600">
+                                No suggestions available
+                              </div>
+                            )
+                          })()}
                         </div>
                       )
                     })}
