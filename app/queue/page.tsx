@@ -412,10 +412,13 @@ function QueuePage() {
   const loading = projectsLoading || tasksLoading
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => ({
-    followups: searchParams.get('section') === 'followups' ? false : false,
+    followups: searchParams.get('section') !== 'followups',
     blocked: true, active: true, loyalty: true, complete: true,
+    // Dynamic sections default collapsed — toggled by key on render
   }))
-  const toggleBucket = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
+  // Default all sections to collapsed (undefined → true)
+  const isCollapsed = (key: string) => collapsed[key] !== false
+  const toggleBucket = (key: string) => setCollapsed(prev => ({ ...prev, [key]: prev[key] === false }))
 
   // Build task map per project
   const taskMap = useMemo(() => buildTaskMap(taskStates), [taskStates])
@@ -718,7 +721,7 @@ function QueuePage() {
           {/* Follow-ups Due */}
           <button
             onClick={() => {
-              if (collapsed.followups) toggleBucket('followups')
+              if (isCollapsed("followups")) toggleBucket('followups')
               followUpsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }}
             className="rounded-lg px-4 py-2.5 text-left transition-colors border border-gray-700 bg-gray-800/50 hover:border-amber-600"
@@ -740,8 +743,8 @@ function QueuePage() {
         {/* Follow-ups Today */}
         <div ref={followUpsRef} className="mb-6 bg-amber-950/30 border border-amber-900/50 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
-              <button onClick={() => toggleBucket('followups')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket('followups') } }} aria-expanded={!collapsed.followups} aria-controls="section-followups" className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2 text-left hover:text-amber-300 transition-colors flex-1">
-                <span className="text-[10px]">{collapsed.followups ? '▸' : '▾'}</span>
+              <button onClick={() => toggleBucket('followups')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket('followups') } }} aria-expanded={!isCollapsed("followups")} aria-controls="section-followups" className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2 text-left hover:text-amber-300 transition-colors flex-1">
+                <span className="text-[10px]">{isCollapsed("followups") ? '▸' : '▾'}</span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
                 Follow-ups Today ({followUps.length})
               </button>
@@ -755,10 +758,10 @@ function QueuePage() {
                 </button>
               )}
             </div>
-            {!collapsed.followups && followUps.length === 0 && (
+            {!isCollapsed("followups") && followUps.length === 0 && (
               <div className="text-xs text-gray-600 italic pl-6">No follow-ups due today. Set follow-up dates on tasks in the project panel.</div>
             )}
-            {!collapsed.followups && sortProjects(followUps as unknown as Project[], getSectionSort('followups')).map(proj => {
+            {!isCollapsed("followups") && sortProjects(followUps as unknown as Project[], getSectionSort('followups')).map(proj => {
               const p = followUps.find(f => f.id === proj.id) ?? proj as unknown as ProjectWithFollowUp
               return (
               <div
@@ -811,8 +814,8 @@ function QueuePage() {
         {dynamicSections.map(sec => sec.items.length > 0 && (
           <div key={sec.id} className="mb-6">
             <div className="flex items-center gap-2 mb-2">
-              <button onClick={() => toggleBucket(sec.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket(sec.id) } }} aria-expanded={!collapsed[sec.id]} aria-controls={`section-${sec.id}`} className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-left transition-colors flex-1 ${COLOR_MAP[sec.color] ?? 'text-gray-400'} ${COLOR_HOVER[sec.color] ?? 'hover:text-gray-300'}`}>
-                <span className="text-[10px]">{collapsed[sec.id] ? '▸' : '▾'}</span>
+              <button onClick={() => toggleBucket(sec.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket(sec.id) } }} aria-expanded={!isCollapsed(sec.id)} aria-controls={`section-${sec.id}`} className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-left transition-colors flex-1 ${COLOR_MAP[sec.color] ?? 'text-gray-400'} ${COLOR_HOVER[sec.color] ?? 'hover:text-gray-300'}`}>
+                <span className="text-[10px]">{isCollapsed(sec.id) ? '▸' : '▾'}</span>
                 {sec.icon} {sec.label} ({sec.items.length})
               </button>
               <SortToggle sectionKey={sec.id} current={getSectionSort(sec.id)} onCycle={cycleSectionSort} />
@@ -825,7 +828,7 @@ function QueuePage() {
                 </button>
               )}
             </div>
-            {!collapsed[sec.id] && sortProjects(sec.items, getSectionSort(sec.id)).map(p => (
+            {!isCollapsed(sec.id) && sortProjects(sec.items, getSectionSort(sec.id)).map(p => (
               <QueueCard key={p.id} p={p} taskMap={taskMap[p.id] ?? {}} onOpen={setSelectedProject} cardFields={cardFields}
                 selectMode={selectMode} isSelected={selectedIds.has(p.id)} onToggleSelect={toggleSelect}
                 fundingMap={fundingMap} currentUser={currentUser} onRefresh={refreshAll} todayStr={todayStr} />
@@ -836,8 +839,8 @@ function QueuePage() {
         {blocked.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-2">
-              <button onClick={() => toggleBucket('blocked')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket('blocked') } }} aria-expanded={!collapsed.blocked} aria-controls="section-blocked" className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-2 text-left hover:text-red-300 transition-colors flex-1">
-                <span className="text-[10px]">{collapsed.blocked ? '▸' : '▾'}</span>
+              <button onClick={() => toggleBucket('blocked')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket('blocked') } }} aria-expanded={!isCollapsed("blocked")} aria-controls="section-blocked" className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-2 text-left hover:text-red-300 transition-colors flex-1">
+                <span className="text-[10px]">{isCollapsed("blocked") ? '▸' : '▾'}</span>
                 Blocked ({blocked.length})
               </button>
               <SortToggle sectionKey="blocked" current={getSectionSort('blocked')} onCycle={cycleSectionSort} />
@@ -850,7 +853,7 @@ function QueuePage() {
                 </button>
               )}
             </div>
-            {!collapsed.blocked && sortProjects(blocked, getSectionSort('blocked')).map(p => (
+            {!isCollapsed("blocked") && sortProjects(blocked, getSectionSort('blocked')).map(p => (
               <QueueCard key={p.id} p={p} taskMap={taskMap[p.id] ?? {}} onOpen={setSelectedProject} cardFields={cardFields}
                 selectMode={selectMode} isSelected={selectedIds.has(p.id)} onToggleSelect={toggleSelect}
                 fundingMap={fundingMap} currentUser={currentUser} onRefresh={refreshAll} todayStr={todayStr} />
@@ -861,8 +864,8 @@ function QueuePage() {
         {active.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-2">
-              <button onClick={() => toggleBucket('active')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket('active') } }} aria-expanded={!collapsed.active} aria-controls="section-active" className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 text-left hover:text-gray-300 transition-colors flex-1">
-                <span className="text-[10px]">{collapsed.active ? '▸' : '▾'}</span>
+              <button onClick={() => toggleBucket('active')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket('active') } }} aria-expanded={!isCollapsed("active")} aria-controls="section-active" className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 text-left hover:text-gray-300 transition-colors flex-1">
+                <span className="text-[10px]">{isCollapsed("active") ? '▸' : '▾'}</span>
                 Active ({active.length})
               </button>
               <SortToggle sectionKey="active" current={getSectionSort('active')} onCycle={cycleSectionSort} />
@@ -875,7 +878,7 @@ function QueuePage() {
                 </button>
               )}
             </div>
-            {!collapsed.active && sortProjects(active, getSectionSort('active')).map(p => (
+            {!isCollapsed("active") && sortProjects(active, getSectionSort('active')).map(p => (
               <QueueCard key={p.id} p={p} taskMap={taskMap[p.id] ?? {}} onOpen={setSelectedProject} cardFields={cardFields}
                 selectMode={selectMode} isSelected={selectedIds.has(p.id)} onToggleSelect={toggleSelect}
                 fundingMap={fundingMap} currentUser={currentUser} onRefresh={refreshAll} todayStr={todayStr} />
@@ -886,8 +889,8 @@ function QueuePage() {
         {filteredLoyalty.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-2">
-              <button onClick={() => toggleBucket('loyalty')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket('loyalty') } }} aria-expanded={!collapsed.loyalty} aria-controls="section-loyalty" className="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-2 text-left hover:text-purple-300 transition-colors flex-1">
-                <span className="text-[10px]">{collapsed.loyalty ? '▸' : '▾'}</span>
+              <button onClick={() => toggleBucket('loyalty')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket('loyalty') } }} aria-expanded={!isCollapsed("loyalty")} aria-controls="section-loyalty" className="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-2 text-left hover:text-purple-300 transition-colors flex-1">
+                <span className="text-[10px]">{isCollapsed("loyalty") ? '▸' : '▾'}</span>
                 Loyalty ({filteredLoyalty.length})
               </button>
               <SortToggle sectionKey="loyalty" current={getSectionSort('loyalty')} onCycle={cycleSectionSort} />
@@ -900,7 +903,7 @@ function QueuePage() {
                 </button>
               )}
             </div>
-            {!collapsed.loyalty && sortProjects(filteredLoyalty, getSectionSort('loyalty')).map(p => (
+            {!isCollapsed("loyalty") && sortProjects(filteredLoyalty, getSectionSort('loyalty')).map(p => (
               <QueueCard key={p.id} p={p} taskMap={taskMap[p.id] ?? {}} onOpen={setSelectedProject} cardFields={cardFields}
                 selectMode={selectMode} isSelected={selectedIds.has(p.id)} onToggleSelect={toggleSelect}
                 fundingMap={fundingMap} currentUser={currentUser} onRefresh={refreshAll} todayStr={todayStr} />
@@ -911,8 +914,8 @@ function QueuePage() {
         {complete.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-2">
-              <button onClick={() => toggleBucket('complete')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket('complete') } }} aria-expanded={!collapsed.complete} aria-controls="section-complete" className="text-xs font-bold text-gray-600 uppercase tracking-wider flex items-center gap-2 text-left hover:text-gray-500 transition-colors flex-1">
-                <span className="text-[10px]">{collapsed.complete ? '▸' : '▾'}</span>
+              <button onClick={() => toggleBucket('complete')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket('complete') } }} aria-expanded={!isCollapsed("complete")} aria-controls="section-complete" className="text-xs font-bold text-gray-600 uppercase tracking-wider flex items-center gap-2 text-left hover:text-gray-500 transition-colors flex-1">
+                <span className="text-[10px]">{isCollapsed("complete") ? '▸' : '▾'}</span>
                 Complete ({complete.length})
               </button>
               {/* #15: Descending sort shows most recently completed first — correct UX for tracking completions */}
@@ -926,7 +929,7 @@ function QueuePage() {
                 </button>
               )}
             </div>
-            {!collapsed.complete && sortProjects(complete, getSectionSort('complete')).map(p => (
+            {!isCollapsed("complete") && sortProjects(complete, getSectionSort('complete')).map(p => (
               <QueueCard key={p.id} p={p} taskMap={taskMap[p.id] ?? {}} onOpen={setSelectedProject} cardFields={cardFields}
                 selectMode={selectMode} isSelected={selectedIds.has(p.id)} onToggleSelect={toggleSelect}
                 fundingMap={fundingMap} currentUser={currentUser} onRefresh={refreshAll} todayStr={todayStr} />
