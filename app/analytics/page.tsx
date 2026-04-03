@@ -136,39 +136,38 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
-      {/* Period picker + refresh — only for non-Ops tabs (Ops has its own) */}
-      {tab !== 'ops' && (
-      <div className="bg-gray-900 border-b border-gray-800 px-4 py-2 flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5">
-          {(Object.entries(PERIOD_LABELS) as [Period, string][]).map(([k, v]) => (
-            <button key={k} onClick={() => handlePeriodChange(k)}
-              className={`text-xs px-2.5 py-1.5 rounded-md transition-colors whitespace-nowrap ${
-                period === k ? 'bg-green-700 text-white font-medium' : 'text-gray-400 hover:text-white'
-              }`}>
-              {v}
+      <div className="flex-1 overflow-y-auto p-6" role="tabpanel" id={`panel-${tab}`} aria-label={TAB_LABELS[tab]}>
+        {/* Period picker — inline with content, same row as Export CSV */}
+        {tab !== 'ops' && (
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5">
+              {(Object.entries(PERIOD_LABELS) as [Period, string][]).map(([k, v]) => (
+                <button key={k} onClick={() => handlePeriodChange(k)}
+                  className={`text-xs px-2.5 py-1.5 rounded-md transition-colors whitespace-nowrap ${
+                    period === k ? 'bg-green-700 text-white font-medium' : 'text-gray-400 hover:text-white'
+                  }`}>
+                  {v}
+                </button>
+              ))}
+            </div>
+            {period === 'custom' && (
+              <div className="flex items-center gap-1.5">
+                <input type="date" value={customFrom} onChange={e => handleCustomDateChange(e.target.value, customTo)}
+                  className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5" />
+                <span className="text-gray-500 text-xs">to</span>
+                <input type="date" value={customTo} onChange={e => handleCustomDateChange(customFrom, e.target.value)}
+                  className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5" />
+              </div>
+            )}
+            <button onClick={handleRefresh} disabled={refreshing}
+              className="text-xs text-gray-400 hover:text-white border border-gray-700 rounded-md px-2 py-1.5 transition-colors disabled:opacity-50 flex items-center gap-1 ml-auto"
+              title="Refresh data"
+              aria-label="Refresh analytics data">
+              <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">Refresh</span>
             </button>
-          ))}
-        </div>
-        {period === 'custom' && (
-          <div className="flex items-center gap-1.5">
-            <input type="date" value={customFrom} onChange={e => handleCustomDateChange(e.target.value, customTo)}
-              className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5" />
-            <span className="text-gray-500 text-xs">to</span>
-            <input type="date" value={customTo} onChange={e => handleCustomDateChange(customFrom, e.target.value)}
-              className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5" />
           </div>
         )}
-        <button onClick={handleRefresh} disabled={refreshing}
-          className="text-xs text-gray-400 hover:text-white border border-gray-700 rounded-md px-2 py-1.5 transition-colors disabled:opacity-50 flex items-center gap-1 ml-auto"
-          title="Refresh data"
-          aria-label="Refresh analytics data">
-          <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
-          <span className="hidden sm:inline">Refresh</span>
-        </button>
-      </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto p-6" role="tabpanel" id={`panel-${tab}`} aria-label={TAB_LABELS[tab]}>
         {tab === 'executive' && <Executive data={analyticsData} />}
         {tab === 'cash_flow' && <CashFlow data={analyticsData} />}
         {tab === 'velocity' && <InstallVelocity data={analyticsData} />}
