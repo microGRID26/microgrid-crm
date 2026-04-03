@@ -7,6 +7,12 @@ import {
   STAGE_DAYS_REMAINING, type AnalyticsData,
 } from './shared'
 
+// Stage color constants — used by main component and sub-components
+const STAGE_COLORS: Record<string, string> = {
+  evaluation: '#3b82f6', survey: '#8b5cf6', design: '#ec4899',
+  permit: '#f59e0b', install: '#f97316', inspection: '#06b6d4', complete: '#22c55e',
+}
+
 export function PipelineHealth({ data }: { data: AnalyticsData }) {
   const { projects, active } = data
   const [drillDown, setDrillDown] = useState<{ title: string; projects: typeof projects } | null>(null)
@@ -92,11 +98,6 @@ export function PipelineHealth({ data }: { data: AnalyticsData }) {
     return result
   }, [active])
   const bottleneck = useMemo(() => stageVelocity.reduce((worst, s) => s.avgDays > worst.avgDays ? s : worst, stageVelocity[0] ?? { stage: '', label: '', avgDays: 0, count: 0, blockedCount: 0 }), [stageVelocity])
-
-  const STAGE_COLORS: Record<string, string> = {
-    evaluation: '#3b82f6', survey: '#8b5cf6', design: '#ec4899',
-    permit: '#f59e0b', install: '#f97316', inspection: '#06b6d4',
-  }
 
   return (
     <div className="max-w-6xl space-y-6">
