@@ -37,6 +37,7 @@ export default function FundingPage() {
     return localStorage.getItem('mg_funding_guide_v3') !== 'dismissed'
   })
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ readyToSubmit: true, awaitingPayment: true, needsAttention: true })
+  const [milestoneFilter, setMilestoneFilter] = useState<'all' | 'm1' | 'm2' | 'm3'>('all')
   const toggleBucket = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
 
   // nonfunded_codes via hook (typed table)
@@ -182,6 +183,11 @@ export default function FundingPage() {
       if (statusFilter === 'funded' && !m1.isFunded && !m2.isFunded && !m3.isFunded) return
       if (statusFilter === 'nonfunded' && !f?.nonfunded_code_1) return
 
+      // Milestone filter from "Ready to Collect" cards
+      if (milestoneFilter === 'm1' && (m1.isFunded || m1.status === 'Submitted' || !p.sale_date)) return
+      if (milestoneFilter === 'm2' && (!m2.isEligible || m2.isFunded || m2.status === 'Submitted')) return
+      if (milestoneFilter === 'm3' && (!m3.isEligible || m3.isFunded || m3.status === 'Submitted')) return
+
       result.push({ project: p, funding: f, m1, m2, m3, nf1: f?.nonfunded_code_1 ?? null, nf2: f?.nonfunded_code_2 ?? null, nf3: f?.nonfunded_code_3 ?? null })
     })
 
@@ -216,7 +222,7 @@ export default function FundingPage() {
       return String(av).localeCompare(String(bv)) * dir
     })
     return result
-  }, [projects, funding, financierFilter, search, statusFilter, sortCol, sortDir])
+  }, [projects, funding, financierFilter, search, statusFilter, milestoneFilter, sortCol, sortDir])
 
   // Stats
   const stats = useMemo(() => {
@@ -238,6 +244,17 @@ export default function FundingPage() {
       return count + (m2Stale && m2Stale.days > 30 ? 1 : 0) + (m3Stale && m3Stale.days > 30 ? 1 : 0)
     }, 0)
 
+    // Ready to collect: milestone is eligible but not yet funded or submitted
+    // M1 = sale date exists, M1 not funded
+    const m1Ready = rows.filter(r => r.project.sale_date && !r.m1.isFunded && r.m1.status !== 'Submitted')
+    const m1ReadyAmount = m1Ready.reduce((s, r) => s + (Number(r.m1.amount) || 0), 0)
+    // M2 = install complete, M2 not funded
+    const m2Ready = rows.filter(r => r.m2.isEligible && !r.m2.isFunded && r.m2.status !== 'Submitted')
+    const m2ReadyAmount = m2Ready.reduce((s, r) => s + (Number(r.m2.amount) || 0), 0)
+    // M3 = PTO received, M3 not funded
+    const m3Ready = rows.filter(r => r.m3.isEligible && !r.m3.isFunded && r.m3.status !== 'Submitted')
+    const m3ReadyAmount = m3Ready.reduce((s, r) => s + (Number(r.m3.amount) || 0), 0)
+
     return {
       totalProjects: rows.length,
       totalContract,
@@ -255,6 +272,13 @@ export default function FundingPage() {
       m3Eligible,
       withNf,
       staleCount,
+      m1ReadyCount: m1Ready.length,
+      m1ReadyAmount,
+      m2ReadyCount: m2Ready.length,
+      m2ReadyAmount,
+      m3ReadyCount: m3Ready.length,
+      m3ReadyAmount,
+      totalReadyToCollect: m1ReadyAmount + m2ReadyAmount + m3ReadyAmount,
     }
   }, [rows])
 
@@ -335,6 +359,43 @@ export default function FundingPage() {
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
       <Nav active="Funding" />
+
+      {/* Ready to Collect — hero cards */}
+      {!loading && (stats.m1ReadyAmount > 0 || stats.m2ReadyAmount > 0 || stats.m3ReadyAmount > 0) && (
+        <div className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex-shrink-0">
+          <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-3">Ready to Collect</div>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            {/* Total */}
+            <button onClick={() => setMilestoneFilter('all')}
+              className={`rounded-xl p-4 border text-left transition-all ${milestoneFilter === 'all' ? 'bg-green-950/40 border-green-700' : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}>
+              <div className="text-xs text-gray-400 mb-1">Total Collectable</div>
+              <div className="text-2xl font-bold text-green-400 font-mono">{fmt$(stats.totalReadyToCollect)}</div>
+              <div className="text-xs text-gray-500 mt-1">{stats.m1ReadyCount + stats.m2ReadyCount + stats.m3ReadyCount} milestones</div>
+            </button>
+            {/* M1 */}
+            <button onClick={() => setMilestoneFilter(milestoneFilter === 'm1' ? 'all' : 'm1')}
+              className={`rounded-xl p-4 border text-left transition-all ${milestoneFilter === 'm1' ? 'bg-blue-950/40 border-blue-700' : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}>
+              <div className="text-xs text-gray-400 mb-1">M1 — Contract Signed</div>
+              <div className="text-2xl font-bold text-blue-400 font-mono">{fmt$(stats.m1ReadyAmount)}</div>
+              <div className="text-xs text-gray-500 mt-1">{stats.m1ReadyCount} projects</div>
+            </button>
+            {/* M2 */}
+            <button onClick={() => setMilestoneFilter(milestoneFilter === 'm2' ? 'all' : 'm2')}
+              className={`rounded-xl p-4 border text-left transition-all ${milestoneFilter === 'm2' ? 'bg-amber-950/40 border-amber-700' : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}>
+              <div className="text-xs text-gray-400 mb-1">M2 — Install Complete</div>
+              <div className="text-2xl font-bold text-amber-400 font-mono">{fmt$(stats.m2ReadyAmount)}</div>
+              <div className="text-xs text-gray-500 mt-1">{stats.m2ReadyCount} projects</div>
+            </button>
+            {/* M3 */}
+            <button onClick={() => setMilestoneFilter(milestoneFilter === 'm3' ? 'all' : 'm3')}
+              className={`rounded-xl p-4 border text-left transition-all ${milestoneFilter === 'm3' ? 'bg-purple-950/40 border-purple-700' : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}>
+              <div className="text-xs text-gray-400 mb-1">M3 — PTO Received</div>
+              <div className="text-2xl font-bold text-purple-400 font-mono">{fmt$(stats.m3ReadyAmount)}</div>
+              <div className="text-xs text-gray-500 mt-1">{stats.m3ReadyCount} projects</div>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats bar - wraps on mobile */}
       <div className="bg-gray-900 border-b border-gray-800 grid grid-cols-2 sm:grid-cols-4 lg:flex lg:items-center lg:justify-between px-6 py-4 flex-shrink-0 gap-y-3 gap-x-4">
