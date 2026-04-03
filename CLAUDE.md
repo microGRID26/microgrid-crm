@@ -54,7 +54,7 @@ Test categories: `__tests__/lib/` (API, utils), `__tests__/logic/` (SLA, funding
 ### Pages
 All pages in `app/*/page.tsx` as client components. Each fetches data via Supabase browser client on mount, subscribes to realtime changes. Root `/` redirects to user's preferred homepage.
 
-**44 pages total** — see `ARCHITECTURE.md` for full inventory. Key pages: `/command` (morning dashboard), `/queue` (PM worklist), `/pipeline` (Kanban), `/analytics` (7 tabs including Operations), `/ops` (standalone Power BI replication), `/schedule` (crew calendar), `/funding` (M1/M2/M3 milestones), `/tickets` (issue tracking), `/ramp-up` (install planning with proximity clustering).
+**49 pages total** — see `ARCHITECTURE.md` for full inventory. Key pages: `/command` (morning briefing — Fix These First + Push These Forward), `/queue` (PM worklist), `/pipeline` (Kanban), `/analytics` (10 tabs: Executive, Cash Flow, Install Velocity, Pipeline, By PM, Sales, Crew, Forecast, Job Costing, Operations), `/schedule` (crew calendar), `/funding` (M1/M2/M3 milestones + Ready to Collect cards), `/tickets` (issue tracking), `/ramp-up` (install planning with proximity clustering + schedule sync).
 
 ### API Layer
 All data access via `lib/api/` — 20+ modules. Pages import from `@/lib/api`. The API layer handles error logging, type casting, `.limit()` calls, and consistent return shapes. Use `db()` helper from `lib/db.ts` for writes to untyped tables.
