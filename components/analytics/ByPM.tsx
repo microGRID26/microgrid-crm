@@ -23,6 +23,209 @@ interface PMRow {
   throughput: number
 }
 
+// ── Sub-components for new dense sections ───────────────────────────────────
+
+type PMDrillFn = (pmId: string, pm: string, filter?: (p: Project) => boolean, label?: string) => void
+
+function PMStageBreakdown({ projects, sorted, onDrill }: { projects: Project[]; sorted: PMRow[]; onDrill: PMDrillFn }) {
+  const stages = STAGE_ORDER.filter(s => s !== 'complete')
+  const STAGE_CELL_COLORS: Record<number, string> = {
+    0: '', 1: 'bg-blue-950/30', 5: 'bg-blue-900/30', 10: 'bg-blue-800/40', 20: 'bg-blue-700/50',
+  }
+  const getCellBg = (count: number) => {
+    if (count >= 20) return STAGE_CELL_COLORS[20]
+    if (count >= 10) return STAGE_CELL_COLORS[10]
+    if (count >= 5) return STAGE_CELL_COLORS[5]
+    if (count >= 1) return STAGE_CELL_COLORS[1]
+    return ''
+  }
+
+  const data = useMemo(() => {
+    return sorted.map(pm => {
+      const ps = projects.filter(p => p.pm_id === pm.pmId && p.stage !== 'complete' && p.disposition !== 'Cancelled' && p.disposition !== 'In Service')
+      const stageCounts: Record<string, number> = {}
+      stages.forEach(s => { stageCounts[s] = 0 })
+      ps.forEach(p => { stageCounts[p.stage] = (stageCounts[p.stage] ?? 0) + 1 })
+      return { pm: pm.pm, pmId: pm.pmId, total: ps.length, stageCounts }
+    })
+  }, [sorted, projects])
+
+  return (
+    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">PM by Stage Breakdown</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[10px] border-collapse">
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="text-left text-gray-500 font-medium px-2 py-1.5">PM</th>
+              {stages.map(s => (
+                <th key={s} className="text-center text-gray-500 font-medium px-2 py-1.5">{(STAGE_LABELS[s] ?? s).slice(0, 5)}</th>
+              ))}
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map(row => (
+              <tr
+                key={row.pmId}
+                className="border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer"
+                onClick={() => onDrill(row.pmId, row.pm, p => p.stage !== 'complete', 'Active Projects')}
+              >
+                <td className="px-2 py-1.5 text-white font-medium">{row.pm}</td>
+                {stages.map(s => (
+                  <td key={s} className={`px-2 py-1.5 text-center font-mono ${getCellBg(row.stageCounts[s])} ${row.stageCounts[s] > 0 ? 'text-white' : 'text-gray-600'}`}>
+                    {row.stageCounts[s] || '\u2014'}
+                  </td>
+                ))}
+                <td className="px-2 py-1.5 text-right text-green-400 font-mono font-bold">{row.total}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function PMActivity({ projects, sorted, period, onDrill }: { projects: Project[]; sorted: PMRow[]; period: string; onDrill: PMDrillFn }) {
+  const data = useMemo(() => {
+    const now = new Date()
+    return sorted.map(pm => {
+      const ps = projects.filter(p => p.pm_id === pm.pmId)
+      // Tasks advanced: projects that changed stage in period (use stage_date as proxy)
+      const tasksAdvanced = ps.filter(p => inRange(p.stage_date, period as any)).length
+      // Follow-ups completed: projects with follow_up_date in the past
+      const followUps = ps.filter(p => {
+        const fud = (p as any).follow_up_date
+        if (!fud) return false
+        const d = new Date(fud + 'T00:00:00')
+        return d <= now && inRange(fud, period as any)
+      }).length
+      // Blockers cleared: projects that had blocker cleared recently (proxy: non-blocked in active pipeline)
+      const activePs = ps.filter(p => p.stage !== 'complete' && p.disposition !== 'Cancelled')
+      const blockersClear = activePs.filter(p => !p.blocker).length
+      // Estimate notes added (proxy: tasks advanced is our best signal)
+      const notesEstimate = tasksAdvanced * 2 // approximate: 2 notes per task advancement
+      return { pm: pm.pm, pmId: pm.pmId, tasksAdvanced, followUps, blockersClear, notesEstimate, active: activePs.length }
+    })
+  }, [sorted, projects, period])
+
+  return (
+    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">PM Activity This Period</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[10px] border-collapse">
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="text-left text-gray-500 font-medium px-2 py-1.5">PM</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Tasks Advanced</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Follow-ups Done</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Clear of Blockers</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Est. Notes</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Activity Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map(row => {
+              const score = row.tasksAdvanced * 3 + row.followUps * 2 + row.notesEstimate
+              const maxScore = Math.max(...data.map(d => d.tasksAdvanced * 3 + d.followUps * 2 + d.notesEstimate), 1)
+              const scorePct = Math.round((score / maxScore) * 100)
+              return (
+                <tr
+                  key={row.pmId}
+                  className="border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer"
+                  onClick={() => onDrill(row.pmId, row.pm, undefined, 'All Projects')}
+                >
+                  <td className="px-2 py-1.5 text-white font-medium">{row.pm}</td>
+                  <td className="px-2 py-1.5 text-green-400 font-mono text-right font-bold">{row.tasksAdvanced}</td>
+                  <td className="px-2 py-1.5 text-blue-400 font-mono text-right">{row.followUps}</td>
+                  <td className="px-2 py-1.5 text-gray-300 font-mono text-right">{row.blockersClear}/{row.active}</td>
+                  <td className="px-2 py-1.5 text-gray-400 font-mono text-right">{row.notesEstimate}</td>
+                  <td className="px-2 py-1.5 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <div className="w-16 bg-gray-700 rounded-full h-2 overflow-hidden">
+                        <div className={`h-full rounded-full ${scorePct >= 70 ? 'bg-green-500' : scorePct >= 40 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${Math.max(scorePct, 3)}%` }} />
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-mono w-6">{score}</span>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function PMRevenuePipeline({ projects, sorted, onDrill }: { projects: Project[]; sorted: PMRow[]; onDrill: PMDrillFn }) {
+  const STAGE_DAYS: Record<string, number> = {
+    evaluation: 90, survey: 75, design: 60, permit: 45, install: 14, inspection: 7,
+  }
+  const data = useMemo(() => {
+    return sorted.map(pm => {
+      const ps = projects.filter(p => p.pm_id === pm.pmId && p.stage !== 'complete' && p.disposition !== 'Cancelled' && p.disposition !== 'In Service')
+      let f30 = 0, f60 = 0, f90 = 0
+      ps.forEach(p => {
+        const daysRemaining = STAGE_DAYS[p.stage] ?? 60
+        const contract = Number(p.contract) || 0
+        if (daysRemaining <= 30) f30 += contract
+        if (daysRemaining <= 60) f60 += contract
+        if (daysRemaining <= 90) f90 += contract
+      })
+      return { pm: pm.pm, pmId: pm.pmId, f30, f60, f90, total: ps.length }
+    })
+  }, [sorted, projects])
+
+  const maxF90 = Math.max(...data.map(d => d.f90), 1)
+
+  return (
+    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">PM Revenue Pipeline — Forecast</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[10px] border-collapse">
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="text-left text-gray-500 font-medium px-2 py-1.5">PM</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">30-Day</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">60-Day</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">90-Day</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Active</th>
+              <th className="text-left text-gray-500 font-medium px-2 py-1.5 w-28">Pipeline</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map(row => (
+              <tr
+                key={row.pmId}
+                className="border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer"
+                onClick={() => onDrill(row.pmId, row.pm, p => p.stage !== 'complete', 'Pipeline')}
+              >
+                <td className="px-2 py-1.5 text-white font-medium">{row.pm}</td>
+                <td className="px-2 py-1.5 text-green-400 font-mono text-right">{fmt$(row.f30)}</td>
+                <td className="px-2 py-1.5 text-blue-400 font-mono text-right">{fmt$(row.f60)}</td>
+                <td className="px-2 py-1.5 text-purple-400 font-mono text-right">{fmt$(row.f90)}</td>
+                <td className="px-2 py-1.5 text-gray-300 font-mono text-right">{row.total}</td>
+                <td className="px-2 py-1.5">
+                  <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                    <div className="h-full bg-purple-500 rounded-full" style={{ width: `${Math.max((row.f90 / maxF90) * 100, 3)}%` }} />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center gap-4 mt-3 text-[10px] text-gray-500">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400" /> 30-day (install/inspection stage)</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400" /> 60-day (+ permit stage)</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-400" /> 90-day (+ design/survey)</span>
+      </div>
+    </div>
+  )
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function ByPM({ data }: { data: AnalyticsData }) {
@@ -392,6 +595,15 @@ export function ByPM({ data }: { data: AnalyticsData }) {
           })}
         </div>
       </div>
+
+      {/* ── PM by Stage Breakdown Table ────────────────────────────────────── */}
+      <PMStageBreakdown projects={projects} sorted={sorted} onDrill={drillPm} />
+
+      {/* ── PM Activity This Period ────────────────────────────────────────── */}
+      <PMActivity projects={projects} sorted={sorted} period={period} onDrill={drillPm} />
+
+      {/* ── PM Revenue Pipeline ────────────────────────────────────────────── */}
+      <PMRevenuePipeline projects={projects} sorted={sorted} onDrill={drillPm} />
 
       {/* Drill-down modal */}
       {drillDown && <ProjectListModal title={drillDown.title} projects={drillDown.projects} onClose={() => setDrillDown(null)} />}

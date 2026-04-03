@@ -29,6 +29,354 @@ interface RepRow {
   activePipeline: number
 }
 
+// ── Sub-components for new dense sections ───────────────────────────────────
+
+type DrillSetter = (d: { title: string; projects: Project[] } | null) => void
+
+function SalesByStage({ projects, period, onDrill }: { projects: Project[]; period: string; onDrill: DrillSetter }) {
+  const rows = useMemo(() => {
+    const soldPs = projects.filter(p => inRange(p.sale_date, period as any))
+    const soldValue = soldPs.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+    const soldAvg = soldPs.length > 0 ? Math.round(soldValue / soldPs.length) : 0
+    const soldKw = soldPs.length > 0 ? Math.round((soldPs.reduce((s, p) => s + (Number(p.systemkw) || 0), 0) / soldPs.length) * 100) / 100 : 0
+    const soldBatteries = soldPs.filter(p => (p as any).battery_count > 0 || (p as any).has_battery).length
+
+    const pipelinePs = projects.filter(p => p.stage !== 'complete' && p.disposition !== 'Cancelled' && p.disposition !== 'In Service')
+    const pipeValue = pipelinePs.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+    const pipeAvg = pipelinePs.length > 0 ? Math.round(pipeValue / pipelinePs.length) : 0
+    const pipeKw = pipelinePs.length > 0 ? Math.round((pipelinePs.reduce((s, p) => s + (Number(p.systemkw) || 0), 0) / pipelinePs.length) * 100) / 100 : 0
+    const now = new Date()
+    const pipeDays = pipelinePs.length > 0
+      ? Math.round(pipelinePs.reduce((s, p) => {
+          if (!p.sale_date) return s
+          return s + Math.max(0, Math.floor((now.getTime() - new Date(p.sale_date + 'T00:00:00').getTime()) / 86400000))
+        }, 0) / pipelinePs.filter(p => p.sale_date).length || 0)
+      : 0
+
+    const installedPs = projects.filter(p => inRange(p.install_complete_date, period as any))
+    const instValue = installedPs.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+    const instAvg = installedPs.length > 0 ? Math.round(instValue / installedPs.length) : 0
+    const instKw = installedPs.length > 0 ? Math.round((installedPs.reduce((s, p) => s + (Number(p.systemkw) || 0), 0) / installedPs.length) * 100) / 100 : 0
+
+    return [
+      { label: 'Sold This Period', ps: soldPs, count: soldPs.length, value: soldValue, avg: soldAvg, kw: soldKw, extra: `${soldBatteries} batteries`, extraLabel: 'Batteries' },
+      { label: 'In Pipeline', ps: pipelinePs, count: pipelinePs.length, value: pipeValue, avg: pipeAvg, kw: pipeKw, extra: `${pipeDays}d avg`, extraLabel: 'Avg Days' },
+      { label: 'Installed This Period', ps: installedPs, count: installedPs.length, value: instValue, avg: instAvg, kw: instKw, extra: '', extraLabel: '' },
+    ]
+  }, [projects, period])
+
+  return (
+    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">Sales by Stage</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[10px] border-collapse min-w-[600px]">
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="text-left text-gray-500 font-medium px-2 py-1.5">Category</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Count</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Total Value</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Avg Value</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Avg kW</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Detail</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr
+                key={r.label}
+                className="border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer"
+                onClick={() => onDrill({ title: r.label, projects: r.ps })}
+              >
+                <td className="px-2 py-2 text-white font-medium text-xs">{r.label}</td>
+                <td className="px-2 py-2 text-green-400 font-mono text-right font-bold">{r.count}</td>
+                <td className="px-2 py-2 text-gray-300 font-mono text-right">{fmt$(r.value)}</td>
+                <td className="px-2 py-2 text-gray-300 font-mono text-right">{fmt$(r.avg)}</td>
+                <td className="px-2 py-2 text-blue-400 font-mono text-right">{r.kw > 0 ? `${r.kw} kW` : '\u2014'}</td>
+                <td className="px-2 py-2 text-gray-400 font-mono text-right">{r.extra || '\u2014'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function SalesByCity({ projects, period, onDrill }: { projects: Project[]; period: string; onDrill: DrillSetter }) {
+  const rows = useMemo(() => {
+    const cityMap = new Map<string, Project[]>()
+    projects.forEach(p => {
+      const city = (p as any).city || 'Unknown'
+      const arr = cityMap.get(city) || []
+      arr.push(p)
+      cityMap.set(city, arr)
+    })
+    const total = projects.length
+    return [...cityMap.entries()]
+      .map(([city, ps]) => ({
+        city,
+        count: ps.length,
+        pct: total > 0 ? Math.round((ps.length / total) * 100) : 0,
+        value: ps.reduce((s, p) => s + (Number(p.contract) || 0), 0),
+        avgDeal: ps.length > 0 ? Math.round(ps.reduce((s, p) => s + (Number(p.contract) || 0), 0) / ps.length) : 0,
+        ps,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
+  }, [projects])
+
+  return (
+    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">Sales by City — Top 10</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[10px] border-collapse">
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="text-left text-gray-500 font-medium px-2 py-1.5">City</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Sales</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">% Total</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Value</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Avg Deal</th>
+              <th className="text-left text-gray-500 font-medium px-2 py-1.5 w-32">Distribution</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr
+                key={r.city}
+                className="border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer"
+                onClick={() => onDrill({ title: `City: ${r.city}`, projects: r.ps })}
+              >
+                <td className="px-2 py-1.5 text-white font-medium">{r.city}</td>
+                <td className="px-2 py-1.5 text-green-400 font-mono text-right font-bold">{r.count}</td>
+                <td className="px-2 py-1.5 text-gray-400 font-mono text-right">{r.pct}%</td>
+                <td className="px-2 py-1.5 text-gray-300 font-mono text-right">{fmt$(r.value)}</td>
+                <td className="px-2 py-1.5 text-gray-300 font-mono text-right">{fmt$(r.avgDeal)}</td>
+                <td className="px-2 py-1.5">
+                  <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                    <div className="h-full bg-green-600 rounded-full" style={{ width: `${Math.max(r.pct, 3)}%` }} />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function SalesByFinancier({ projects, period, onDrill }: { projects: Project[]; period: string; onDrill: DrillSetter }) {
+  const rows = useMemo(() => {
+    const finMap = new Map<string, Project[]>()
+    projects.forEach(p => {
+      const fin = (p as any).financier || 'Unknown'
+      const arr = finMap.get(fin) || []
+      arr.push(p)
+      finMap.set(fin, arr)
+    })
+    const total = projects.length
+    return [...finMap.entries()]
+      .map(([financier, ps]) => ({
+        financier,
+        count: ps.length,
+        pct: total > 0 ? Math.round((ps.length / total) * 100) : 0,
+        value: ps.reduce((s, p) => s + (Number(p.contract) || 0), 0),
+        avgDeal: ps.length > 0 ? Math.round(ps.reduce((s, p) => s + (Number(p.contract) || 0), 0) / ps.length) : 0,
+        avgKw: ps.length > 0 ? Math.round((ps.reduce((s, p) => s + (Number(p.systemkw) || 0), 0) / ps.length) * 100) / 100 : 0,
+        ps,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8)
+  }, [projects])
+
+  return (
+    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">Sales by Financier — Top 8</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[10px] border-collapse">
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="text-left text-gray-500 font-medium px-2 py-1.5">Financier</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Sales</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">% Total</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Value</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Avg Deal</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Avg kW</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr
+                key={r.financier}
+                className="border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer"
+                onClick={() => onDrill({ title: `Financier: ${r.financier}`, projects: r.ps })}
+              >
+                <td className="px-2 py-1.5 text-white font-medium truncate max-w-[180px]">{r.financier}</td>
+                <td className="px-2 py-1.5 text-green-400 font-mono text-right font-bold">{r.count}</td>
+                <td className="px-2 py-1.5 text-gray-400 font-mono text-right">{r.pct}%</td>
+                <td className="px-2 py-1.5 text-gray-300 font-mono text-right">{fmt$(r.value)}</td>
+                <td className="px-2 py-1.5 text-gray-300 font-mono text-right">{fmt$(r.avgDeal)}</td>
+                <td className="px-2 py-1.5 text-blue-400 font-mono text-right">{r.avgKw > 0 ? `${r.avgKw} kW` : '\u2014'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function WinRateBySize({ projects, onDrill }: { projects: Project[]; onDrill: DrillSetter }) {
+  const buckets = useMemo(() => {
+    const defs = [
+      { label: '<8 kW', min: 0, max: 8 },
+      { label: '8-12 kW', min: 8, max: 12 },
+      { label: '12-16 kW', min: 12, max: 16 },
+      { label: '16+ kW', min: 16, max: Infinity },
+    ]
+    return defs.map(d => {
+      const ps = projects.filter(p => {
+        const kw = Number(p.systemkw) || 0
+        return kw >= d.min && kw < d.max
+      })
+      const withSale = ps.filter(p => p.sale_date)
+      const installed = withSale.filter(p => p.install_complete_date || p.stage === 'complete')
+      const convRate = withSale.length > 0 ? Math.round((installed.length / withSale.length) * 100) : 0
+      const avgContract = ps.length > 0 ? Math.round(ps.reduce((s, p) => s + (Number(p.contract) || 0), 0) / ps.length) : 0
+      const withCycle = ps.filter(p => p.sale_date && p.install_complete_date)
+      const avgCycle = withCycle.length > 0
+        ? Math.round(withCycle.reduce((s, p) => {
+            const sale = new Date(p.sale_date! + 'T00:00:00').getTime()
+            const inst = new Date(p.install_complete_date! + 'T00:00:00').getTime()
+            return s + (inst - sale) / 86400000
+          }, 0) / withCycle.length)
+        : 0
+      return { ...d, count: ps.length, avgContract, avgCycle, convRate, ps }
+    })
+  }, [projects])
+
+  return (
+    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">Win Rate by System Size</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[10px] border-collapse">
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="text-left text-gray-500 font-medium px-2 py-1.5">Size Bucket</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Count</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Avg Contract</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Avg Cycle Days</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Conversion %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {buckets.map(b => (
+              <tr
+                key={b.label}
+                className="border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer"
+                onClick={() => onDrill({ title: `System Size: ${b.label}`, projects: b.ps })}
+              >
+                <td className="px-2 py-1.5 text-white font-medium">{b.label}</td>
+                <td className="px-2 py-1.5 text-gray-300 font-mono text-right">{b.count}</td>
+                <td className="px-2 py-1.5 text-gray-300 font-mono text-right">{fmt$(b.avgContract)}</td>
+                <td className="px-2 py-1.5 font-mono text-right">
+                  <span className={b.avgCycle > 0 ? (b.avgCycle < 45 ? 'text-green-400' : b.avgCycle < 60 ? 'text-amber-400' : 'text-red-400') : 'text-gray-600'}>
+                    {b.avgCycle > 0 ? `${b.avgCycle}d` : '\u2014'}
+                  </span>
+                </td>
+                <td className="px-2 py-1.5 font-mono text-right">
+                  <span className={b.convRate >= 70 ? 'text-green-400' : b.convRate >= 40 ? 'text-amber-400' : 'text-red-400'}>
+                    {b.convRate}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function MonthlyRevenueTable({ projects, onDrill }: { projects: Project[]; onDrill: DrillSetter }) {
+  const months = useMemo(() => {
+    const now = new Date()
+    const result: { label: string; newSales: number; salesValue: number; installs: number; installValue: number; cancels: number; cancelRate: number; salesPs: Project[]; installPs: Project[] }[] = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const m = d.getMonth(); const y = d.getFullYear()
+      const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+
+      const salesPs = projects.filter(p => {
+        if (!p.sale_date) return false
+        const sd = new Date(p.sale_date + 'T00:00:00')
+        return sd.getMonth() === m && sd.getFullYear() === y
+      })
+      const installPs = projects.filter(p => {
+        const icd = p.install_complete_date
+        if (!icd) return false
+        const sd = new Date(icd + 'T00:00:00')
+        return sd.getMonth() === m && sd.getFullYear() === y
+      })
+      const cancelPs = projects.filter(p => {
+        if (p.disposition !== 'Cancelled') return false
+        const sd = p.stage_date ? new Date(p.stage_date + 'T00:00:00') : null
+        return sd && sd.getMonth() === m && sd.getFullYear() === y
+      })
+
+      const salesValue = salesPs.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+      const installValue = installPs.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+      const cancelRate = salesPs.length > 0 ? Math.round((cancelPs.length / salesPs.length) * 100) : 0
+
+      result.push({ label, newSales: salesPs.length, salesValue, installs: installPs.length, installValue, cancels: cancelPs.length, cancelRate, salesPs, installPs })
+    }
+    return result
+  }, [projects])
+
+  return (
+    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">Monthly Revenue — Last 6 Months</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[10px] border-collapse">
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="text-left text-gray-500 font-medium px-2 py-1.5">Month</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">New Sales</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Sales Value</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Installs</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Install Value</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Cancels</th>
+              <th className="text-right text-gray-500 font-medium px-2 py-1.5">Cancel Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {months.map(m => (
+              <tr
+                key={m.label}
+                className="border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer"
+                onClick={() => onDrill({ title: `Sales — ${m.label}`, projects: m.salesPs })}
+              >
+                <td className="px-2 py-1.5 text-white font-medium">{m.label}</td>
+                <td className="px-2 py-1.5 text-green-400 font-mono text-right font-bold">{m.newSales}</td>
+                <td className="px-2 py-1.5 text-gray-300 font-mono text-right">{fmt$(m.salesValue)}</td>
+                <td className="px-2 py-1.5 text-blue-400 font-mono text-right font-bold">{m.installs}</td>
+                <td className="px-2 py-1.5 text-gray-300 font-mono text-right">{fmt$(m.installValue)}</td>
+                <td className="px-2 py-1.5 text-red-400 font-mono text-right">{m.cancels}</td>
+                <td className="px-2 py-1.5 font-mono text-right">
+                  <span className={m.cancelRate > 15 ? 'text-red-400' : m.cancelRate > 5 ? 'text-amber-400' : 'text-green-400'}>
+                    {m.cancelRate}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function Dealers({ data }: { data: AnalyticsData }) {
@@ -452,6 +800,21 @@ export function Dealers({ data }: { data: AnalyticsData }) {
           </div>
         </div>
       )}
+
+      {/* ── Sales by Stage (Sold / In Pipeline / Installed) ────────────────── */}
+      <SalesByStage projects={projects} period={period} onDrill={setDrillDown} />
+
+      {/* ── Sales by City ──────────────────────────────────────────────────── */}
+      <SalesByCity projects={projects} period={period} onDrill={setDrillDown} />
+
+      {/* ── Sales by Financier ─────────────────────────────────────────────── */}
+      <SalesByFinancier projects={projects} period={period} onDrill={setDrillDown} />
+
+      {/* ── Win Rate by System Size ────────────────────────────────────────── */}
+      <WinRateBySize projects={projects} onDrill={setDrillDown} />
+
+      {/* ── Monthly Revenue Table ──────────────────────────────────────────── */}
+      <MonthlyRevenueTable projects={projects} onDrill={setDrillDown} />
 
       {/* Drill-down modal */}
       {drillDown && <ProjectListModal title={drillDown.title} projects={drillDown.projects} onClose={() => setDrillDown(null)} />}

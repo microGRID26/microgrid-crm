@@ -37,6 +37,12 @@ interface CrewRow {
   completionPct: number
   avgDrive: number
   totalMiles: number
+  revenue: number
+  revenuePerInstall: number
+  reworkRate: number
+  reworkCount: number
+  totalInstalls30d: number
+  travelToInstallRatio: number
 }
 
 // ── Crew colors for chart ───────────────────────────────────────────────────
@@ -117,6 +123,25 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
       capacityColor = 'text-green-400'
     }
 
+    // ── Build project-to-crew map from ramp schedule ──────────────────────
+    const crewProjectMap: Record<string, Set<string>> = {}
+    for (const r of rampSchedule) {
+      if (r.crew_name && r.status === 'completed') {
+        if (!crewProjectMap[r.crew_name]) crewProjectMap[r.crew_name] = new Set()
+        crewProjectMap[r.crew_name].add(r.project_id)
+      }
+    }
+
+    // ── Rework detection: work orders with type='service_call' or status='rework' ──
+    const reworkWOs: Record<string, number> = {}
+    for (const wo of workOrders) {
+      const isRework = wo.status === 'rework' || wo.type?.toLowerCase().includes('service_call') || wo.type?.toLowerCase().includes('rework')
+      if (isRework && wo.assigned_crew) {
+        reworkWOs[wo.assigned_crew] = (reworkWOs[wo.assigned_crew] ?? 0) + 1
+      }
+    }
+    const hasReworkData = Object.keys(reworkWOs).length > 0
+
     // ── Crew Scorecard ────────────────────────────────────────────────────
 
     const crewRows: CrewRow[] = uniqueCrews.map(crew => {
@@ -134,7 +159,32 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
         ? Math.round(drives.reduce((s, r) => s + (r.drive_minutes ?? 0), 0) / drives.length)
         : 0
       const totalMiles = Math.round(crewEntries.reduce((s, r) => s + (r.distance_miles ?? 0), 0))
-      return { crew: crew!, thisWeek, mtd, completionPct: pct, avgDrive, totalMiles }
+
+      // Revenue: sum contract values for projects this crew completed
+      const crewProjectIds = crewProjectMap[crew!] ?? new Set()
+      const crewProjects = projects.filter(p => crewProjectIds.has(p.id))
+      const revenue = crewProjects.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+      const revenuePerInstall = crewProjectIds.size > 0 ? Math.round(revenue / crewProjectIds.size) : 0
+
+      // Rework rate
+      const totalInstalls30d = crewCompleted
+      const reworkCount = reworkWOs[crew!] ?? 0
+      const reworkRate = totalInstalls30d > 0 ? Math.round((reworkCount / totalInstalls30d) * 100) : 0
+
+      // Travel-to-install ratio
+      const crewInstallWOs = installWOs.filter(wo => wo.assigned_crew === crew && wo.time_on_site_minutes && wo.time_on_site_minutes > 0)
+      const avgSiteMin = crewInstallWOs.length > 0
+        ? crewInstallWOs.reduce((s, wo) => s + (wo.time_on_site_minutes ?? 0), 0) / crewInstallWOs.length
+        : 0
+      const travelToInstallRatio = avgSiteMin > 0 && avgDrive > 0
+        ? Math.round((avgDrive / avgSiteMin) * 100) / 100
+        : 0
+
+      return {
+        crew: crew!, thisWeek, mtd, completionPct: pct, avgDrive, totalMiles,
+        revenue, revenuePerInstall, reworkRate, reworkCount, totalInstalls30d,
+        travelToInstallRatio,
+      }
     })
 
     // ── 8-Week Trend ──────────────────────────────────────────────────────
@@ -170,6 +220,10 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
 
     const demandExceedsCapacity = salesPerWeek > crewCapacity
 
+    // ── Total revenue across all crews ────────────────────────────────────
+    const totalCrewRevenue = crewRows.reduce((s, r) => s + r.revenue, 0)
+    const maxCrewRevenue = Math.max(...crewRows.map(r => r.revenue), 1)
+
     return {
       completedThisWeek,
       completionRate,
@@ -190,6 +244,9 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
       avgCycle,
       pipelineFeedRate,
       demandExceedsCapacity,
+      hasReworkData,
+      totalCrewRevenue,
+      maxCrewRevenue,
     }
   }, [rampSchedule, workOrders, projects, currentMonday, monthStartStr])
 
@@ -200,9 +257,10 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
 
   const handleExport = () => {
     if (!metrics) return
-    const headers = ['Crew', 'This Week', 'MTD', 'Completion %', 'Avg Drive (min)', 'Total Miles']
+    const headers = ['Crew', 'This Week', 'MTD', 'Completion %', 'Avg Drive (min)', 'Total Miles', 'Revenue', 'Revenue/Install', 'Rework Rate']
     const rows = (metrics.crewRows).map(r => [
       r.crew, r.thisWeek, r.mtd, `${r.completionPct}%`, r.avgDrive, r.totalMiles,
+      r.revenue, r.revenuePerInstall, `${r.reworkRate}%`,
     ])
     downloadCSV('crew-performance.csv', headers, rows)
   }
@@ -236,6 +294,15 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
     const set = new Set(ids)
     return projects.filter(p => set.has(p.id))
   }
+
+  // ── Comparison helpers ──────────────────────────────────────────────────
+
+  const comparisonMetrics = [
+    { label: 'Installs/Week (MTD)', key: 'mtd' as const, format: (v: number) => String(v) },
+    { label: 'Avg Time on Site', key: 'avgDrive' as const, format: (v: number) => `${v} min` },
+    { label: 'Completion Rate', key: 'completionPct' as const, format: (v: number) => `${v}%` },
+    { label: 'Total Miles', key: 'totalMiles' as const, format: (v: number) => String(v) },
+  ]
 
   return (
     <div className="max-w-6xl space-y-8">
@@ -288,6 +355,44 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
         />
       </div>
 
+      {/* Crew Revenue Impact */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Crew Revenue Impact</div>
+          <div className="text-xs text-gray-500">Total: <span className="text-white font-mono">{fmt$(metrics.totalCrewRevenue)}</span></div>
+        </div>
+        {metrics.crewRows.length === 0 ? (
+          <div className="text-xs text-gray-500 text-center py-6">No completed installs to calculate revenue.</div>
+        ) : (
+          <div className="space-y-2">
+            {[...metrics.crewRows].sort((a, b) => b.revenue - a.revenue).map(r => {
+              const pct = metrics.maxCrewRevenue > 0 ? (r.revenue / metrics.maxCrewRevenue) * 100 : 0
+              return (
+                <div key={r.crew} className="flex items-center gap-3">
+                  <div className="w-28 text-xs text-gray-300 text-right flex-shrink-0 flex items-center justify-end gap-2">
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: crewColorMap[r.crew] }} />
+                    <span className="truncate">{r.crew}</span>
+                  </div>
+                  <div className="flex-1 h-7 bg-gray-700/50 rounded relative overflow-hidden">
+                    <div
+                      className="h-full rounded flex items-center px-2"
+                      style={{ width: `${Math.max(pct, 8)}%`, backgroundColor: crewColorMap[r.crew], opacity: 0.3 }}
+                    />
+                    <div className="absolute inset-0 flex items-center px-2">
+                      <span className="text-xs font-mono text-white">{fmt$(r.revenue)}</span>
+                    </div>
+                  </div>
+                  <div className="w-24 text-xs text-gray-400 text-right flex-shrink-0">
+                    <span className="font-mono text-gray-300">{fmt$(r.revenuePerInstall)}</span>
+                    <span className="text-gray-600">/install</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Crew Weekly Scorecard */}
       <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
         <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Crew Weekly Scorecard</div>
@@ -299,6 +404,8 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
                 <SortHeader<keyof CrewRow> label="This Week" field="thisWeek" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader<keyof CrewRow> label="MTD" field="mtd" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader<keyof CrewRow> label="Completion %" field="completionPct" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortHeader<keyof CrewRow> label="Revenue" field="revenue" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortHeader<keyof CrewRow> label="Rev/Install" field="revenuePerInstall" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader<keyof CrewRow> label="Avg Drive (min)" field="avgDrive" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader<keyof CrewRow> label="Total Miles" field="totalMiles" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
               </tr>
@@ -319,12 +426,97 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
                       {r.completionPct}%
                     </span>
                   </td>
+                  <td className="px-3 py-2 text-gray-300 font-mono">{fmt$(r.revenue)}</td>
+                  <td className="px-3 py-2 text-gray-300 font-mono">{fmt$(r.revenuePerInstall)}</td>
                   <td className="px-3 py-2 text-gray-300 font-mono">{r.avgDrive || '--'}</td>
                   <td className="px-3 py-2 text-gray-300 font-mono">{r.totalMiles || '--'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Quality & Rework */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Quality & Rework</div>
+        {!metrics.hasReworkData ? (
+          <div className="text-center py-6">
+            <div className="text-sm text-gray-400 mb-2">No rework data tracked yet</div>
+            <div className="text-xs text-gray-600 max-w-md mx-auto">
+              Rework tracking requires work orders with status=&apos;rework&apos; or type=&apos;service_call&apos; linked to recently installed projects.
+              Once crews log rework events, per-crew rework rates will appear here.
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {[...metrics.crewRows].sort((a, b) => b.reworkRate - a.reworkRate).map(r => {
+              const color = r.reworkRate === 0 ? 'text-green-400' : r.reworkRate <= 5 ? 'text-amber-400' : 'text-red-400'
+              const bgColor = r.reworkRate === 0 ? 'bg-green-500' : r.reworkRate <= 5 ? 'bg-amber-500' : 'bg-red-500'
+              return (
+                <div key={r.crew} className="flex items-center gap-3">
+                  <div className="w-28 text-xs text-gray-300 text-right flex-shrink-0 flex items-center justify-end gap-2">
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: crewColorMap[r.crew] }} />
+                    <span className="truncate">{r.crew}</span>
+                  </div>
+                  <div className="flex-1 h-5 bg-gray-700/50 rounded overflow-hidden">
+                    <div className={`h-full rounded ${bgColor}`} style={{ width: `${Math.max(r.reworkRate, r.reworkRate > 0 ? 4 : 0)}%`, opacity: 0.6 }} />
+                  </div>
+                  <div className="w-20 text-right flex-shrink-0">
+                    <span className={`text-xs font-mono ${color}`}>{r.reworkRate}%</span>
+                    <span className="text-[10px] text-gray-600 ml-1">({r.reworkCount}/{r.totalInstalls30d})</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Travel Efficiency */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Travel Efficiency</div>
+        <div className="overflow-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-gray-700">
+                <th className="text-left text-gray-400 font-medium px-3 py-2">Crew</th>
+                <th className="text-right text-gray-400 font-medium px-3 py-2">Avg Drive (min)</th>
+                <th className="text-right text-gray-400 font-medium px-3 py-2">Total Miles</th>
+                <th className="text-right text-gray-400 font-medium px-3 py-2">Miles/Week (est)</th>
+                <th className="text-right text-gray-400 font-medium px-3 py-2">Travel:Install Ratio</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...metrics.crewRows].sort((a, b) => a.travelToInstallRatio - b.travelToInstallRatio).map(r => {
+                const weeksActive = 4 // approximate: using 4-week trailing
+                const milesPerWeek = weeksActive > 0 ? Math.round(r.totalMiles / weeksActive) : 0
+                const ratioColor = r.travelToInstallRatio === 0 ? 'text-gray-500'
+                  : r.travelToInstallRatio <= 0.3 ? 'text-green-400'
+                  : r.travelToInstallRatio <= 0.5 ? 'text-amber-400'
+                  : 'text-red-400'
+                return (
+                  <tr key={r.crew} className="border-b border-gray-800 hover:bg-gray-750">
+                    <td className="px-3 py-2 text-white font-medium">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: crewColorMap[r.crew] }} />
+                        {r.crew}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-gray-300 font-mono text-right">{r.avgDrive || '--'}</td>
+                    <td className="px-3 py-2 text-gray-300 font-mono text-right">{r.totalMiles || '--'}</td>
+                    <td className="px-3 py-2 text-gray-300 font-mono text-right">{milesPerWeek || '--'}</td>
+                    <td className={`px-3 py-2 font-mono text-right ${ratioColor}`}>
+                      {r.travelToInstallRatio > 0 ? `${r.travelToInstallRatio.toFixed(2)}x` : '--'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          <div className="mt-2 text-[10px] text-gray-600">
+            Travel:Install Ratio = drive_minutes / time_on_site_minutes. Lower is better. Target: &lt; 0.30x.
+          </div>
         </div>
       </div>
 
@@ -388,6 +580,55 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
         </div>
       </div>
 
+      {/* Crew Comparison */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Crew Comparison</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {comparisonMetrics.map(metric => {
+            const values = metrics.crewRows.map(r => ({ crew: r.crew, value: r[metric.key] as number }))
+            const maxVal = Math.max(...values.map(v => v.value), 1)
+            const bestIdx = values.reduce((bi, v, i) => v.value > values[bi].value ? i : bi, 0)
+            const worstIdx = values.reduce((wi, v, i) => v.value < values[wi].value ? i : wi, 0)
+            return (
+              <div key={metric.key}>
+                <div className="text-xs text-gray-500 mb-2">{metric.label}</div>
+                <div className="space-y-1.5">
+                  {values.map((v, i) => {
+                    const pct = maxVal > 0 ? (v.value / maxVal) * 100 : 0
+                    const barColor = i === bestIdx ? '#22c55e'
+                      : i === worstIdx && values.length > 2 ? '#f59e0b'
+                      : '#6b7280'
+                    return (
+                      <div key={v.crew} className="flex items-center gap-2">
+                        <div className="w-20 text-[10px] text-gray-400 text-right truncate flex-shrink-0">{v.crew}</div>
+                        <div className="flex-1 h-4 bg-gray-700/50 rounded overflow-hidden">
+                          <div className="h-full rounded" style={{ width: `${Math.max(pct, 4)}%`, backgroundColor: barColor, opacity: 0.7 }} />
+                        </div>
+                        <div className="w-14 text-[10px] font-mono text-gray-300 text-right flex-shrink-0">{metric.format(v.value)}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-700">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-1.5 rounded-sm bg-green-500 opacity-70" />
+            <span className="text-[10px] text-gray-500">Best</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-1.5 rounded-sm bg-amber-500 opacity-70" />
+            <span className="text-[10px] text-gray-500">Needs Improvement</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-1.5 rounded-sm bg-gray-500 opacity-70" />
+            <span className="text-[10px] text-gray-500">Middle</span>
+          </div>
+        </div>
+      </div>
+
       {/* Capacity Planning */}
       <div className={`rounded-xl p-5 border ${
         metrics.demandExceedsCapacity
@@ -434,6 +675,186 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ── Crew by Job Type ──────────────────────────────────────────────── */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">Crew by Job Type</div>
+        {(() => {
+          const jobTypes = ['install', 'survey', 'inspection', 'service']
+          const crewJobData = metrics.uniqueCrews.map(crew => {
+            const crewEntries = rampSchedule.filter(r => r.crew_name === crew && r.status === 'completed')
+            const byType: Record<string, number> = {}
+            jobTypes.forEach(t => { byType[t] = 0 })
+            crewEntries.forEach(r => {
+              const type = (r as any).job_type?.toLowerCase() || 'install'
+              if (byType[type] !== undefined) byType[type]++
+              else byType['install']++
+            })
+            return { crew: crew!, total: crewEntries.length, byType }
+          })
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[10px] border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left text-gray-500 font-medium px-2 py-1.5">Crew</th>
+                    {jobTypes.map(t => (
+                      <th key={t} className="text-center text-gray-500 font-medium px-2 py-1.5 capitalize">{t}</th>
+                    ))}
+                    <th className="text-right text-gray-500 font-medium px-2 py-1.5">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {crewJobData.map(r => (
+                    <tr key={r.crew} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                      <td className="px-2 py-1.5 text-white font-medium">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: crewColorMap[r.crew] }} />
+                          {r.crew}
+                        </div>
+                      </td>
+                      {jobTypes.map(t => (
+                        <td key={t} className={`px-2 py-1.5 text-center font-mono ${r.byType[t] > 0 ? 'text-white' : 'text-gray-600'}`}>
+                          {r.byType[t] || '\u2014'}
+                        </td>
+                      ))}
+                      <td className="px-2 py-1.5 text-right text-green-400 font-mono font-bold">{r.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        })()}
+      </div>
+
+      {/* ── Weekly Detail Table (Last 4 Weeks) ─────────────────────────────── */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">Weekly Detail — Last 4 Weeks</div>
+        {(() => {
+          const weeks = Array.from({ length: 4 }, (_, i) => {
+            const monday = getMondayWeeksAgo(3 - i)
+            return { monday, label: fmtWeek(monday) }
+          })
+          const targetPerWeek = metrics.uniqueCrews.length * 2
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[10px] border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left text-gray-500 font-medium px-2 py-1.5">Week</th>
+                    {metrics.uniqueCrews.map(c => (
+                      <th key={c} className="text-center text-gray-500 font-medium px-2 py-1.5">
+                        <div className="flex items-center justify-center gap-1">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: crewColorMap[c!] }} />
+                          <span className="truncate max-w-[60px]">{c}</span>
+                        </div>
+                      </th>
+                    ))}
+                    <th className="text-right text-gray-500 font-medium px-2 py-1.5">Total</th>
+                    <th className="text-right text-gray-500 font-medium px-2 py-1.5">Target</th>
+                    <th className="text-right text-gray-500 font-medium px-2 py-1.5">Delta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {weeks.map(w => {
+                    const weekEntries = rampSchedule.filter(r => r.status === 'completed' && r.scheduled_week === w.monday)
+                    const total = weekEntries.length
+                    const delta = total - targetPerWeek
+                    return (
+                      <tr key={w.monday} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                        <td className="px-2 py-1.5 text-white font-medium">{w.label}</td>
+                        {metrics.uniqueCrews.map(c => {
+                          const count = weekEntries.filter(r => r.crew_name === c).length
+                          return (
+                            <td key={c} className={`px-2 py-1.5 text-center font-mono ${count >= 2 ? 'text-green-400 font-bold' : count > 0 ? 'text-amber-400' : 'text-gray-600'}`}>
+                              {count || '\u2014'}
+                            </td>
+                          )
+                        })}
+                        <td className="px-2 py-1.5 text-right text-white font-mono font-bold">{total}</td>
+                        <td className="px-2 py-1.5 text-right text-gray-400 font-mono">{targetPerWeek}</td>
+                        <td className={`px-2 py-1.5 text-right font-mono font-bold ${delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {delta >= 0 ? '+' : ''}{delta}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
+        })()}
+      </div>
+
+      {/* ── Drive Time Analysis ─────────────────────────────────────────────── */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">Drive Time Analysis</div>
+        {(() => {
+          const crewDriveData = metrics.crewRows.map(r => {
+            const weeksActive = 4
+            const weeklyDriveHrs = r.avgDrive > 0 && r.mtd > 0
+              ? Math.round((r.avgDrive * r.mtd / weeksActive) / 60 * 10) / 10
+              : 0
+            const efficiencyRatio = r.travelToInstallRatio > 0
+              ? Math.round((1 / (1 + r.travelToInstallRatio)) * 100)
+              : 0
+            return { ...r, weeklyDriveHrs, efficiencyRatio }
+          }).sort((a, b) => b.efficiencyRatio - a.efficiencyRatio)
+
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[10px] border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left text-gray-500 font-medium px-2 py-1.5">Crew</th>
+                    <th className="text-right text-gray-500 font-medium px-2 py-1.5">Avg Drive (min)</th>
+                    <th className="text-right text-gray-500 font-medium px-2 py-1.5">Weekly Drive Hrs</th>
+                    <th className="text-right text-gray-500 font-medium px-2 py-1.5">Travel:Install</th>
+                    <th className="text-right text-gray-500 font-medium px-2 py-1.5">Efficiency %</th>
+                    <th className="text-left text-gray-500 font-medium px-2 py-1.5 w-24">Rating</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {crewDriveData.map(r => {
+                    const rating = r.efficiencyRatio >= 80 ? 'Excellent' : r.efficiencyRatio >= 65 ? 'Good' : r.efficiencyRatio > 0 ? 'Needs Work' : '\u2014'
+                    const ratingColor = r.efficiencyRatio >= 80 ? 'text-green-400' : r.efficiencyRatio >= 65 ? 'text-amber-400' : r.efficiencyRatio > 0 ? 'text-red-400' : 'text-gray-600'
+                    return (
+                      <tr key={r.crew} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                        <td className="px-2 py-1.5 text-white font-medium">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: crewColorMap[r.crew] }} />
+                            {r.crew}
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5 text-gray-300 font-mono text-right">{r.avgDrive || '--'}</td>
+                        <td className="px-2 py-1.5 text-gray-300 font-mono text-right">{r.weeklyDriveHrs > 0 ? `${r.weeklyDriveHrs}h` : '--'}</td>
+                        <td className={`px-2 py-1.5 font-mono text-right ${r.travelToInstallRatio <= 0.3 ? 'text-green-400' : r.travelToInstallRatio <= 0.5 ? 'text-amber-400' : r.travelToInstallRatio > 0 ? 'text-red-400' : 'text-gray-600'}`}>
+                          {r.travelToInstallRatio > 0 ? `${r.travelToInstallRatio.toFixed(2)}x` : '--'}
+                        </td>
+                        <td className="px-2 py-1.5 font-mono text-right">
+                          {r.efficiencyRatio > 0 ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <div className="w-12 bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                                <div className={`h-full rounded-full ${r.efficiencyRatio >= 80 ? 'bg-green-500' : r.efficiencyRatio >= 65 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${r.efficiencyRatio}%` }} />
+                              </div>
+                              <span className="text-gray-300">{r.efficiencyRatio}%</span>
+                            </div>
+                          ) : <span className="text-gray-600">--</span>}
+                        </td>
+                        <td className={`px-2 py-1.5 font-medium ${ratingColor}`}>{rating}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              <div className="mt-2 text-[10px] text-gray-600">
+                Efficiency % = install time / (install time + drive time). Higher is better. Target: 80%+.
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Drill-down modal */}
