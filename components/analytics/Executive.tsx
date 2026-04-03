@@ -84,7 +84,7 @@ export function Executive({ data }: { data: AnalyticsData }) {
 
   return (
     <div className="max-w-6xl space-y-8">
-      {data.onPeriodChange && <div className="flex justify-end"><PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} /></div>}
+      {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} />}
 
       {/* Hero: 5 headline numbers */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
