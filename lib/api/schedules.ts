@@ -7,11 +7,11 @@ import { db } from '@/lib/db'
  */
 export async function loadScheduleByDateRange(startDate: string, endDate: string, orgId?: string) {
   let query = db().from('schedule')
-    .select('id, project_id, crew_id, job_type, date, end_date, time, status, notes, arrival_window, org_id')
+    .select('id, project_id, crew_id, job_type, date, end_date, time, status, notes, pm')
     .lte('date', endDate)
     .or(`end_date.gte.${startDate},and(end_date.is.null,date.gte.${startDate})`)
     .limit(2000)
-  if (orgId) query = query.eq('org_id', orgId)
+  // Note: schedule table does not have org_id column — org filtering not available
   const { data, error } = await query
   if (error) console.error('schedule load failed:', error)
 
