@@ -854,11 +854,11 @@ export default function CommandPage() {
           {/* ── ACTION ITEMS ──────────────────────────────────────────── */}
           <div className="space-y-3">
 
-            {/* Stuck Tasks */}
+            {/* Fix These First — stuck/blocked projects */}
             <ActionSection
-              title="Stuck Tasks"
+              title="Fix These First"
               count={stuckItems.length}
-              color="text-orange-400"
+              color="text-red-400"
               open={stuckOpen}
               onToggle={() => setStuckOpen(!stuckOpen)}
             >
@@ -868,18 +868,14 @@ export default function CommandPage() {
                     item.status === 'Pending Resolution' ? 'bg-red-400' : 'bg-amber-400'
                   }`} />
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm text-white truncate">{item.project.name}</span>
-                    <span className="text-xs text-gray-500 ml-2">{item.project.id}</span>
+                    <div className="text-sm text-white">
+                      {item.status === 'Pending Resolution' ? 'Resolve' : 'Revise'}: {item.taskName}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {item.project.name} · {item.project.id}
+                      {item.reason && <span className="text-gray-600"> — {item.reason}</span>}
+                    </div>
                   </div>
-                  <span className="text-xs text-gray-400">{item.taskName}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded ${
-                    item.status === 'Pending Resolution' ? 'bg-red-950 text-red-300' : 'bg-amber-950 text-amber-300'
-                  }`}>
-                    {item.status === 'Pending Resolution' ? 'Pending' : 'Revision'}
-                  </span>
-                  {item.reason && (
-                    <span className="text-xs text-gray-500 max-w-[180px] truncate hidden lg:block">{item.reason}</span>
-                  )}
                   <button
                     onClick={async (e) => {
                       e.stopPropagation()
@@ -888,7 +884,7 @@ export default function CommandPage() {
                       await insertTaskHistory({ project_id: item.project.id, task_id: item.taskId, status: 'In Progress', changed_by: currentUser?.name ?? 'Unknown' })
                       refresh()
                     }}
-                    className="text-[10px] px-2 py-0.5 bg-green-900/40 text-green-400 rounded hover:opacity-80 flex-shrink-0"
+                    className="text-xs px-3 py-1 bg-green-600 hover:bg-green-500 text-white rounded-md font-medium flex-shrink-0"
                   >Resolve</button>
                 </ActionRow>
               ))}
@@ -933,34 +929,33 @@ export default function CommandPage() {
             </div>
           )}
 
-          {/* ── NEXT ACTIONS — Cross-project task view ────────────── */}
+          {/* ── PUSH THESE FORWARD — next actionable task per project ── */}
           <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
               <span className="text-sm text-gray-300 font-bold uppercase tracking-wider">
-                Next Actions
+                Push These Forward
               </span>
               <a href="/queue" className="text-xs text-green-400 hover:text-green-300 transition-colors">
-                View all in Queue →
+                Full worklist →
               </a>
             </div>
             <div className="max-h-[500px] overflow-y-auto">
               {(() => {
-                // Build cross-project task list: next actionable task per project
                 const actionItems = filtered
-                  .filter(p => !p.blocker) // exclude blocked (shown in stuck tasks above)
+                  .filter(p => !p.blocker)
                   .map(p => {
                     const next = getNextTask(p)
                     const days = daysAgo(p.stage_date)
                     return { project: p, nextTask: next, days }
                   })
                   .filter(item => item.nextTask && item.nextTask !== '—')
-                  .sort((a, b) => b.days - a.days) // longest waiting first
-                  .slice(0, 20) // top 20
+                  .sort((a, b) => b.days - a.days)
+                  .slice(0, 20)
 
                 if (actionItems.length === 0) {
                   return (
                     <div className="px-4 py-8 text-center text-gray-600 text-sm">
-                      No pending actions — all projects are on track or blocked
+                      Nothing to push — all projects are on track or need fixes above
                     </div>
                   )
                 }
@@ -975,21 +970,15 @@ export default function CommandPage() {
                       days >= 30 ? 'bg-red-500' : days >= 14 ? 'bg-amber-500' : 'bg-green-500'
                     }`} />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-white truncate">{p.name}</span>
-                        <span className="text-xs text-gray-600 flex-shrink-0">{p.id}</span>
-                      </div>
+                      <div className="text-sm text-white">{nextTask}</div>
                       <div className="text-xs text-gray-500 mt-0.5">
-                        {STAGE_LABELS[p.stage]} · {days}d
+                        {p.name} · {STAGE_LABELS[p.stage]} · {days}d
                         {p.pm && !isMyProjects && <span className="text-gray-600"> · {p.pm}</span>}
                       </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="text-sm text-green-400 font-medium">{nextTask}</div>
-                      {p.follow_up_date && (
-                        <div className="text-xs mt-0.5">{renderFollowUp(p.follow_up_date)}</div>
-                      )}
-                    </div>
+                    {p.follow_up_date && (
+                      <div className="text-xs flex-shrink-0">{renderFollowUp(p.follow_up_date)}</div>
+                    )}
                   </div>
                 ))
               })()}
