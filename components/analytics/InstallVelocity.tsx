@@ -201,7 +201,229 @@ export function InstallVelocity({ data }: { data: AnalyticsData }) {
         </div>
       </div>
 
+      {/* Install by City */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Installs by City — Top 8</div>
+        <InstallByCity installs={metrics.installs} />
+      </div>
+
+      {/* Install by Financier */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Installs by Financier</div>
+        <InstallByFinancier installs={metrics.installs} allProjects={projects} />
+      </div>
+
+      {/* Weekly Install Table */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Weekly Install History — Last 8 Weeks</div>
+        <WeeklyInstallTable projects={projects} workOrders={data.workOrders} />
+      </div>
+
+      {/* Inspection Pipeline */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Inspection Pipeline</div>
+        <InspectionPipeline active={active} projects={projects} />
+      </div>
+
       {drillDown && <ProjectListModal title={drillDown.title} projects={drillDown.projects} onClose={() => setDrillDown(null)} />}
+    </div>
+  )
+}
+
+// ── Install by City sub-component ──────────────────────────────────────────
+
+function InstallByCity({ installs }: { installs: { city: string | null; contract: number | null }[] }) {
+  const cities = useMemo(() => {
+    const map: Record<string, { count: number; value: number }> = {}
+    installs.forEach(p => {
+      const c = p.city || 'Unknown'
+      if (!map[c]) map[c] = { count: 0, value: 0 }
+      map[c].count++
+      map[c].value += Number(p.contract) || 0
+    })
+    return Object.entries(map).sort((a, b) => b[1].count - a[1].count).slice(0, 8)
+  }, [installs])
+
+  if (cities.length === 0) return <div className="text-xs text-gray-600">No installs this period</div>
+
+  const max = cities[0]?.[1].count ?? 1
+  return (
+    <div className="space-y-1">
+      {cities.map(([city, d]) => (
+        <div key={city} className="flex items-center gap-3">
+          <div className="w-28 text-xs text-gray-400 text-right truncate flex-shrink-0">{city}</div>
+          <div className="flex-1 bg-gray-700/30 rounded-full h-4 overflow-hidden">
+            <div className="h-full bg-green-600/50 rounded-full flex items-center px-2"
+              style={{ width: `${Math.max((d.count / max) * 100, 8)}%` }}>
+              <span className="text-[10px] text-white font-bold">{d.count}</span>
+            </div>
+          </div>
+          <div className="w-16 text-[10px] text-gray-500 font-mono text-right">{fmt$(d.value)}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Install by Financier sub-component ─────────────────────────────────────
+
+function InstallByFinancier({ installs, allProjects }: {
+  installs: { id: string; financier: string | null; contract: number | null; sale_date: string | null; install_complete_date: string | null }[]
+  allProjects: { id: string; financier: string | null; sale_date: string | null; install_complete_date: string | null; contract: number | null }[]
+}) {
+  const financiers = useMemo(() => {
+    const map: Record<string, { count: number; value: number; cycleDaysTotal: number; cycleDaysCount: number }> = {}
+    installs.forEach(p => {
+      const f = p.financier || 'Unknown'
+      if (!map[f]) map[f] = { count: 0, value: 0, cycleDaysTotal: 0, cycleDaysCount: 0 }
+      map[f].count++
+      map[f].value += Number(p.contract) || 0
+      if (p.sale_date && p.install_complete_date) {
+        const days = (new Date(p.install_complete_date + 'T00:00:00').getTime() - new Date(p.sale_date + 'T00:00:00').getTime()) / 86400000
+        map[f].cycleDaysTotal += days
+        map[f].cycleDaysCount++
+      }
+    })
+    return Object.entries(map)
+      .map(([name, d]) => ({ name, ...d, avgCycle: d.cycleDaysCount > 0 ? Math.round(d.cycleDaysTotal / d.cycleDaysCount) : 0 }))
+      .sort((a, b) => b.count - a.count)
+  }, [installs])
+
+  if (financiers.length === 0) return <div className="text-xs text-gray-600">No installs this period</div>
+
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="border-b border-gray-700">
+          <th className="text-left text-gray-500 font-medium px-2 py-1">Financier</th>
+          <th className="text-right text-gray-500 font-medium px-2 py-1">Count</th>
+          <th className="text-right text-gray-500 font-medium px-2 py-1">Value</th>
+          <th className="text-right text-gray-500 font-medium px-2 py-1">Avg Cycle</th>
+        </tr>
+      </thead>
+      <tbody>
+        {financiers.map(f => (
+          <tr key={f.name} className="border-b border-gray-800">
+            <td className="px-2 py-1.5 text-gray-300 truncate max-w-[180px]">{f.name}</td>
+            <td className="px-2 py-1.5 text-white font-mono text-right">{f.count}</td>
+            <td className="px-2 py-1.5 text-gray-400 font-mono text-right">{fmt$(f.value)}</td>
+            <td className={`px-2 py-1.5 font-mono text-right ${f.avgCycle > 60 ? 'text-red-400' : f.avgCycle > 45 ? 'text-amber-400' : 'text-green-400'}`}>{f.avgCycle}d</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+// ── Weekly Install Table sub-component ─────────────────────────────────────
+
+function WeeklyInstallTable({ projects, workOrders }: {
+  projects: { id: string; install_complete_date: string | null; stage: string; stage_date: string | null; contract: number | null }[]
+  workOrders: { project_id: string; time_on_site_minutes?: number; completed_at?: string }[]
+}) {
+  const weeks = useMemo(() => {
+    const woMap: Record<string, number[]> = {}
+    workOrders.forEach(wo => {
+      if (wo.time_on_site_minutes && wo.completed_at) {
+        if (!woMap[wo.project_id]) woMap[wo.project_id] = []
+        woMap[wo.project_id].push(wo.time_on_site_minutes)
+      }
+    })
+
+    return Array.from({ length: 8 }, (_, i) => {
+      const weekEnd = new Date()
+      weekEnd.setDate(weekEnd.getDate() - (i * 7))
+      weekEnd.setHours(23, 59, 59, 999)
+      const weekStart = new Date(weekEnd)
+      weekStart.setDate(weekStart.getDate() - 6)
+      weekStart.setHours(0, 0, 0, 0)
+
+      const wkInstalls = projects.filter(p => {
+        const d = p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null)
+        if (!d) return false
+        const dt = new Date(d + 'T00:00:00')
+        return dt >= weekStart && dt <= weekEnd
+      })
+
+      const value = wkInstalls.reduce((s, p) => s + (Number(p.contract) || 0), 0)
+      let avgTos = 0
+      let tosCount = 0
+      wkInstalls.forEach(p => {
+        const mins = woMap[p.id]
+        if (mins) { mins.forEach(m => { avgTos += m; tosCount++ }) }
+      })
+
+      return {
+        label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}`,
+        count: wkInstalls.length,
+        value,
+        avgTos: tosCount > 0 ? Math.round(avgTos / tosCount) : 0,
+      }
+    }).reverse()
+  }, [projects, workOrders])
+
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="border-b border-gray-700">
+          <th className="text-left text-gray-500 font-medium px-2 py-1">Week</th>
+          <th className="text-right text-gray-500 font-medium px-2 py-1">Installs</th>
+          <th className="text-right text-gray-500 font-medium px-2 py-1">Value</th>
+          <th className="text-right text-gray-500 font-medium px-2 py-1">Avg TOS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {weeks.map(w => (
+          <tr key={w.label} className="border-b border-gray-800">
+            <td className="px-2 py-1.5 text-gray-400">{w.label}</td>
+            <td className={`px-2 py-1.5 font-mono text-right ${w.count > 0 ? 'text-green-400' : 'text-gray-600'}`}>{w.count}</td>
+            <td className="px-2 py-1.5 text-gray-400 font-mono text-right">{fmt$(w.value)}</td>
+            <td className="px-2 py-1.5 text-gray-500 font-mono text-right">{w.avgTos > 0 ? `${w.avgTos}m` : '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+// ── Inspection Pipeline sub-component ──────────────────────────────────────
+
+function InspectionPipeline({ active, projects }: {
+  active: { id: string; stage: string; stage_date: string | null; pto_date: string | null }[]
+  projects: { id: string; stage: string; pto_date: string | null; install_complete_date: string | null }[]
+}) {
+  const stats = useMemo(() => {
+    const inInspection = active.filter(p => p.stage === 'inspection')
+    const avgDays = inInspection.length > 0
+      ? Math.round(inInspection.reduce((s, p) => s + daysAgo(p.stage_date), 0) / inInspection.length)
+      : 0
+
+    // PTO rate: projects that reached PTO / those that entered inspection (ever)
+    const enteredInspection = projects.filter(p =>
+      p.stage === 'inspection' || p.stage === 'complete' || p.pto_date
+    )
+    const reachedPTO = projects.filter(p => p.pto_date)
+    const ptoRate = enteredInspection.length > 0
+      ? Math.round((reachedPTO.length / enteredInspection.length) * 100)
+      : 0
+
+    return { count: inInspection.length, avgDays, ptoRate }
+  }, [active, projects])
+
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      <div className="bg-gray-900/50 rounded-lg p-3 text-center">
+        <div className="text-[10px] text-gray-500 uppercase">In Inspection</div>
+        <div className="text-xl font-bold font-mono text-cyan-400">{stats.count}</div>
+      </div>
+      <div className="bg-gray-900/50 rounded-lg p-3 text-center">
+        <div className="text-[10px] text-gray-500 uppercase">Avg Days</div>
+        <div className={`text-xl font-bold font-mono ${stats.avgDays > 21 ? 'text-red-400' : 'text-green-400'}`}>{stats.avgDays}d</div>
+      </div>
+      <div className="bg-gray-900/50 rounded-lg p-3 text-center">
+        <div className="text-[10px] text-gray-500 uppercase">PTO Rate</div>
+        <div className={`text-xl font-bold font-mono ${stats.ptoRate >= 80 ? 'text-green-400' : 'text-amber-400'}`}>{stats.ptoRate}%</div>
+      </div>
     </div>
   )
 }

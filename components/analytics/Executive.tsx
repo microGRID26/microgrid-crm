@@ -1,16 +1,17 @@
 'use client'
 
 import { useMemo } from 'react'
-import { fmt$, daysAgo, STAGE_LABELS } from '@/lib/utils'
+import { fmt$, daysAgo, STAGE_LABELS, SLA_THRESHOLDS } from '@/lib/utils'
 import { MetricCard, PeriodBar, inRange, STAGE_DAYS_REMAINING, type AnalyticsData } from './shared'
 
 export function Executive({ data }: { data: AnalyticsData }) {
-  const { projects, active, complete, funding, period } = data
+  const { projects, active, complete, funding, period, rampSchedule } = data
 
   // Period metrics
   const metrics = useMemo(() => {
     const sales = projects.filter(p => inRange(p.sale_date, period))
     const installs = projects.filter(p => inRange(p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null), period))
+    const cancelled = projects.filter(p => p.disposition === 'Cancelled' && inRange(p.stage_date, period))
     const m2Funded = projects.filter(p => { const f = funding[p.id]; return f && inRange(f.m2_funded_date, period) })
     const m3Funded = projects.filter(p => { const f = funding[p.id]; return f && inRange(f.m3_funded_date, period) })
 
@@ -65,8 +66,42 @@ export function Executive({ data }: { data: AnalyticsData }) {
     }).filter(s => s.count > 0)
     const maxStageCount = Math.max(...stageBreakdown.map(s => s.count), 1)
 
+    // Key metrics summary
+    const cancelRate = sales.length > 0 ? Math.round((cancelled.length / sales.length) * 100) : 0
+    const avgDealSize = sales.length > 0 ? Math.round(sales.reduce((s, p) => s + (Number(p.contract) || 0), 0) / sales.length) : 0
+    const avgKw = sales.length > 0 ? Math.round(sales.reduce((s, p) => s + (Number(p.systemkw) || 0), 0) / sales.length * 10) / 10 : 0
+    const totalBatteries = sales.reduce((s, p) => s + (Number(p.battery_qty) || 0), 0)
+    const avgCycleDays = avgCycle
+
+    // Top performers
+    const dealerCounts: Record<string, number> = {}
+    sales.forEach(p => { if (p.dealer) dealerCounts[p.dealer] = (dealerCounts[p.dealer] ?? 0) + 1 })
+    const topDealer = Object.entries(dealerCounts).sort((a, b) => b[1] - a[1])[0] ?? null
+
+    const pmInstallCounts: Record<string, number> = {}
+    installs.forEach(p => { if (p.pm) pmInstallCounts[p.pm] = (pmInstallCounts[p.pm] ?? 0) + 1 })
+    const topPM = Object.entries(pmInstallCounts).sort((a, b) => b[1] - a[1])[0] ?? null
+
+    const crewCompletions: Record<string, number> = {}
+    if (rampSchedule) {
+      rampSchedule.filter(r => r.status === 'completed' || r.completed_at).forEach(r => {
+        if (r.crew_name) crewCompletions[r.crew_name] = (crewCompletions[r.crew_name] ?? 0) + 1
+      })
+    }
+    const topCrew = Object.entries(crewCompletions).sort((a, b) => b[1] - a[1])[0] ?? null
+
+    // Portfolio health
+    const onTrack = active.filter(p => {
+      const t = SLA_THRESHOLDS[p.stage] ?? { crit: 7, risk: 5 }
+      return daysAgo(p.stage_date) < t.risk
+    })
+    const blockedPct = active.length > 0 ? Math.round((blocked.length / active.length) * 100) : 0
+    const aging90 = active.filter(p => (daysAgo(p.sale_date) || 0) >= 90)
+    const agingPct = active.length > 0 ? Math.round((aging90.length / active.length) * 100) : 0
+    const onTrackPct = active.length > 0 ? Math.round((onTrack.length / active.length) * 100) : 0
+
     return {
-      sales, installs, totalPortfolio,
+      sales, installs, cancelled, totalPortfolio,
       revenueCollected, m2Val, m3Val,
       cashCollectable: m1Collectable + m2Collectable + m3Collectable,
       m1Collectable, m2Collectable, m3Collectable,
@@ -74,8 +109,14 @@ export function Executive({ data }: { data: AnalyticsData }) {
       avgCycle, blocked, atRisk,
       next30, next30Value, next90, next90Value,
       stageBreakdown, maxStageCount,
+      // New: key metrics
+      cancelRate, avgDealSize, avgKw, totalBatteries, avgCycleDays,
+      // New: top performers
+      topDealer, topPM, topCrew,
+      // New: portfolio health
+      onTrackPct, blockedPct, agingPct,
     }
-  }, [projects, active, funding, period])
+  }, [projects, active, funding, period, rampSchedule])
 
   const STAGE_COLORS: Record<string, string> = {
     evaluation: '#3b82f6', survey: '#8b5cf6', design: '#ec4899',
@@ -132,6 +173,93 @@ export function Executive({ data }: { data: AnalyticsData }) {
           <div className="text-sm text-gray-300">{metrics.blocked.length} projects blocked — {fmt$(metrics.atRisk)} in contract value waiting on resolution</div>
         </div>
       )}
+
+      {/* Key Metrics Summary Row */}
+      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">Key Metrics Summary</div>
+        <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
+          {[
+            { label: 'Sales', value: String(metrics.sales.length), color: 'text-green-400' },
+            { label: 'Installs', value: String(metrics.installs.length), color: 'text-blue-400' },
+            { label: 'Cancelled', value: String(metrics.cancelled.length), color: 'text-red-400' },
+            { label: 'Cancel Rate', value: `${metrics.cancelRate}%`, color: metrics.cancelRate > 15 ? 'text-red-400' : 'text-gray-300' },
+            { label: 'Avg Deal', value: fmt$(metrics.avgDealSize), color: 'text-white' },
+            { label: 'Avg kW', value: `${metrics.avgKw}`, color: 'text-white' },
+            { label: 'Batteries', value: String(metrics.totalBatteries), color: 'text-purple-400' },
+            { label: 'Avg Cycle', value: `${metrics.avgCycleDays}d`, color: metrics.avgCycleDays > 60 ? 'text-amber-400' : 'text-green-400' },
+          ].map(m => (
+            <div key={m.label} className="text-center">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">{m.label}</div>
+              <div className={`text-sm font-bold font-mono ${m.color}`}>{m.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Top Performers */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Top Dealer (Sales)</div>
+          {metrics.topDealer ? (
+            <>
+              <div className="text-sm font-bold text-white truncate">{metrics.topDealer[0]}</div>
+              <div className="text-xs text-green-400 font-mono">{metrics.topDealer[1]} sales</div>
+            </>
+          ) : <div className="text-xs text-gray-600">No data</div>}
+        </div>
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Top PM (Installs)</div>
+          {metrics.topPM ? (
+            <>
+              <div className="text-sm font-bold text-white truncate">{metrics.topPM[0]}</div>
+              <div className="text-xs text-blue-400 font-mono">{metrics.topPM[1]} installs</div>
+            </>
+          ) : <div className="text-xs text-gray-600">No data</div>}
+        </div>
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Top Crew (Completions)</div>
+          {metrics.topCrew ? (
+            <>
+              <div className="text-sm font-bold text-white truncate">{metrics.topCrew[0]}</div>
+              <div className="text-xs text-amber-400 font-mono">{metrics.topCrew[1]} completed</div>
+            </>
+          ) : <div className="text-xs text-gray-600">No data</div>}
+        </div>
+      </div>
+
+      {/* Portfolio Health */}
+      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-3">Portfolio Health</div>
+        <div className="space-y-3">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-green-400">On Track (within SLA)</span>
+              <span className="text-xs text-gray-400 font-mono">{metrics.onTrackPct}%</span>
+            </div>
+            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${metrics.onTrackPct}%` }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-red-400">Blocked</span>
+              <span className="text-xs text-gray-400 font-mono">{metrics.blockedPct}%</span>
+            </div>
+            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div className="h-full bg-red-500 rounded-full transition-all" style={{ width: `${metrics.blockedPct}%` }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-amber-400">Aging (&gt;90d cycle)</span>
+              <span className="text-xs text-gray-400 font-mono">{metrics.agingPct}%</span>
+            </div>
+            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${metrics.agingPct}%` }} />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Pipeline funnel */}
       <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">

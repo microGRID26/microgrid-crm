@@ -170,7 +170,186 @@ export function CashFlow({ data }: { data: AnalyticsData }) {
         </div>
       </div>
 
+      {/* Aging Analysis */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Aging Analysis — Submitted but Unfunded</div>
+        <AgingTable label="M2" projects={metrics.m2Submitted} funding={funding} milestone="m2" />
+        <div className="mt-4" />
+        <AgingTable label="M3" projects={metrics.m3Submitted} funding={funding} milestone="m3" />
+      </div>
+
+      {/* Collection Efficiency */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Collection Efficiency</div>
+        <CollectionMetrics projects={projects} funding={funding} />
+      </div>
+
+      {/* Nonfunded Codes Analysis */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Nonfunded Codes — Top Denial Reasons</div>
+        <NonfundedCodes projects={projects} funding={funding} />
+      </div>
+
       {drillDown && <ProjectListModal title={drillDown.title} projects={drillDown.projects} onClose={() => setDrillDown(null)} />}
     </div>
+  )
+}
+
+// ── Aging Table sub-component ──────────────────────────────────────────────
+
+function AgingTable({ label, projects: submitted, funding, milestone }: {
+  label: string
+  projects: { id: string; install_complete_date?: string | null; pto_date?: string | null }[]
+  funding: Record<string, { m2_amount?: number | null; m3_amount?: number | null; m2_funded_date?: string | null; m3_funded_date?: string | null }>
+  milestone: 'm2' | 'm3'
+}) {
+  const buckets = useMemo(() => {
+    const dateField = milestone === 'm2' ? 'install_complete_date' : 'pto_date'
+    const amtField = milestone === 'm2' ? 'm2_amount' : 'm3_amount'
+    const ranges = [
+      { label: '0-15d', min: 0, max: 15, color: 'text-green-400' },
+      { label: '15-30d', min: 15, max: 30, color: 'text-amber-400' },
+      { label: '30-45d', min: 30, max: 45, color: 'text-orange-400' },
+      { label: '45d+', min: 45, max: Infinity, color: 'text-red-400' },
+    ]
+    return ranges.map(r => {
+      const ps = submitted.filter(p => {
+        const d = daysAgo((p as Record<string, string | null>)[dateField] as string | null)
+        return d >= r.min && d < r.max
+      })
+      const amt = ps.reduce((s, p) => s + (Number(funding[p.id]?.[amtField]) || 0), 0)
+      return { ...r, count: ps.length, amount: amt }
+    })
+  }, [submitted, funding, milestone])
+
+  return (
+    <div>
+      <div className="text-xs text-gray-500 mb-2">{label} Submitted — Waiting for Payment</div>
+      <div className="grid grid-cols-4 gap-2">
+        {buckets.map(b => (
+          <div key={b.label} className="bg-gray-900/50 rounded-lg p-2 text-center">
+            <div className="text-[10px] text-gray-500">{b.label}</div>
+            <div className={`text-sm font-bold font-mono ${b.color}`}>{b.count}</div>
+            <div className="text-[10px] text-gray-600 font-mono">{fmt$(b.amount)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Collection Efficiency sub-component ────────────────────────────────────
+
+function CollectionMetrics({ projects, funding }: {
+  projects: { id: string; install_complete_date?: string | null; pto_date?: string | null }[]
+  funding: Record<string, { m2_amount?: number | null; m3_amount?: number | null; m2_status?: string | null; m3_status?: string | null; m2_funded_date?: string | null; m3_funded_date?: string | null }>
+}) {
+  const stats = useMemo(() => {
+    let m2Eligible = 0, m2Funded = 0, m2DaysTotal = 0, m2DaysCount = 0
+    let m3Eligible = 0, m3Funded = 0, m3DaysTotal = 0, m3DaysCount = 0
+
+    for (const p of projects) {
+      const f = funding[p.id]
+      if (!f) continue
+      // M2: eligible = has install_complete_date
+      if (p.install_complete_date) {
+        m2Eligible++
+        if (f.m2_status === 'Funded') {
+          m2Funded++
+          if (f.m2_funded_date) {
+            const eligible = new Date(p.install_complete_date + 'T00:00:00').getTime()
+            const funded = new Date(f.m2_funded_date + 'T00:00:00').getTime()
+            if (funded >= eligible) { m2DaysTotal += (funded - eligible) / 86400000; m2DaysCount++ }
+          }
+        }
+      }
+      // M3: eligible = has pto_date
+      if (p.pto_date) {
+        m3Eligible++
+        if (f.m3_status === 'Funded') {
+          m3Funded++
+          if (f.m3_funded_date) {
+            const eligible = new Date(p.pto_date + 'T00:00:00').getTime()
+            const funded = new Date(f.m3_funded_date + 'T00:00:00').getTime()
+            if (funded >= eligible) { m3DaysTotal += (funded - eligible) / 86400000; m3DaysCount++ }
+          }
+        }
+      }
+    }
+
+    const m2Rate = m2Eligible > 0 ? Math.round((m2Funded / m2Eligible) * 100) : 0
+    const m3Rate = m3Eligible > 0 ? Math.round((m3Funded / m3Eligible) * 100) : 0
+    const m2AvgDays = m2DaysCount > 0 ? Math.round(m2DaysTotal / m2DaysCount) : 0
+    const m3AvgDays = m3DaysCount > 0 ? Math.round(m3DaysTotal / m3DaysCount) : 0
+
+    return { m2Rate, m3Rate, m2AvgDays, m3AvgDays }
+  }, [projects, funding])
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="bg-gray-900/50 rounded-lg p-3 text-center">
+        <div className="text-[10px] text-gray-500 uppercase">M2 Collection Rate</div>
+        <div className={`text-xl font-bold font-mono ${stats.m2Rate >= 80 ? 'text-green-400' : stats.m2Rate >= 50 ? 'text-amber-400' : 'text-red-400'}`}>{stats.m2Rate}%</div>
+      </div>
+      <div className="bg-gray-900/50 rounded-lg p-3 text-center">
+        <div className="text-[10px] text-gray-500 uppercase">M3 Collection Rate</div>
+        <div className={`text-xl font-bold font-mono ${stats.m3Rate >= 80 ? 'text-green-400' : stats.m3Rate >= 50 ? 'text-amber-400' : 'text-red-400'}`}>{stats.m3Rate}%</div>
+      </div>
+      <div className="bg-gray-900/50 rounded-lg p-3 text-center">
+        <div className="text-[10px] text-gray-500 uppercase">Avg Days to M2</div>
+        <div className={`text-xl font-bold font-mono ${stats.m2AvgDays > 30 ? 'text-red-400' : 'text-blue-400'}`}>{stats.m2AvgDays}d</div>
+      </div>
+      <div className="bg-gray-900/50 rounded-lg p-3 text-center">
+        <div className="text-[10px] text-gray-500 uppercase">Avg Days to M3</div>
+        <div className={`text-xl font-bold font-mono ${stats.m3AvgDays > 30 ? 'text-red-400' : 'text-blue-400'}`}>{stats.m3AvgDays}d</div>
+      </div>
+    </div>
+  )
+}
+
+// ── Nonfunded Codes sub-component ──────────────────────────────────────────
+
+function NonfundedCodes({ projects, funding }: {
+  projects: { id: string; contract?: number | null }[]
+  funding: Record<string, { nonfunded_code_1?: string | null; nonfunded_code_2?: string | null; nonfunded_code_3?: string | null }>
+}) {
+  const codes = useMemo(() => {
+    const map: Record<string, { count: number; value: number }> = {}
+    for (const p of projects) {
+      const f = funding[p.id]
+      if (!f) continue
+      const pVal = Number(p.contract) || 0
+      for (const code of [f.nonfunded_code_1, f.nonfunded_code_2, f.nonfunded_code_3]) {
+        if (code) {
+          if (!map[code]) map[code] = { count: 0, value: 0 }
+          map[code].count++
+          map[code].value += pVal
+        }
+      }
+    }
+    return Object.entries(map).sort((a, b) => b[1].count - a[1].count).slice(0, 5)
+  }, [projects, funding])
+
+  if (codes.length === 0) return <div className="text-xs text-gray-600">No nonfunded codes recorded</div>
+
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="border-b border-gray-700">
+          <th className="text-left text-gray-500 font-medium px-2 py-1">Code</th>
+          <th className="text-right text-gray-500 font-medium px-2 py-1">Projects</th>
+          <th className="text-right text-gray-500 font-medium px-2 py-1">Contract Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {codes.map(([code, d]) => (
+          <tr key={code} className="border-b border-gray-800">
+            <td className="px-2 py-1.5 text-gray-300">{code}</td>
+            <td className="px-2 py-1.5 text-red-400 font-mono text-right">{d.count}</td>
+            <td className="px-2 py-1.5 text-gray-400 font-mono text-right">{fmt$(d.value)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }

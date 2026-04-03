@@ -302,7 +302,220 @@ export function PipelineHealth({ data }: { data: AnalyticsData }) {
         </div>
       </div>
 
+      {/* Stage Transition Rate */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Stage Transition Rate</div>
+        <StageTransitionTable active={active} projects={projects} />
+      </div>
+
+      {/* Permit Authority Analysis */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Permit Authority (AHJ) Analysis — Top 8</div>
+        <AHJAnalysis active={active} projects={projects} />
+      </div>
+
+      {/* Financier Pipeline */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">Financier Pipeline — Active Projects by Stage</div>
+        <FinancierPipeline active={active} />
+      </div>
+
       {drillDown && <ProjectListModal title={drillDown.title} projects={drillDown.projects} onClose={() => setDrillDown(null)} />}
     </div>
+  )
+}
+
+// ── Stage Transition Rate sub-component ────────────────────────────────────
+
+function StageTransitionTable({ active, projects }: {
+  active: { stage: string; stage_date: string | null; sale_date: string | null }[]
+  projects: { stage: string; stage_date: string | null; sale_date: string | null }[]
+}) {
+  const transitions = useMemo(() => {
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const stageIdx: Record<string, number> = {}
+    STAGE_ORDER.forEach((s, i) => { stageIdx[s] = i })
+
+    return STAGE_ORDER.filter(s => s !== 'complete').map(stage => {
+      const inStage = active.filter(p => p.stage === stage)
+      const avgDays = inStage.length > 0
+        ? Math.round(inStage.reduce((s, p) => s + daysAgo(p.stage_date), 0) / inStage.length)
+        : 0
+
+      // Advanced this month: projects currently beyond this stage with stage_date this month
+      // (approximation: projects in later stages whose stage_date is this month)
+      const advancedThisMonth = projects.filter(p => {
+        const idx = stageIdx[p.stage] ?? 0
+        const stageI = stageIdx[stage] ?? 0
+        if (idx <= stageI) return false
+        // Check if they moved recently (stage_date is this month)
+        if (!p.stage_date) return false
+        return new Date(p.stage_date + 'T00:00:00') >= monthStart
+      }).length
+
+      const stuck = inStage.filter(p => daysAgo(p.stage_date) > 30).length
+
+      return { stage, label: STAGE_LABELS[stage], avgDays, advancedThisMonth, stuck, count: inStage.length }
+    }).filter(s => s.count > 0 || s.advancedThisMonth > 0)
+  }, [active, projects])
+
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="border-b border-gray-700">
+          <th className="text-left text-gray-500 font-medium px-2 py-1">Stage</th>
+          <th className="text-right text-gray-500 font-medium px-2 py-1">Current</th>
+          <th className="text-right text-gray-500 font-medium px-2 py-1">Avg Days</th>
+          <th className="text-right text-gray-500 font-medium px-2 py-1">Advanced (mo)</th>
+          <th className="text-right text-gray-500 font-medium px-2 py-1">Stuck &gt;30d</th>
+        </tr>
+      </thead>
+      <tbody>
+        {transitions.map(t => (
+          <tr key={t.stage} className="border-b border-gray-800">
+            <td className="px-2 py-1.5 font-medium" style={{ color: STAGE_COLORS[t.stage] }}>{t.label}</td>
+            <td className="px-2 py-1.5 text-white font-mono text-right">{t.count}</td>
+            <td className={`px-2 py-1.5 font-mono text-right ${t.avgDays > 30 ? 'text-red-400' : t.avgDays > 14 ? 'text-amber-400' : 'text-green-400'}`}>{t.avgDays}d</td>
+            <td className="px-2 py-1.5 text-green-400 font-mono text-right">{t.advancedThisMonth}</td>
+            <td className={`px-2 py-1.5 font-mono text-right ${t.stuck > 0 ? 'text-red-400' : 'text-gray-600'}`}>{t.stuck}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+// ── AHJ Analysis sub-component ─────────────────────────────────────────────
+
+function AHJAnalysis({ active, projects }: {
+  active: { stage: string; ahj: string | null; stage_date: string | null }[]
+  projects: { stage: string; ahj: string | null; stage_date: string | null; city_permit_date: string | null }[]
+}) {
+  const ahjs = useMemo(() => {
+    const inPermit = active.filter(p => p.stage === 'permit')
+    const map: Record<string, { count: number; daysTotal: number }> = {}
+    inPermit.forEach(p => {
+      const a = p.ahj || 'Unknown'
+      if (!map[a]) map[a] = { count: 0, daysTotal: 0 }
+      map[a].count++
+      map[a].daysTotal += daysAgo(p.stage_date)
+    })
+
+    const results = Object.entries(map)
+      .map(([name, d]) => ({ name, count: d.count, avgDays: d.count > 0 ? Math.round(d.daysTotal / d.count) : 0 }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8)
+
+    const fastest = results.length > 0 ? results.reduce((f, a) => a.avgDays < f.avgDays ? a : f) : null
+    const slowest = results.length > 0 ? results.reduce((s, a) => a.avgDays > s.avgDays ? a : s) : null
+
+    return { list: results, fastest, slowest }
+  }, [active])
+
+  if (ahjs.list.length === 0) return <div className="text-xs text-gray-600">No projects in permit stage with AHJ data</div>
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        {ahjs.fastest && (
+          <div className="bg-green-950/20 border border-green-900/30 rounded-lg p-2">
+            <div className="text-[10px] text-green-400 uppercase">Fastest AHJ</div>
+            <div className="text-xs text-white font-medium truncate">{ahjs.fastest.name}</div>
+            <div className="text-[10px] text-green-400 font-mono">{ahjs.fastest.avgDays}d avg</div>
+          </div>
+        )}
+        {ahjs.slowest && (
+          <div className="bg-red-950/20 border border-red-900/30 rounded-lg p-2">
+            <div className="text-[10px] text-red-400 uppercase">Slowest AHJ</div>
+            <div className="text-xs text-white font-medium truncate">{ahjs.slowest.name}</div>
+            <div className="text-[10px] text-red-400 font-mono">{ahjs.slowest.avgDays}d avg</div>
+          </div>
+        )}
+      </div>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-gray-700">
+            <th className="text-left text-gray-500 font-medium px-2 py-1">AHJ</th>
+            <th className="text-right text-gray-500 font-medium px-2 py-1">In Permit</th>
+            <th className="text-right text-gray-500 font-medium px-2 py-1">Avg Days</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ahjs.list.map(a => (
+            <tr key={a.name} className="border-b border-gray-800">
+              <td className="px-2 py-1.5 text-gray-300 truncate max-w-[200px]">{a.name}</td>
+              <td className="px-2 py-1.5 text-white font-mono text-right">{a.count}</td>
+              <td className={`px-2 py-1.5 font-mono text-right ${a.avgDays > 30 ? 'text-red-400' : a.avgDays > 14 ? 'text-amber-400' : 'text-green-400'}`}>{a.avgDays}d</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ── Financier Pipeline sub-component ───────────────────────────────────────
+
+function FinancierPipeline({ active }: { active: { financier: string | null; stage: string }[] }) {
+  const pipeline = useMemo(() => {
+    const stages = STAGE_ORDER.filter(s => s !== 'complete')
+    const map: Record<string, Record<string, number>> = {}
+    active.forEach(p => {
+      const f = p.financier || 'Unknown'
+      if (!map[f]) map[f] = {}
+      map[f][p.stage] = (map[f][p.stage] ?? 0) + 1
+    })
+
+    return Object.entries(map)
+      .map(([name, stageCounts]) => {
+        const total = Object.values(stageCounts).reduce((s, c) => s + c, 0)
+        return { name, stageCounts, total }
+      })
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10)
+  }, [active])
+
+  if (pipeline.length === 0) return <div className="text-xs text-gray-600">No active projects with financier data</div>
+
+  const stages = STAGE_ORDER.filter(s => s !== 'complete')
+  const maxTotal = Math.max(...pipeline.map(p => p.total), 1)
+
+  return (
+    <table className="w-full text-[10px]">
+      <thead>
+        <tr className="border-b border-gray-700">
+          <th className="text-left text-gray-500 font-medium px-1 py-1">Financier</th>
+          {stages.map(s => (
+            <th key={s} className="text-center text-gray-500 font-medium px-1 py-1" style={{ color: STAGE_COLORS[s] }}>
+              {(STAGE_LABELS[s] ?? s).slice(0, 4)}
+            </th>
+          ))}
+          <th className="text-right text-gray-500 font-medium px-1 py-1">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {pipeline.map(f => (
+          <tr key={f.name} className="border-b border-gray-800">
+            <td className="px-1 py-1 text-gray-300 truncate max-w-[140px]">{f.name}</td>
+            {stages.map(s => {
+              const cnt = f.stageCounts[s] ?? 0
+              const intensity = cnt > 0 ? Math.min(cnt / maxTotal * 3, 1) : 0
+              return (
+                <td key={s} className="px-1 py-1 text-center font-mono">
+                  {cnt > 0 ? (
+                    <span className="inline-block rounded px-1" style={{
+                      backgroundColor: `${STAGE_COLORS[s]}${Math.round(intensity * 40 + 10).toString(16).padStart(2, '0')}`,
+                      color: cnt > 0 ? 'white' : undefined,
+                    }}>{cnt}</span>
+                  ) : <span className="text-gray-700">-</span>}
+                </td>
+              )
+            })}
+            <td className="px-1 py-1 text-white font-mono text-right font-bold">{f.total}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
