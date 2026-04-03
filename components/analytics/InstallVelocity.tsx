@@ -5,16 +5,30 @@ import { fmt$, daysAgo, STAGE_LABELS } from '@/lib/utils'
 import { MetricCard, inRange, ProjectListModal, ExportButton, downloadCSV, PERIOD_LABELS, type AnalyticsData } from './shared'
 
 export function InstallVelocity({ data }: { data: AnalyticsData }) {
-  const { projects, active, funding, period } = data
+  const { projects, active, funding, taskMap, period } = data
   const [drillDown, setDrillDown] = useState<{ title: string; projects: typeof projects } | null>(null)
 
   const metrics = useMemo(() => {
     // Installs this period
     const installs = projects.filter(p => inRange(p.install_complete_date ?? (p.stage === 'complete' ? p.stage_date : null), period))
 
-    // Ready to install (in install stage, not blocked)
-    const readyToInstall = active.filter(p => p.stage === 'install' && !p.blocker)
-    const blockedInstall = active.filter(p => p.stage === 'install' && p.blocker)
+    // Ready to install = sched_install task is "Ready To Start"
+    // This means the project passed all pre-install gates (permits, equipment, etc)
+    const readyToInstall = active.filter(p => {
+      const tasks = taskMap[p.id]
+      return tasks?.sched_install === 'Ready To Start'
+    })
+    // Blocked/stuck installs = in install stage but sched_install is Pending Resolution or Revision Required
+    const blockedInstall = active.filter(p => {
+      const tasks = taskMap[p.id]
+      const status = tasks?.sched_install
+      return p.stage === 'install' && (status === 'Pending Resolution' || status === 'Revision Required' || p.blocker)
+    })
+    // In progress = sched_install is In Progress or Scheduled
+    const inProgressInstall = active.filter(p => {
+      const tasks = taskMap[p.id]
+      return tasks?.sched_install === 'In Progress' || tasks?.sched_install === 'Scheduled'
+    })
 
     // Backlog: all projects in stages before install
     const preInstall = active.filter(p => ['evaluation', 'survey', 'design', 'permit'].includes(p.stage))
@@ -79,11 +93,11 @@ export function InstallVelocity({ data }: { data: AnalyticsData }) {
     })).filter(s => s.count > 0)
 
     return {
-      installs, readyToInstall, blockedInstall, preInstall,
+      installs, readyToInstall, blockedInstall, inProgressInstall, preInstall,
       saleToInstall, installToPTO, installsPerWeek, backlogWeeks,
       months, maxMonth, stageBacklog,
     }
-  }, [projects, active, period])
+  }, [projects, active, taskMap, period])
 
   const handleExport = () => {
     const headers = ['Metric', 'Value']
@@ -105,14 +119,17 @@ export function InstallVelocity({ data }: { data: AnalyticsData }) {
       <div className="flex justify-end"><ExportButton onClick={handleExport} /></div>
 
       {/* Headline metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <MetricCard label={`Installs (${PERIOD_LABELS[period]})`} value={String(metrics.installs.length)}
           sub={fmt$(metrics.installs.reduce((s, p) => s + (Number(p.contract) || 0), 0))} color="text-green-400"
           onClick={() => setDrillDown({ title: 'Installs This Period', projects: metrics.installs })} />
         <MetricCard label="Install Rate" value={`${metrics.installsPerWeek}/wk`} sub="Last 4 weeks avg" color="text-blue-400" />
-        <MetricCard label="Ready to Install" value={String(metrics.readyToInstall.length)}
-          sub={metrics.blockedInstall.length > 0 ? `${metrics.blockedInstall.length} blocked` : 'None blocked'} color="text-amber-400"
-          onClick={() => setDrillDown({ title: 'Ready to Install', projects: metrics.readyToInstall })} />
+        <MetricCard label="Ready to Schedule" value={String(metrics.readyToInstall.length)}
+          sub="sched_install = Ready To Start" color="text-amber-400"
+          onClick={() => setDrillDown({ title: 'Ready to Schedule (sched_install Ready)', projects: metrics.readyToInstall })} />
+        <MetricCard label="Scheduled / In Progress" value={String(metrics.inProgressInstall.length)}
+          sub={metrics.blockedInstall.length > 0 ? `${metrics.blockedInstall.length} stuck` : 'None stuck'} color="text-blue-400"
+          onClick={() => setDrillDown({ title: 'Install Scheduled/In Progress', projects: metrics.inProgressInstall })} />
         <MetricCard label="Backlog" value={`${metrics.backlogWeeks} wks`}
           sub={`${metrics.preInstall.length} pre-install projects`} color={metrics.backlogWeeks > 12 ? 'text-red-400' : 'text-gray-300'} />
       </div>

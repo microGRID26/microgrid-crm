@@ -60,11 +60,19 @@ export function inRange(dateStr: string | null | undefined, period: Period): boo
 
 // ── Shared data shape passed to each tab ────────────────────────────────────
 
+export interface TaskStateRow {
+  project_id: string
+  task_id: string
+  status: string
+}
+
 export interface AnalyticsData {
   projects: Project[]
   active: Project[]
   complete: Project[]
   funding: Record<string, ProjectFunding>
+  /** task_id -> status map per project: taskMap[project_id][task_id] = status */
+  taskMap: Record<string, Record<string, string>>
   period: Period
 }
 

@@ -48,26 +48,41 @@ export default function AnalyticsPage() {
     select: 'project_id, m2_funded_date, m3_funded_date, m2_amount, m3_amount, m2_status, m3_status, m1_amount, m1_status, nonfunded_code_1, nonfunded_code_2, nonfunded_code_3',
   })
 
+  const { data: taskStateRows, loading: taskLoading, refresh: refreshTasks } = useSupabaseQuery('task_state', {
+    select: 'project_id, task_id, status',
+    limit: 50000,
+  })
+
   const funding = useMemo(() => {
     const map: Record<string, ProjectFunding> = {}
     fundingRows.forEach((f) => { map[f.project_id] = f })
     return map
   }, [fundingRows])
 
-  const loading = projLoading || fundLoading
+  const taskMap = useMemo(() => {
+    const map: Record<string, Record<string, string>> = {}
+    taskStateRows.forEach((t: any) => {
+      if (!map[t.project_id]) map[t.project_id] = {}
+      map[t.project_id][t.task_id] = t.status
+    })
+    return map
+  }, [taskStateRows])
+
+  const loading = projLoading || fundLoading || taskLoading
 
   const active = useMemo(() => projects.filter(p => p.stage !== 'complete'), [projects])
   const complete = useMemo(() => projects.filter(p => p.stage === 'complete'), [projects])
 
   const analyticsData: AnalyticsData = useMemo(() => ({
-    projects, active, complete, funding, period,
-  }), [projects, active, complete, funding, period])
+    projects, active, complete, funding, taskMap, period,
+  }), [projects, active, complete, funding, taskMap, period])
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true)
     clearQueryCache()
     refreshProjects()
     refreshFunding()
+    refreshTasks()
     // refresh is synchronous cache-clear + refetch trigger; brief visual feedback
     setTimeout(() => setRefreshing(false), 600)
   }, [refreshProjects, refreshFunding])
