@@ -206,6 +206,9 @@ export interface PlansetData {
   vocCorrected: number
   pcsCurrentSetting: number
 
+  // Site plan image (uploaded or extracted from original planset)
+  sitePlanImageUrl: string | null
+
   // Sheet metadata
   sheetTotal: number
   drawnDate: string
@@ -263,6 +266,9 @@ export interface PlansetOverrides {
   // Racking overrides
   attachmentModel?: string
   railModel?: string
+
+  // Site plan image URL
+  sitePlanImageUrl?: string
 
   // Existing system
   existingPanelModel?: string
@@ -410,10 +416,12 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
     riskCategory: overrides.riskCategory ?? d.riskCategory,
     exposure: overrides.exposure ?? d.exposure,
 
+    sitePlanImageUrl: overrides.sitePlanImageUrl ?? null,
+
     contractor: MICROGRID_CONTRACTOR,
     vocCorrected: parseFloat(vocCorrected.toFixed(2)),
     pcsCurrentSetting,
-    sheetTotal: 8,
+    sheetTotal: 9,
     drawnDate,
   }
 }

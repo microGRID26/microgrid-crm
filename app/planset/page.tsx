@@ -318,6 +318,9 @@ body { background: white; }
   display: block;
 }
 
+/* Site plan image — fit within sheet */
+.sheet img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
 /* Installation notes at bottom of sheets */
 .install-notes {
   font-size: 6.5pt;
@@ -418,6 +421,7 @@ function SheetPV1({ data }: { data: PlansetData }) {
 
   const sheetIndex: [string, string][] = [
     ['PV-1', 'COVER PAGE & GENERAL NOTES'], ['PV-2', 'PROJECT DATA'],
+    ['PV-3', 'SITE PLAN'],
     ['PV-5', 'SINGLE LINE DIAGRAM'], ['PV-5.1', 'PCS LABELS'],
     ['PV-6', 'WIRING CALCULATIONS'], ['PV-7', 'WARNING LABELS'],
     ['PV-7.1', 'EQUIPMENT PLACARDS'], ['PV-8', 'CONDUCTOR SCHEDULE & BOM'],
@@ -808,6 +812,34 @@ function SheetPV2({ data }: { data: PlansetData }) {
         </div>
       </div>
       <TitleBlockHtml sheetName="PROJECT DATA" sheetNumber="PV-2" data={data} />
+    </div>
+  )
+}
+
+// ── SHEET PV-3: SITE PLAN ──────────────────────────────────────────────────
+
+function SheetPV3({ data }: { data: PlansetData }) {
+  if (!data.sitePlanImageUrl) {
+    return (
+      <div className="sheet" style={{ display: 'grid', gridTemplateColumns: '1fr 2.5in', border: '2px solid #000', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '8pt', width: '16.5in', height: '10.5in', overflow: 'hidden', position: 'relative' }}>
+        <div className="sheet-content" style={{ padding: '0.15in 0.2in', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ textAlign: 'center', color: '#999' }}>
+            <div style={{ fontSize: '14pt', fontWeight: 'bold', marginBottom: '8px' }}>SITE PLAN</div>
+            <div style={{ fontSize: '10pt' }}>No site plan image uploaded.</div>
+            <div style={{ fontSize: '8pt', marginTop: '4px' }}>Upload an image in the overrides panel above.</div>
+          </div>
+        </div>
+        <TitleBlockHtml sheetName="SITE PLAN" sheetNumber="PV-3" data={data} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="sheet" style={{ display: 'grid', gridTemplateColumns: '1fr 2.5in', border: '2px solid #000', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '8pt', width: '16.5in', height: '10.5in', overflow: 'hidden', position: 'relative' }}>
+      <div className="sheet-content" style={{ padding: '0.1in', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <img src={data.sitePlanImageUrl} alt="Site Plan" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+      </div>
+      <TitleBlockHtml sheetName="SITE PLAN" sheetNumber="PV-3" data={data} />
     </div>
   )
 }
@@ -1798,7 +1830,7 @@ function ProjectSelector({ onSelect }: { onSelect: (id: string) => void }) {
 
 // ── OVERRIDES PANEL ─────────────────────────────────────────────────────────
 
-function OverridesPanel({ data, strings, onStringsChange, overrides, onOverridesChange, roofFaces, onRoofFacesChange }: {
+function OverridesPanel({ data, strings, onStringsChange, overrides, onOverridesChange, roofFaces, onRoofFacesChange, sitePlanImageUrl, onSitePlanChange }: {
   data: PlansetData
   strings: PlansetString[]
   onStringsChange: (s: PlansetString[]) => void
@@ -1806,6 +1838,8 @@ function OverridesPanel({ data, strings, onStringsChange, overrides, onOverrides
   onOverridesChange: (o: PlansetOverrides) => void
   roofFaces: PlansetRoofFace[]
   onRoofFacesChange: (rf: PlansetRoofFace[]) => void
+  sitePlanImageUrl: string | null
+  onSitePlanChange: (url: string | null) => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -1906,6 +1940,49 @@ function OverridesPanel({ data, strings, onStringsChange, overrides, onOverrides
                   />
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Site Plan Image */}
+          <div>
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Site Plan Image (PV-3)</h3>
+            <div className="flex items-center gap-4">
+              <label className="cursor-pointer px-4 py-2 text-sm rounded-md bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors">
+                {sitePlanImageUrl ? 'Replace Image' : 'Upload Image'}
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    if (sitePlanImageUrl) URL.revokeObjectURL(sitePlanImageUrl)
+                    const url = URL.createObjectURL(file)
+                    onSitePlanChange(url)
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+              {sitePlanImageUrl && (
+                <button
+                  onClick={() => {
+                    URL.revokeObjectURL(sitePlanImageUrl)
+                    onSitePlanChange(null)
+                  }}
+                  className="px-3 py-2 text-sm rounded-md bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors"
+                >
+                  Remove
+                </button>
+              )}
+              {sitePlanImageUrl && (
+                <div className="flex items-center gap-2">
+                  <img src={sitePlanImageUrl} alt="Site plan preview" className="h-16 rounded border border-gray-600" />
+                  <span className="text-xs text-gray-500">Preview</span>
+                </div>
+              )}
+              {!sitePlanImageUrl && (
+                <span className="text-xs text-gray-500">No image uploaded. Accepts image files or PDF.</span>
+              )}
             </div>
           </div>
 
@@ -2036,6 +2113,7 @@ function PlanSetPageInner() {
   const [strings, setStrings] = useState<PlansetString[]>([])
   const [roofFaces, setRoofFaces] = useState<PlansetRoofFace[]>([])
   const [overrides, setOverrides] = useState<PlansetOverrides>({})
+  const [sitePlanUrl, setSitePlanUrl] = useState<string | null>(null)
 
   const loadProject = useCallback(async (id: string) => {
     setLoading(true)
@@ -2067,7 +2145,7 @@ function PlanSetPageInner() {
       const finalStrings = overrides.strings ?? autoStrings
       setStrings(finalStrings)
 
-      const plansetData = buildPlansetData(project, { ...overrides, strings: finalStrings, roofFaces: roofFaces.length > 0 ? roofFaces : undefined })
+      const plansetData = buildPlansetData(project, { ...overrides, strings: finalStrings, roofFaces: roofFaces.length > 0 ? roofFaces : undefined, sitePlanImageUrl: sitePlanUrl ?? undefined })
       setRoofFaces(plansetData.roofFaces)
       setData(plansetData)
       setProjectId(id)
@@ -2078,7 +2156,7 @@ function PlanSetPageInner() {
     } finally {
       setLoading(false)
     }
-  }, [overrides, roofFaces])
+  }, [overrides, roofFaces, sitePlanUrl])
 
   useEffect(() => {
     const urlProject = searchParams.get('project')
@@ -2093,12 +2171,12 @@ function PlanSetPageInner() {
     try {
       const project = await loadProjectById(projectId)
       if (!project) return
-      const plansetData = buildPlansetData(project, { ...overrides, strings, roofFaces: roofFaces.length > 0 ? roofFaces : undefined })
+      const plansetData = buildPlansetData(project, { ...overrides, strings, roofFaces: roofFaces.length > 0 ? roofFaces : undefined, sitePlanImageUrl: sitePlanUrl ?? undefined })
       setData(plansetData)
     } finally {
       setLoading(false)
     }
-  }, [projectId, strings, overrides, roofFaces])
+  }, [projectId, strings, overrides, roofFaces, sitePlanUrl])
 
   const rebuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
@@ -2106,7 +2184,7 @@ function PlanSetPageInner() {
     if (rebuildTimerRef.current) clearTimeout(rebuildTimerRef.current)
     rebuildTimerRef.current = setTimeout(() => rebuildData(), 500)
     return () => { if (rebuildTimerRef.current) clearTimeout(rebuildTimerRef.current) }
-  }, [projectId, strings, overrides, roofFaces, rebuildData])
+  }, [projectId, strings, overrides, roofFaces, sitePlanUrl, rebuildData])
 
   const clearProject = () => {
     setProjectId('')
@@ -2114,6 +2192,8 @@ function PlanSetPageInner() {
     setStrings([])
     setRoofFaces([])
     setOverrides({})
+    if (sitePlanUrl) URL.revokeObjectURL(sitePlanUrl)
+    setSitePlanUrl(null)
   }
 
   if (!userLoading && currentUser && !currentUser.isManager) {
@@ -2187,6 +2267,8 @@ function PlanSetPageInner() {
               onOverridesChange={setOverrides}
               roofFaces={roofFaces}
               onRoofFacesChange={setRoofFaces}
+              sitePlanImageUrl={sitePlanUrl}
+              onSitePlanChange={setSitePlanUrl}
             />
 
             {/* Sheets — rendered at print size, scaled down for screen */}
@@ -2194,6 +2276,7 @@ function PlanSetPageInner() {
               {[
                 { id: 'PV-1', label: 'Cover Page & General Notes', component: <SheetPV1 data={data} /> },
                 { id: 'PV-2', label: 'Project Data', component: <SheetPV2 data={data} /> },
+                { id: 'PV-3', label: 'Site Plan', component: <SheetPV3 data={data} /> },
                 { id: 'PV-5', label: 'Single Line Diagram', component: <SheetPV5 data={data} /> },
                 { id: 'PV-5.1', label: 'PCS Labels', component: <SheetPV51 data={data} /> },
                 { id: 'PV-6', label: 'Wiring Calculations', component: <SheetPV6 data={data} /> },
