@@ -61,6 +61,7 @@ body { background: white; }
   overflow: hidden;
 }
 .sheet:last-child { page-break-after: auto; }
+.sheet.sld-sheet { grid-template-columns: 1fr; }
 .sheet-content {
   padding: 0.15in 0.2in;
   overflow: hidden;
@@ -1682,8 +1683,12 @@ function handlePrintAll(data: PlansetData) {
     return
   }
 
-  // Clone the sheets content
-  const sheetsHtml = sheetsContainer.innerHTML
+  // Extract only the .sheet elements (skip CRM chrome wrappers)
+  const sheetElements = sheetsContainer.querySelectorAll('.sheet')
+  let sheetsHtml = ''
+  sheetElements.forEach(el => {
+    sheetsHtml += el.outerHTML
+  })
 
   printWindow.document.write(`<!DOCTYPE html>
 <html>
