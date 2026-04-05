@@ -107,7 +107,7 @@ export interface UseProjectTasksReturn {
 
 // ── Stage advance check ───────────────────────────────────────────────────────
 
-function canAdvance(stage: string, taskStates: Record<string, string>, ahj?: string | null): { ok: boolean; missing: string[] } {
+export function canAdvance(stage: string, taskStates: Record<string, string>, ahj?: string | null): { ok: boolean; missing: string[] } {
   const tasks = (TASKS[stage] ?? []).filter(t => isTaskRequired(t, ahj ?? null))
   const missing = tasks.filter(t => taskStates[t.id] !== 'Complete').map(t => t.name)
   return { ok: missing.length === 0, missing }
