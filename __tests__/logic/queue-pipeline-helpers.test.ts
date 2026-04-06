@@ -17,7 +17,9 @@ import type { Project } from '@/types/database'
 // ── FIXTURES ───────────────────────────────────────────────────────────────
 
 function daysAgoDate(n: number): string {
-  return new Date(Date.now() - n * 86400000).toISOString().split('T')[0]
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function makeProject(overrides: Partial<Project> = {}): Project {

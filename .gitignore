@@ -48,3 +48,6 @@ next-env.d.ts
 email-export/**/*.mbox
 email-export/**/all-emails.json
 scripts/extract-subhub.sh
+
+# Local reference files (spreadsheets, scripts, snapshots — not part of the app)
+/reference/
