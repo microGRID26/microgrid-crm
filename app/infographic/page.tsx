@@ -50,7 +50,7 @@ export default function InfographicPage() {
   const isMicrogridEmployee = INTERNAL_DOMAINS.some(d => user?.email?.endsWith(`@${d}`)) ?? false
   const isAdmin = user?.isAdmin ?? false
   const isSuperAdmin = user?.isSuperAdmin ?? false
-  const canSeeTechnical = isAdmin || isSuperAdmin
+  const canSeeTechnical = true // Open to all — designed for non-technical audience
   const [tab, setTab] = useState<Tab>(isSales ? 'sales' : 'leadership')
   const [stats, setStats] = useState<LiveStats>(DEFAULTS)
 
@@ -139,13 +139,13 @@ export default function InfographicPage() {
             <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-md print:hidden flex-shrink-0"><Printer className="w-3.5 h-3.5" /> Print</button>
           </div>
           <div className="flex bg-gray-800 rounded-lg p-0.5 print:hidden overflow-x-auto">
-            {!isSales && ([
+            {([
               { key: 'leadership' as Tab, label: 'Leadership' },
-              ...(isMicrogridEmployee ? [{ key: 'sales' as Tab, label: 'Sales' }] : []),
+              { key: 'sales' as Tab, label: 'Sales' },
               { key: 'inside_ops' as Tab, label: 'Inside Ops' },
               { key: 'field_ops' as Tab, label: 'Field Ops' },
               { key: 'journey' as Tab, label: 'Journey' },
-              ...(canSeeTechnical ? [{ key: 'technical' as Tab, label: 'Technical' }] : []),
+              { key: 'technical' as Tab, label: 'Technical' },
             ]).map(t => (
               <button key={t.key} onClick={() => setTab(t.key)} className={`px-3 md:px-4 py-1.5 text-[11px] md:text-xs font-medium rounded-md transition-colors whitespace-nowrap flex-shrink-0 ${tab === t.key ? 'bg-green-700 text-white' : 'text-gray-400 hover:text-white'}`}>{t.label}</button>
             ))}
