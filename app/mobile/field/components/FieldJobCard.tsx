@@ -10,6 +10,7 @@ export function FieldJobCard({
   onStatusChange,
   onMarkTaskComplete,
   onAddNote,
+  onRequestMaterials,
 }: {
   job: FieldJob
   onTap: () => void
