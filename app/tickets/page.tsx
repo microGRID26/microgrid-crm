@@ -128,7 +128,7 @@ function TicketsPageInner() {
     db().from('sales_reps').select('id, first_name, last_name').limit(500)
       .then(({ data }: any) => {
         if (data) setRepNames(new Map(data.map((r: { id: string; first_name: string; last_name: string }) => [r.id, `${r.first_name} ${r.last_name}`])))
-      }).catch(e => handleApiError(e, '[tickets] reps load'))
+      }).catch((e: unknown) => handleApiError(e, '[tickets] reps load'))
   }, [])
 
   // Realtime — tickets: full refresh (status/assignment can change any row's position)
