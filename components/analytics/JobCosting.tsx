@@ -98,7 +98,7 @@ export function JobCosting({ data }: { data: AnalyticsData }) {
 
   return (
     <div className="space-y-8">
-      {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} />}
+      {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} onCustomDateChange={data.onCustomDateChange} />}
 
       {/* Mock Data Banner */}
       <div className="bg-blue-950/20 border border-blue-900/30 rounded-xl p-4">

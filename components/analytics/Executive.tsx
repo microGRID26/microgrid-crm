@@ -125,7 +125,7 @@ export function Executive({ data }: { data: AnalyticsData }) {
 
   return (
     <div className="space-y-8">
-      {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} />}
+      {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} onCustomDateChange={data.onCustomDateChange} />}
 
       {/* Hero: 5 headline numbers */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

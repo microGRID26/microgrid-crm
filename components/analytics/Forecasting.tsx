@@ -637,7 +637,7 @@ export function Forecasting({ data }: { data: AnalyticsData }) {
   if (active.length === 0 && projects.length === 0) {
     return (
       <div className="space-y-8">
-        {data.onPeriodChange && <PeriodBar period={period} onPeriodChange={data.onPeriodChange} />}
+        {data.onPeriodChange && <PeriodBar period={period} onPeriodChange={data.onPeriodChange} onCustomDateChange={data.onCustomDateChange} />}
         <div className="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
           <div className="text-gray-500 text-sm">No project data available for forecasting.</div>
           <div className="text-gray-600 text-xs mt-2">Forecasts require active projects with contract values and stage assignments.</div>
@@ -648,7 +648,7 @@ export function Forecasting({ data }: { data: AnalyticsData }) {
 
   return (
     <div className="space-y-8">
-      {data.onPeriodChange && <PeriodBar period={period} onPeriodChange={data.onPeriodChange} />}
+      {data.onPeriodChange && <PeriodBar period={period} onPeriodChange={data.onPeriodChange} onCustomDateChange={data.onCustomDateChange} />}
 
       {/* Hero: 4 headline numbers */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

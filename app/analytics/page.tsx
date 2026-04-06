@@ -106,7 +106,7 @@ export default function AnalyticsPage() {
   const analyticsData: AnalyticsData = useMemo(() => ({
     projects: realProjects, active, complete, funding, taskMap,
     rampSchedule, workOrders, salesReps,
-    period, onPeriodChange: handlePeriodChange,
+    period, onPeriodChange: handlePeriodChange, onCustomDateChange: handleCustomDateChange,
   }), [realProjects, active, complete, funding, taskMap, rampSchedule, workOrders, salesReps, period])
 
   const handleRefresh = useCallback(() => {

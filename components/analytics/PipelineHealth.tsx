@@ -101,7 +101,7 @@ export function PipelineHealth({ data }: { data: AnalyticsData }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">{data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} />}<ExportButton onClick={handleExport} /></div>
+      <div className="flex items-center justify-between">{data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} onCustomDateChange={data.onCustomDateChange} />}<ExportButton onClick={handleExport} /></div>
 
       {/* Headline metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

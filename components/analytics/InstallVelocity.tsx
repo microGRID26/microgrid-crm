@@ -118,7 +118,7 @@ export function InstallVelocity({ data }: { data: AnalyticsData }) {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} />}
+        {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} onCustomDateChange={data.onCustomDateChange} />}
         <ExportButton onClick={handleExport} />
       </div>
 

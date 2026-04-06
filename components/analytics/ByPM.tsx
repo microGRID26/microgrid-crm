@@ -394,7 +394,7 @@ export function ByPM({ data }: { data: AnalyticsData }) {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} />}
+        {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} onCustomDateChange={data.onCustomDateChange} />}
         <ExportButton onClick={handleExport} />
       </div>
 

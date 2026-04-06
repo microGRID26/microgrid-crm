@@ -98,6 +98,7 @@ export interface AnalyticsData {
   salesReps: SalesRepRow[]
   period: Period
   onPeriodChange?: (p: Period) => void
+  onCustomDateChange?: (from: string, to: string) => void
 }
 
 // ── Shared components ───────────────────────────────────────────────────────
@@ -275,17 +276,34 @@ export function SortHeader<T>({ label, field, sortKey, sortDir, onSort }: {
 
 // ── Tab CSV export button ───────────────────────────────────────────────────
 
-export function PeriodBar({ period, onPeriodChange }: { period: Period; onPeriodChange: (p: Period) => void }) {
+export function PeriodBar({ period, onPeriodChange, onCustomDateChange }: { period: Period; onPeriodChange: (p: Period) => void; onCustomDateChange?: (from: string, to: string) => void }) {
   return (
-    <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5">
-      {(Object.entries(PERIOD_LABELS) as [Period, string][]).map(([k, v]) => (
-        <button key={k} onClick={() => onPeriodChange(k)}
-          className={`text-xs px-2.5 py-1.5 rounded-md transition-colors whitespace-nowrap ${
-            period === k ? 'bg-green-700 text-white font-medium' : 'text-gray-400 hover:text-white'
-          }`}>
-          {v}
-        </button>
-      ))}
+    <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5">
+        {(Object.entries(PERIOD_LABELS) as [Period, string][]).map(([k, v]) => (
+          <button key={k} onClick={() => onPeriodChange(k)}
+            className={`text-xs px-2.5 py-1.5 rounded-md transition-colors whitespace-nowrap ${
+              period === k ? 'bg-green-700 text-white font-medium' : 'text-gray-400 hover:text-white'
+            }`}>
+            {v}
+          </button>
+        ))}
+      </div>
+      {period === 'custom' && onCustomDateChange && (
+        <div className="flex items-center gap-1.5 ml-2">
+          <input type="date" className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-green-500"
+            onChange={e => {
+              const to = (document.getElementById('analytics-custom-to') as HTMLInputElement)?.value ?? ''
+              onCustomDateChange(e.target.value, to)
+            }} />
+          <span className="text-xs text-gray-500">to</span>
+          <input type="date" id="analytics-custom-to" className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-green-500"
+            onChange={e => {
+              const from = (e.target.previousElementSibling?.previousElementSibling as HTMLInputElement)?.value ?? ''
+              onCustomDateChange(from, e.target.value)
+            }} />
+        </div>
+      )}
     </div>
   )
 }

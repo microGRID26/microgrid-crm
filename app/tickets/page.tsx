@@ -112,7 +112,13 @@ function TicketsPageInner() {
   }, [orgId])
 
   useEffect(() => { loadAll() }, [loadAll])
-  useEffect(() => { loadUsers(INTERNAL_DOMAINS).then(r => setUsers((r.data ?? []).map((x: any) => ({ id: x.id, name: x.name })))).catch(e => handleApiError(e, '[tickets] users load')) }, [])
+  useEffect(() => {
+    loadUsers(INTERNAL_DOMAINS).then(r => {
+      const seen = new Set<string>()
+      const deduped = (r.data ?? []).filter((x: { id: string }) => { if (seen.has(x.id)) return false; seen.add(x.id); return true })
+      setUsers(deduped.map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })))
+    }).catch((e: unknown) => handleApiError(e, '[tickets] users load'))
+  }, [])
   // Load sales rep names for the rep filter dropdown
   useEffect(() => {
     db().from('sales_reps').select('id, first_name, last_name').limit(500)

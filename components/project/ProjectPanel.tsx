@@ -624,8 +624,12 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
               ) : (
                 <button
                   onClick={async () => {
-                    if (!confirm(`Cancel ${project.name}? It will be removed from the active pipeline.`)) return
-                    const { error: cancelErr } = await supabase.from('projects').update({ disposition: 'Cancelled' }).eq('id', project.id)
+                    const contractVal = Number(project.contract) || 0
+                    const fee = Math.round(contractVal * 0.1 * 100) / 100
+                    if (!confirm(`Cancel ${project.name}?${fee > 0 ? `\n\n10% cancellation fee: $${fee.toLocaleString()}` : ''}\n\nIt will be removed from the active pipeline.`)) return
+                    const cancelUpdates: Record<string, unknown> = { disposition: 'Cancelled' }
+                    if (fee > 0) { cancelUpdates.cancellation_fee = fee; cancelUpdates.cancellation_fee_status = 'pending' }
+                    const { error: cancelErr } = await supabase.from('projects').update(cancelUpdates).eq('id', project.id)
                     if (cancelErr) { handleApiError(cancelErr, '[ProjectPanel] cancel'); showToast('Cancel failed'); return }
                     setProject(p => ({ ...p, disposition: 'Cancelled' }))
                     if (onProjectUpdated) onProjectUpdated()

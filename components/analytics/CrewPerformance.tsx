@@ -273,7 +273,7 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
     return (
       <div className="space-y-8">
         <div className="flex items-center justify-between">
-          {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} />}
+          {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} onCustomDateChange={data.onCustomDateChange} />}
         </div>
         <div className="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
           <div className="text-gray-400 text-sm mb-2">No crew schedule data yet</div>
@@ -310,7 +310,7 @@ export function CrewPerformance({ data }: { data: AnalyticsData }) {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} />}
+        {data.onPeriodChange && <PeriodBar period={data.period} onPeriodChange={data.onPeriodChange} onCustomDateChange={data.onCustomDateChange} />}
         <ExportButton onClick={handleExport} />
       </div>
 
