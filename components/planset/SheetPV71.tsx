@@ -80,6 +80,22 @@ export function SheetPV71({ data }: { data: PlansetData }) {
     },
   ]
 
+  // NEC 705.12 Interconnection Label — required on main service panel
+  const nec705Placard: Placard = {
+    title: 'NEC 705.12 INTERCONNECTION LABEL',
+    rows: [
+      ['WARNING', 'THIS ELECTRICAL PANEL HAS MULTIPLE SOURCES OF POWER'],
+      ['SOLAR PV SYSTEM', `${data.systemDcKw.toFixed(2)} kW DC / ${data.systemAcKw} kW AC`],
+      ['RATED AC OUTPUT', `${data.systemAcKw * 1000}W @ 240/120V`],
+      ['MAX OPERATING CURRENT', `${(data.systemAcKw * 1000 / 240).toFixed(1)}A @ 240V`],
+      ['BACKFEED BREAKER', `${Math.ceil((data.systemAcKw * 1000 / 240) * 1.25 / 5) * 5}A, LINE SIDE TAP`],
+      ['ENERGY STORAGE', `${data.totalStorageKwh} kWh BATTERY (${data.batteryCount}× ${data.batteryModel})`],
+      ['INVERTER LOCATION', 'SEE SITE PLAN (PV-3)'],
+      ['AC DISCONNECT', 'ADJACENT TO INVERTER(S), ACCESSIBLE'],
+      ['NEC REFERENCE', '705.12(B)(2), 705.12(B)(3), 690.13, 706.15'],
+    ],
+  }
+
   const emergencyPlacard: Placard = {
     title: 'EMERGENCY PLACARD',
     rows: [
@@ -122,7 +138,10 @@ export function SheetPV71({ data }: { data: PlansetData }) {
           {placards.map((p, i) => renderPlacard(p, i))}
         </div>
 
-        {renderPlacard(emergencyPlacard, 99)}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+          {renderPlacard(nec705Placard, 50)}
+          {renderPlacard(emergencyPlacard, 99)}
+        </div>
       </div>
       <TitleBlockHtml sheetName="EQUIPMENT PLACARDS" sheetNumber="PV-7.1" data={data} />
     </div>
