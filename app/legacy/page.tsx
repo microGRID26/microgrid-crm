@@ -91,6 +91,7 @@ export default function LegacyPage() {
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [filterDisposition, setFilterDisposition] = useState<string>('In Service')
   const [results, setResults] = useState<LegacyProject[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
@@ -126,6 +127,8 @@ export default function LegacyPage() {
       )
     }
 
+    if (filterDisposition) query = query.eq('disposition', filterDisposition)
+
     query = query
       .order(sortCol, { ascending: sortAsc })
       .range(from, to)
@@ -143,7 +146,7 @@ export default function LegacyPage() {
       setTotalCount(count ?? 0)
     }
     setLoading(false)
-  }, [debouncedSearch, page, sortCol, sortAsc])
+  }, [debouncedSearch, filterDisposition, page, sortCol, sortAsc])
 
   useEffect(() => {
     fetchResults()
@@ -178,9 +181,27 @@ export default function LegacyPage() {
           <Archive className="w-6 h-6 text-green-400" />
           <h1 className="text-2xl font-bold text-white">Legacy Projects</h1>
         </div>
-        <p className="text-gray-400 text-sm mb-4">
+        <p className="text-gray-400 text-sm mb-3">
           Historical projects — read-only archive
         </p>
+
+        {/* Disposition tabs */}
+        <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5 mb-4 w-fit">
+          {[
+            { key: 'In Service', label: 'In Service', count: '15,330', color: 'green' },
+            { key: 'Loyalty', label: 'Loyalty', count: '149', color: 'blue' },
+            { key: 'Legal', label: 'Legal', count: '106', color: 'red' },
+          ].map(t => (
+            <button key={t.key} onClick={() => { setFilterDisposition(t.key); setPage(1) }}
+              className={`text-xs px-3 py-1.5 rounded-md transition-colors whitespace-nowrap ${
+                filterDisposition === t.key
+                  ? t.color === 'green' ? 'bg-green-700 text-white font-medium' : t.color === 'blue' ? 'bg-blue-700 text-white font-medium' : 'bg-red-700 text-white font-medium'
+                  : 'text-gray-400 hover:text-white'
+              }`}>
+              {t.label} ({t.count})
+            </button>
+          ))}
+        </div>
 
         <div className="relative max-w-xl">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
