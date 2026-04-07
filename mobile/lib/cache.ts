@@ -40,7 +40,7 @@ export function setCache<T>(key: string, data: T): void {
  * Load persistent cache into memory on app start.
  */
 export async function loadPersistentCache(): Promise<void> {
-  for (const key of ['account', 'project', 'timeline', 'schedule']) {
+  for (const key of ['account', 'project', 'timeline', 'schedule', 'documents', 'taskStates']) {
     try {
       const raw = await SecureStore.getItemAsync(CACHE_PREFIX + key)
       if (raw) {

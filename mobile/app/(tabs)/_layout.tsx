@@ -98,6 +98,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="documents"
+        options={{
+          title: 'Docs',
+          tabBarIcon: ({ color, size }) => <Feather name="file-text" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="chat"
         options={{
           title: 'Atlas',

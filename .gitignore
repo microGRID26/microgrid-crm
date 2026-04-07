@@ -51,3 +51,4 @@ scripts/extract-subhub.sh
 
 # Local reference files (spreadsheets, scripts, snapshots — not part of the app)
 /reference/
+scripts/import-project-files.py

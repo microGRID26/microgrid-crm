@@ -82,6 +82,23 @@ export interface TicketComment {
   created_at: string
 }
 
+export interface CustomerDocument {
+  id: string
+  project_id: string
+  file_name: string
+  file_type: string | null
+  file_url: string
+  category: string | null
+  created_at: string
+}
+
+export interface CustomerTaskState {
+  task_id: string
+  status: string
+  completed_date: string | null
+  started_date: string | null
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string

@@ -551,6 +551,12 @@ export function useProjectTasks(opts: UseProjectTasksOptions): UseProjectTasksRe
         onProjectUpdated()
         edgeSync.notifyStageChanged(pid, project.stage, nextStage)
         sendCustomerPush(pid, 'Project Update', `Your project has moved to ${STAGE_LABELS[nextStage]}!`, { type: 'stage_advance', stage: nextStage })
+        // Fire milestone-specific push notification via server-side route (fire-and-forget)
+        fetch('/api/notifications/customer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: pid, type: 'milestone', stage: nextStage }),
+        }).catch(err => console.error('[milestone-push] send failed:', err))
         showToast(`All tasks done — advanced to ${STAGE_LABELS[nextStage]}`)
       }
     }

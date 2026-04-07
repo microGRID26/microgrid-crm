@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { View, Text, ScrollView, RefreshControl, ActivityIndicator, AppState, TouchableOpacity } from 'react-native'
+import { View, Text, ScrollView, RefreshControl, ActivityIndicator, AppState, TouchableOpacity, Modal, Animated } from 'react-native'
 import { Feather } from '@expo/vector-icons'
+import * as Haptics from 'expo-haptics'
 import { theme, useThemeColors } from '../../lib/theme'
-import { getCustomerAccount, loadProject, loadTimeline, loadSchedule } from '../../lib/api'
-import { STAGE_ORDER, STAGE_LABELS, STAGE_DESCRIPTIONS, JOB_TYPE_LABELS } from '../../lib/constants'
+import { getCustomerAccount, loadProject, loadTimeline, loadSchedule, loadTaskStates } from '../../lib/api'
+import { STAGE_ORDER, STAGE_LABELS, STAGE_DESCRIPTIONS, STAGE_TASKS, STAGE_SLA_DAYS, JOB_TYPE_LABELS } from '../../lib/constants'
 import { getCache, setCache } from '../../lib/cache'
-import type { CustomerAccount, CustomerProject, StageHistoryEntry, CustomerScheduleEntry } from '../../lib/types'
+import type { CustomerAccount, CustomerProject, StageHistoryEntry, CustomerScheduleEntry, CustomerTaskState } from '../../lib/types'
 
 const formatDate = (d: string | null) => {
   if (!d) return null
@@ -18,20 +19,24 @@ export default function DashboardScreen() {
   const [project, setProject] = useState<CustomerProject | null>(null)
   const [timeline, setTimeline] = useState<StageHistoryEntry[]>([])
   const [schedule, setSchedule] = useState<CustomerScheduleEntry[]>([])
+  const [taskStates, setTaskStates] = useState<CustomerTaskState[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [drillDownStage, setDrillDownStage] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     // Try cache first for instant render
-    const cachedProject = getCache<any>('project')
-    const cachedTimeline = getCache<any[]>('timeline')
-    const cachedSchedule = getCache<any[]>('schedule')
-    const cachedAccount = getCache<any>('account')
+    const cachedProject = getCache<CustomerProject>('project')
+    const cachedTimeline = getCache<StageHistoryEntry[]>('timeline')
+    const cachedSchedule = getCache<CustomerScheduleEntry[]>('schedule')
+    const cachedAccount = getCache<CustomerAccount>('account')
+    const cachedTasks = getCache<CustomerTaskState[]>('taskStates')
     if (cachedProject && cachedAccount) {
       setAccount(cachedAccount)
       setProject(cachedProject)
       setTimeline(cachedTimeline ?? [])
       setSchedule(cachedSchedule ?? [])
+      setTaskStates(cachedTasks ?? [])
       setLoading(false)
     }
 
@@ -40,17 +45,20 @@ export default function DashboardScreen() {
     if (!acct) return
     setAccount(acct)
     setCache('account', acct)
-    const [proj, tl, sched] = await Promise.all([
+    const [proj, tl, sched, tasks] = await Promise.all([
       loadProject(acct.project_id),
       loadTimeline(acct.project_id),
       loadSchedule(acct.project_id),
+      loadTaskStates(acct.project_id),
     ])
     setProject(proj)
     setTimeline(tl)
     setSchedule(sched)
+    setTaskStates(tasks)
     setCache('project', proj)
     setCache('timeline', tl)
     setCache('schedule', sched)
+    setCache('taskStates', tasks)
     setLoading(false)
   }, [])
 
@@ -171,19 +179,32 @@ export default function DashboardScreen() {
           )}
         </View>
 
-        {/* Progress bar */}
+        {/* Progress bar — tappable stages */}
         <View style={{ flexDirection: 'row', gap: 4 }}>
           {STAGE_ORDER.map((stage, i) => (
-            <View key={stage} style={{
-              flex: 1, height: 6, borderRadius: 3,
-              backgroundColor: i < currentStageIdx
-                ? colors.stageComplete
-                : i === currentStageIdx
-                  ? colors.stageActive
-                  : colors.stageUpcoming,
-            }} />
+            <TouchableOpacity
+              key={stage}
+              activeOpacity={0.7}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                setDrillDownStage(stage)
+              }}
+              style={{ flex: 1 }}
+            >
+              <View style={{
+                height: 6, borderRadius: 3,
+                backgroundColor: i < currentStageIdx
+                  ? colors.stageComplete
+                  : i === currentStageIdx
+                    ? colors.stageActive
+                    : colors.stageUpcoming,
+              }} />
+            </TouchableOpacity>
           ))}
         </View>
+        <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 8, textAlign: 'center', fontFamily: 'Inter_400Regular' }}>
+          Tap any stage for details
+        </Text>
       </View>
 
       {/* SLA Countdown */}
@@ -389,6 +410,193 @@ export default function DashboardScreen() {
         </Text>
         <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 4 }}>{project.id}</Text>
       </View>
+
+      {/* Stage Drill-Down Modal */}
+      <Modal
+        visible={drillDownStage !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDrillDownStage(null)}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <View style={{
+            backgroundColor: colors.surface,
+            borderTopLeftRadius: theme.radius.xl,
+            borderTopRightRadius: theme.radius.xl,
+            padding: 24,
+            paddingBottom: 40,
+            maxHeight: '75%',
+          }}>
+            {/* Handle bar */}
+            <View style={{
+              width: 36, height: 4, borderRadius: 2,
+              backgroundColor: colors.border,
+              alignSelf: 'center', marginBottom: 20,
+            }} />
+
+            {drillDownStage && (() => {
+              const stageIdx = STAGE_ORDER.indexOf(drillDownStage)
+              const isStageComplete = stageIdx < currentStageIdx
+              const isCurrentStage = stageIdx === currentStageIdx
+              const tasks = STAGE_TASKS[drillDownStage] ?? []
+              const taskMap = new Map(taskStates.map(t => [t.task_id, t]))
+              const completedTasks = tasks.filter(t => taskMap.get(t.id)?.status === 'completed' || taskMap.get(t.id)?.status === 'done')
+              const slaDays = STAGE_SLA_DAYS[drillDownStage] ?? 0
+
+              // Estimate remaining days for current stage
+              const stageEntry = timeline.find(t => t.stage === drillDownStage)
+              const daysInStage = stageEntry
+                ? Math.floor((Date.now() - new Date(stageEntry.entered).getTime()) / 86400000)
+                : 0
+              const daysRemaining = Math.max(0, slaDays - daysInStage)
+
+              return (
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {/* Stage header */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                    <View style={{
+                      width: 40, height: 40, borderRadius: 20,
+                      backgroundColor: isStageComplete ? colors.stageComplete : isCurrentStage ? colors.stageActive : colors.stageUpcoming,
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {isStageComplete ? (
+                        <Feather name="check" size={20} color="#fff" />
+                      ) : isCurrentStage ? (
+                        <Feather name="arrow-right" size={18} color="#fff" />
+                      ) : (
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff', fontFamily: 'Inter_700Bold' }}>
+                          {stageIdx + 1}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, fontFamily: 'Inter_700Bold' }}>
+                        {STAGE_LABELS[drillDownStage] ?? drillDownStage}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: colors.textMuted, fontFamily: 'Inter_400Regular', marginTop: 2 }}>
+                        Stage {stageIdx + 1} of {STAGE_ORDER.length}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Description */}
+                  <Text style={{
+                    fontSize: 14, color: colors.textSecondary, fontFamily: 'Inter_400Regular',
+                    lineHeight: 20, marginBottom: 20,
+                  }}>
+                    {STAGE_DESCRIPTIONS[drillDownStage] ?? ''}
+                  </Text>
+
+                  {/* SLA estimate for current stage */}
+                  {isCurrentStage && slaDays > 0 && (
+                    <View style={{
+                      backgroundColor: colors.surfaceAlt, borderRadius: theme.radius.lg,
+                      padding: 14, marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 12,
+                    }}>
+                      <Feather name="clock" size={18} color={daysRemaining > 3 ? colors.accent : daysRemaining > 0 ? colors.warm : colors.error} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, fontFamily: 'Inter_600SemiBold' }}>
+                          {daysRemaining > 0
+                            ? `~${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining`
+                            : 'Target timeframe reached'}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: colors.textMuted, fontFamily: 'Inter_400Regular' }}>
+                          Typical: {slaDays} business days | Day {daysInStage}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Completed stage info */}
+                  {isStageComplete && stageEntry && (
+                    <View style={{
+                      backgroundColor: colors.accentLight, borderRadius: theme.radius.lg,
+                      padding: 14, marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 12,
+                    }}>
+                      <Feather name="check-circle" size={18} color={colors.stageComplete} />
+                      <Text style={{ fontSize: 13, fontWeight: '500', color: colors.text, fontFamily: 'Inter_500Medium' }}>
+                        Completed on {formatDate(stageEntry.entered)}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Task list */}
+                  {tasks.length > 0 && (
+                    <View>
+                      <Text style={{
+                        fontSize: 13, fontWeight: '600', color: colors.textSecondary,
+                        fontFamily: 'Inter_600SemiBold', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5,
+                      }}>
+                        Tasks ({completedTasks.length}/{tasks.length})
+                      </Text>
+                      {tasks.map((task, idx) => {
+                        const state = taskMap.get(task.id)
+                        const done = state?.status === 'completed' || state?.status === 'done'
+                        const inProgress = state?.status === 'in_progress' || state?.status === 'started'
+                        return (
+                          <View key={task.id} style={{
+                            flexDirection: 'row', alignItems: 'center', gap: 12,
+                            paddingVertical: 10,
+                            borderBottomWidth: idx < tasks.length - 1 ? 1 : 0,
+                            borderBottomColor: colors.borderLight,
+                          }}>
+                            <View style={{
+                              width: 24, height: 24, borderRadius: 12,
+                              backgroundColor: done ? colors.stageComplete : inProgress ? colors.stageActive + '30' : colors.surfaceAlt,
+                              borderWidth: done ? 0 : 1.5,
+                              borderColor: done ? 'transparent' : inProgress ? colors.stageActive : colors.border,
+                              alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              {done && <Feather name="check" size={14} color="#fff" />}
+                              {inProgress && <Feather name="loader" size={12} color={colors.stageActive} />}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{
+                                fontSize: 14, color: done ? colors.text : colors.textSecondary,
+                                fontFamily: done ? 'Inter_500Medium' : 'Inter_400Regular',
+                                textDecorationLine: done ? 'none' : 'none',
+                              }}>
+                                {task.label}
+                              </Text>
+                              {done && state?.completed_date && (
+                                <Text style={{ fontSize: 11, color: colors.textMuted, fontFamily: 'Inter_400Regular', marginTop: 1 }}>
+                                  {formatDate(state.completed_date)}
+                                </Text>
+                              )}
+                              {inProgress && (
+                                <Text style={{ fontSize: 11, color: colors.stageActive, fontFamily: 'Inter_500Medium', marginTop: 1 }}>
+                                  In progress
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                        )
+                      })}
+                    </View>
+                  )}
+
+                  {/* Close button */}
+                  <TouchableOpacity
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                      setDrillDownStage(null)
+                    }}
+                    activeOpacity={0.7}
+                    style={{
+                      backgroundColor: colors.surfaceAlt, borderRadius: theme.radius.xl,
+                      paddingVertical: 14, marginTop: 24, alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, fontFamily: 'Inter_600SemiBold' }}>
+                      Close
+                    </Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              )
+            })()}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   )
 }

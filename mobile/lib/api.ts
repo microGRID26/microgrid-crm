@@ -2,7 +2,7 @@
 
 import { supabase } from './supabase'
 import Constants from 'expo-constants'
-import type { CustomerAccount, CustomerProject, StageHistoryEntry, CustomerScheduleEntry, CustomerTicket, TicketComment } from './types'
+import type { CustomerAccount, CustomerProject, StageHistoryEntry, CustomerScheduleEntry, CustomerTicket, TicketComment, CustomerDocument, CustomerTaskState } from './types'
 
 const API_BASE = Constants.expoConfig?.extra?.apiBaseUrl ?? 'https://nova.gomicrogridenergy.com'
 
@@ -20,6 +20,7 @@ export async function getCustomerAccount(): Promise<CustomerAccount | null> {
     .select('*')
     .eq('auth_user_id', user.id)
     .eq('status', 'active')
+    .limit(1)
     .single()
 
   if (error || !data) return null
@@ -181,6 +182,57 @@ export async function uploadTicketPhoto(uri: string, ticketId: string, overrideM
     console.error('[upload] failed:', err)
     return null
   }
+}
+
+// ── Documents ──────────────────────────────────────────────────────────────
+
+export async function loadDocuments(projectId: string): Promise<CustomerDocument[]> {
+  // Try project_files first (primary table)
+  const { data: files, error: filesErr } = await supabase
+    .from('project_files')
+    .select('id, project_id, file_name, file_type, file_url, category, created_at')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  if (filesErr) console.error('[loadDocuments:project_files]', filesErr.message)
+
+  // Also try project_documents table if it exists
+  const { data: docs, error: docsErr } = await supabase
+    .from('project_documents')
+    .select('id, project_id, file_name, file_type, file_url, category, created_at')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  if (docsErr && !docsErr.message.includes('does not exist')) {
+    console.error('[loadDocuments:project_documents]', docsErr.message)
+  }
+
+  // Merge and deduplicate by id
+  const all = [...(files ?? []), ...(docs ?? [])]
+  const seen = new Set<string>()
+  const unique: CustomerDocument[] = []
+  for (const doc of all) {
+    if (!seen.has(doc.id)) {
+      seen.add(doc.id)
+      unique.push(doc as CustomerDocument)
+    }
+  }
+  return unique
+}
+
+// ── Task States ────────────────────────────────────────────────────────────
+
+export async function loadTaskStates(projectId: string): Promise<CustomerTaskState[]> {
+  const { data, error } = await supabase
+    .from('task_state')
+    .select('task_id, status, completed_date, started_date')
+    .eq('project_id', projectId)
+    .limit(200)
+
+  if (error) console.error('[loadTaskStates]', error.message)
+  return (data ?? []) as CustomerTaskState[]
 }
 
 // ── Atlas Chat ──────────────────────────────────────────────────────────────
