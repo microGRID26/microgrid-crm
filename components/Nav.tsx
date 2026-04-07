@@ -77,6 +77,7 @@ const MORE_SECTIONS: LinkSection[] = [
       { label: 'Atlas AI',        href: '/reports' },
       { label: 'Audit',           href: '/audit'   },
       { label: 'Infographic',     href: '/infographic' },
+      { label: 'QA Testing',      href: '/testing'  },
       { label: 'Legacy Projects', href: '/legacy'  },
     ],
   },
