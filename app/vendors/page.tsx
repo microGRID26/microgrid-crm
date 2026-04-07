@@ -6,7 +6,8 @@ import { useCurrentUser } from '@/lib/useCurrentUser'
 import { loadVendors, addVendor, updateVendor, deleteVendor, VENDOR_CATEGORIES, EQUIPMENT_TYPE_OPTIONS, loadVendorDocs, addVendorDoc, updateVendorDocStatus, deleteVendorDoc, initVendorOnboarding, VENDOR_DOC_TYPES, VENDOR_DOC_STATUSES } from '@/lib/api/vendors'
 import type { VendorOnboardingDoc } from '@/lib/api/vendors'
 import type { Vendor } from '@/lib/api/vendors'
-import { Search, Plus, X, Building2, ChevronDown, ChevronUp, Truck, Phone, Mail, Globe } from 'lucide-react'
+import { Search, Plus, X, Building2, ChevronDown, ChevronUp, Truck, Phone, Mail, Globe, BarChart3 } from 'lucide-react'
+import VendorScorecard from './components/VendorScorecard'
 
 const CATEGORY_COLORS: Record<string, string> = {
   manufacturer: 'bg-blue-500/20 text-blue-400',
@@ -44,6 +45,7 @@ export default function VendorsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'directory' | 'scorecard'>('directory')
 
   // ── Edit state ──────────────────────────────────────────────────────────
   const [editDraft, setEditDraft] = useState<Partial<Vendor>>({})
@@ -235,14 +237,46 @@ export default function VendorsPage() {
               Manage suppliers and contractors — {activeCount} active, {vendors.length} total
             </p>
           </div>
+          {activeTab === 'directory' && (
+            <button
+              onClick={() => { setShowAddForm(true); setAddDraft({ active: true, equipment_types: [] }) }}
+              className="px-3 py-1.5 text-xs bg-green-700 text-white rounded-md hover:bg-green-600 transition-colors flex items-center gap-1"
+            >
+              <Plus className="w-3 h-3" /> Add Vendor
+            </button>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-gray-700 -mb-2">
           <button
-            onClick={() => { setShowAddForm(true); setAddDraft({ active: true, equipment_types: [] }) }}
-            className="px-3 py-1.5 text-xs bg-green-700 text-white rounded-md hover:bg-green-600 transition-colors flex items-center gap-1"
+            onClick={() => setActiveTab('directory')}
+            className={`px-4 py-2 text-sm font-medium transition-colors flex items-center gap-1.5 border-b-2 ${
+              activeTab === 'directory'
+                ? 'text-white border-green-500'
+                : 'text-gray-400 border-transparent hover:text-gray-300'
+            }`}
           >
-            <Plus className="w-3 h-3" /> Add Vendor
+            <Building2 className="w-3.5 h-3.5" /> Directory
+          </button>
+          <button
+            onClick={() => setActiveTab('scorecard')}
+            className={`px-4 py-2 text-sm font-medium transition-colors flex items-center gap-1.5 border-b-2 ${
+              activeTab === 'scorecard'
+                ? 'text-white border-green-500'
+                : 'text-gray-400 border-transparent hover:text-gray-300'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" /> Scorecard
           </button>
         </div>
 
+        {/* Scorecard tab */}
+        {activeTab === 'scorecard' && <VendorScorecard />}
+
+        {/* Directory tab */}
+        {activeTab === 'directory' && (
+        <>
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {VENDOR_CATEGORIES.map(cat => (
@@ -792,6 +826,8 @@ export default function VendorsPage() {
         <div className="text-xs text-gray-500">
           {filtered.length} vendor{filtered.length !== 1 ? 's' : ''} shown
         </div>
+        </>
+        )}
       </div>
     </div>
   )

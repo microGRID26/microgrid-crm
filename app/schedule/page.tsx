@@ -9,6 +9,7 @@ import { Nav } from '@/components/Nav'
 import { ScheduleAssignModal } from '@/components/project/ScheduleAssignModal'
 import { JobBriefPanel } from '@/components/project/JobBriefPanel'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
+import { SuggestionPanel } from './components/SuggestionPanel'
 import { cn } from '@/lib/utils'
 import { handleApiError } from '@/lib/errors'
 import { useSupabaseQuery, useRealtimeSubscription } from '@/lib/hooks'
@@ -365,6 +366,9 @@ export default function SchedulePage() {
       <Nav active="Schedule" right={
           <span className="text-xs text-gray-500">{totalJobs} jobs this week</span>
         } />
+
+      {/* Schedule Suggestions */}
+      <SuggestionPanel onScheduled={loadSchedule} />
 
       {/* Controls */}
       <div className="no-print bg-gray-900 border-b border-gray-800 flex items-center gap-3 px-4 py-2 flex-shrink-0">

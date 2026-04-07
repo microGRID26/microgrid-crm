@@ -6,7 +6,8 @@ import { useCurrentUser } from '@/lib/useCurrentUser'
 import { cn } from '@/lib/utils'
 import { db } from '@/lib/db'
 import { loadAHJs } from '@/lib/api'
-import { Search, ExternalLink, Globe, Phone, Eye, EyeOff, ChevronDown, ChevronUp, Shield, Download, Clock } from 'lucide-react'
+import { Search, ExternalLink, Globe, Phone, Eye, EyeOff, ChevronDown, ChevronUp, Shield, Download, Clock, FileCheck2, Building2 } from 'lucide-react'
+import PermitTracker from './components/PermitTracker'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface AhjRecord {
@@ -50,6 +51,7 @@ export default function PermitsPage() {
   const [page, setPage] = useState(0)
   const [sortCol, setSortCol] = useState<'name' | 'county' | 'max_duration' | 'projects'>('name')
   const [sortAsc, setSortAsc] = useState(true)
+  const [activeTab, setActiveTab] = useState<'ahj' | 'tracker'>('ahj')
 
   // ── Load AHJs ────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -246,18 +248,54 @@ export default function PermitsPage() {
               Permit Portal Hub
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              AHJ permit portals, credentials, and submission methods — {ahjs.length.toLocaleString()} AHJs
+              AHJ permit portals, credentials, and submission tracking — {ahjs.length.toLocaleString()} AHJs
             </p>
           </div>
+          {activeTab === 'ahj' && (
+            <button
+              onClick={exportCsv}
+              aria-label="Export AHJ data to CSV"
+              className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5"
+            >
+              <Download size={13} />
+              Export CSV
+            </button>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-1 border-b border-gray-800">
           <button
-            onClick={exportCsv}
-            aria-label="Export AHJ data to CSV"
-            className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5"
+            onClick={() => setActiveTab('ahj')}
+            className={cn(
+              'px-3 py-2 text-xs font-medium transition-colors border-b-2 flex items-center gap-1.5',
+              activeTab === 'ahj'
+                ? 'text-green-400 border-green-400'
+                : 'text-gray-500 border-transparent hover:text-gray-300'
+            )}
           >
-            <Download size={13} />
-            Export CSV
+            <Building2 size={13} />
+            AHJ Directory
+          </button>
+          <button
+            onClick={() => setActiveTab('tracker')}
+            className={cn(
+              'px-3 py-2 text-xs font-medium transition-colors border-b-2 flex items-center gap-1.5',
+              activeTab === 'tracker'
+                ? 'text-green-400 border-green-400'
+                : 'text-gray-500 border-transparent hover:text-gray-300'
+            )}
+          >
+            <FileCheck2 size={13} />
+            Permit Tracker
           </button>
         </div>
+
+        {/* Tab: Permit Tracker */}
+        {activeTab === 'tracker' && <PermitTracker />}
+
+        {/* Tab: AHJ Directory */}
+        {activeTab === 'ahj' && <>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -642,6 +680,7 @@ export default function PermitsPage() {
             )}
           </>
         )}
+        </>}
       </div>
     </div>
   )
