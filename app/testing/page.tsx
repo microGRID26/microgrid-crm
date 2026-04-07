@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { db } from '@/lib/db'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrentUser } from '@/lib/useCurrentUser'
+import { isInternalEmail } from '@/lib/utils'
 import { Nav } from '@/components/Nav'
 import {
   ClipboardCheck, Flame, Trophy, Sparkles, Loader2, AlertTriangle,
@@ -242,8 +243,14 @@ export default function TestingPage() {
   }, [currentUser])
 
   useEffect(() => {
-    if (!userLoading && currentUser) loadData()
-    else if (!userLoading && !currentUser) {
+    if (!userLoading && currentUser) {
+      if (!isInternalEmail(currentUser.email)) {
+        setError('Access restricted to MicroGRID team members')
+        setLoading(false)
+        return
+      }
+      loadData()
+    } else if (!userLoading && !currentUser) {
       setError('Not authenticated')
       setLoading(false)
     }
