@@ -82,6 +82,9 @@ export default function RootLayout() {
         case 'ticket_reply':
           if (data.ticketId) router.push(`/ticket/${data.ticketId}`)
           break
+        case 'new_message':
+          router.push('/messages')
+          break
         case 'stage_advance':
         case 'schedule_created':
           router.push('/(tabs)')
@@ -102,7 +105,10 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="messages" options={{ presentation: 'card', animation: 'slide_from_right' }} />
           <Stack.Screen name="notifications-settings" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="warranty" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="schedule-service" options={{ presentation: 'modal' }} />
         </Stack>
       </ThemeContext.Provider>
     </ErrorBoundary>

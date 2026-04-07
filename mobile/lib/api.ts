@@ -2,7 +2,7 @@
 
 import { supabase } from './supabase'
 import Constants from 'expo-constants'
-import type { CustomerAccount, CustomerProject, StageHistoryEntry, CustomerScheduleEntry, CustomerTicket, TicketComment, CustomerDocument, CustomerTaskState, EnergyStats, CustomerReferral } from './types'
+import type { CustomerAccount, CustomerProject, StageHistoryEntry, CustomerScheduleEntry, CustomerTicket, TicketComment, CustomerDocument, CustomerTaskState, EnergyStats, CustomerReferral, CustomerWarranty, BillingStatement, PaymentMethod, PaymentRecord, CustomerMessage } from './types'
 
 const API_BASE = Constants.expoConfig?.extra?.apiBaseUrl ?? 'https://nova.gomicrogridenergy.com'
 
@@ -302,6 +302,137 @@ export async function sendAtlasMessage(
   }
   const data = await res.json()
   return data.response
+}
+
+// ── Warranties ────────────────────────────────────────────────────────────
+
+export async function loadWarranties(projectId: string): Promise<CustomerWarranty[]> {
+  const { data, error } = await supabase
+    .from('equipment_warranties')
+    .select('id, project_id, equipment_type, manufacturer, model, serial_number, quantity, install_date, warranty_start_date, warranty_end_date, warranty_years, notes, created_at, updated_at')
+    .eq('project_id', projectId)
+    .order('equipment_type')
+    .limit(50)
+
+  if (error) console.error('[loadWarranties]', error.message)
+  return (data ?? []) as CustomerWarranty[]
+}
+
+export async function fileWarrantyClaim(
+  projectId: string,
+  equipmentType: string,
+  description: string,
+  accountName: string,
+): Promise<boolean> {
+  // Creates a ticket with category='warranty' and equipment info in description
+  const title = `Warranty Claim: ${equipmentType.charAt(0).toUpperCase() + equipmentType.slice(1)}`
+  const fullDescription = `Equipment: ${equipmentType}\n\n${description}`
+  const ticket = await createTicket(projectId, title, fullDescription, 'warranty', accountName)
+  return ticket !== null
+}
+
+// ── Billing ─────────────────────────────────────────────────────────────────
+
+export async function loadBillingStatements(accountId: string): Promise<BillingStatement[]> {
+  const { data, error } = await supabase
+    .from('customer_billing_statements')
+    .select('*')
+    .eq('customer_account_id', accountId)
+    .order('period_start', { ascending: false })
+    .limit(24)
+
+  if (error) console.error('[loadBillingStatements]', error.message)
+  return (data ?? []) as BillingStatement[]
+}
+
+export async function loadPaymentMethods(accountId: string): Promise<PaymentMethod[]> {
+  const { data, error } = await supabase
+    .from('customer_payment_methods')
+    .select('*')
+    .eq('customer_account_id', accountId)
+    .order('is_default', { ascending: false })
+    .limit(50)
+
+  if (error) console.error('[loadPaymentMethods]', error.message)
+  return (data ?? []) as PaymentMethod[]
+}
+
+export async function loadPaymentHistory(accountId: string): Promise<PaymentRecord[]> {
+  const { data, error } = await supabase
+    .from('customer_payments')
+    .select('*')
+    .eq('customer_account_id', accountId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error) console.error('[loadPaymentHistory]', error.message)
+  return (data ?? []) as PaymentRecord[]
+}
+
+// ── Direct Messages ─────────────────────────────────────────────────────────
+
+export async function loadMessages(projectId: string): Promise<CustomerMessage[]> {
+  const { data, error } = await supabase
+    .from('customer_messages')
+    .select('id, project_id, author_type, author_name, message, read_at, created_at')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: true })
+    .limit(500)
+
+  if (error) console.error('[loadMessages]', error.message)
+  return (data ?? []) as CustomerMessage[]
+}
+
+export async function sendMessage(projectId: string, message: string, authorName: string): Promise<boolean> {
+  // Defense-in-depth: verify current user is authenticated (RLS also enforces)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return false
+
+  // Get org_id from project so CRM can see the message
+  const { data: proj } = await supabase
+    .from('projects')
+    .select('org_id')
+    .eq('id', projectId)
+    .single()
+
+  const { error } = await supabase
+    .from('customer_messages')
+    .insert({
+      project_id: projectId,
+      author_type: 'customer',
+      author_name: authorName,
+      message,
+      org_id: proj?.org_id ?? null,
+    })
+
+  if (error) {
+    console.error('[sendMessage]', error.message)
+    return false
+  }
+  return true
+}
+
+export async function loadUnreadMessageCount(projectId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('customer_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('project_id', projectId)
+    .in('author_type', ['pm', 'system'])
+    .is('read_at', null)
+
+  if (error) console.error('[loadUnreadMessageCount]', error.message)
+  return count ?? 0
+}
+
+export async function markMessagesRead(projectId: string): Promise<void> {
+  const { error } = await supabase
+    .from('customer_messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('project_id', projectId)
+    .in('author_type', ['pm', 'system'])
+    .is('read_at', null)
+
+  if (error) console.error('[markMessagesRead]', error.message)
 }
 
 // ── Referrals ────────────────────────────────────────────────────────────────

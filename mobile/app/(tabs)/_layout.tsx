@@ -105,6 +105,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="billing"
+        options={{
+          title: 'Billing',
+          tabBarIcon: ({ color, size }) => <Feather name="credit-card" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="documents"
         options={{
           title: 'Docs',

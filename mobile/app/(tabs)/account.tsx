@@ -438,6 +438,33 @@ export default function AccountScreen() {
         <Feather name="chevron-right" size={16} color={colors.textMuted} />
       </TouchableOpacity>
 
+      {/* Warranty */}
+      <TouchableOpacity
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/warranty') }}
+        activeOpacity={0.7}
+        style={{
+          backgroundColor: colors.surface, borderRadius: theme.radius.xl,
+          padding: 16, marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12,
+          borderWidth: 1, borderColor: colors.borderLight, ...theme.shadow.card,
+        }}
+      >
+        <View style={{
+          width: 36, height: 36, borderRadius: 18,
+          backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Feather name="shield" size={18} color={colors.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: '500', color: colors.text, fontFamily: 'Inter_500Medium' }}>
+            Warranty
+          </Text>
+          <Text style={{ fontSize: 12, color: colors.textMuted, fontFamily: 'Inter_400Regular' }}>
+            Coverage details and claims
+          </Text>
+        </View>
+        <Feather name="chevron-right" size={16} color={colors.textMuted} />
+      </TouchableOpacity>
+
       {/* Sign Out */}
       <TouchableOpacity onPress={handleSignOut} activeOpacity={0.7}
         style={{

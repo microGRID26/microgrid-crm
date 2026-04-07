@@ -218,6 +218,28 @@ export default function TicketsScreen() {
             ))}
           </View>
         )}
+
+        {/* Request Service Visit */}
+        <TouchableOpacity
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/schedule-service') }}
+          activeOpacity={0.7}
+          style={{
+            backgroundColor: colors.surface, borderRadius: theme.radius.xl,
+            padding: 14, marginTop: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10,
+            borderWidth: 1, borderColor: colors.borderLight, ...theme.shadow.card,
+          }}
+        >
+          <View style={{
+            width: 32, height: 32, borderRadius: 16,
+            backgroundColor: colors.infoLight, alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Feather name="tool" size={16} color={colors.info} />
+          </View>
+          <Text style={{ fontSize: 13, fontWeight: '500', color: colors.text, fontFamily: 'Inter_500Medium', flex: 1 }}>
+            Request Service Visit
+          </Text>
+          <Feather name="chevron-right" size={14} color={colors.textMuted} />
+        </TouchableOpacity>
         </>}
         renderItem={({ item: ticket }) => {
           const status = statusMap[ticket.status] ?? statusMap.open

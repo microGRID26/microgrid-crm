@@ -125,10 +125,85 @@ export interface CustomerReferral {
   updated_at: string
 }
 
+export interface CustomerWarranty {
+  id: string
+  project_id: string
+  equipment_type: string
+  manufacturer: string | null
+  model: string | null
+  serial_number: string | null
+  quantity: number
+  install_date: string | null
+  warranty_start_date: string | null
+  warranty_end_date: string | null
+  warranty_years: number | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface EnergyStats {
   estimated_monthly_kwh: number
   estimated_annual_kwh: number
   co2_offset_tons: number
   trees_equivalent: number
   cost_savings_monthly: number
+}
+
+// ── Customer Billing ──────────────────────────────────────────────────────
+
+export interface BillingStatement {
+  id: string
+  customer_account_id: string
+  project_id: string
+  period_start: string
+  period_end: string
+  kwh_consumed: number
+  rate_per_kwh: number
+  amount_due: number
+  utility_comparison: number | null
+  status: 'pending' | 'paid' | 'overdue' | 'waived'
+  due_date: string | null
+  paid_at: string | null
+  stripe_invoice_id: string | null
+  org_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PaymentMethod {
+  id: string
+  customer_account_id: string
+  stripe_customer_id: string | null
+  stripe_payment_method_id: string | null
+  card_brand: string | null
+  card_last4: string | null
+  card_exp_month: number | null
+  card_exp_year: number | null
+  is_default: boolean
+  autopay_enabled: boolean
+  created_at: string
+}
+
+export interface PaymentRecord {
+  id: string
+  customer_account_id: string
+  statement_id: string | null
+  amount: number
+  stripe_payment_intent_id: string | null
+  status: 'pending' | 'processing' | 'succeeded' | 'failed' | 'refunded'
+  paid_at: string | null
+  created_at: string
+}
+
+// ── Direct Messages ─────────────────────────────────────────────────────────
+
+export interface CustomerMessage {
+  id: string
+  project_id: string
+  author_type: 'customer' | 'pm' | 'system'
+  author_name: string
+  message: string
+  read_at: string | null
+  created_at: string
 }

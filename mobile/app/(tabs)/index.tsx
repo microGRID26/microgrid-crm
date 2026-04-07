@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { View, Text, ScrollView, RefreshControl, ActivityIndicator, AppState, TouchableOpacity, Modal, Animated } from 'react-native'
 import { Feather } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
 import { theme, useThemeColors } from '../../lib/theme'
-import { getCustomerAccount, loadProject, loadTimeline, loadSchedule, loadTaskStates } from '../../lib/api'
+import { getCustomerAccount, loadProject, loadTimeline, loadSchedule, loadTaskStates, loadUnreadMessageCount } from '../../lib/api'
 import { STAGE_ORDER, STAGE_LABELS, STAGE_DESCRIPTIONS, STAGE_TASKS, STAGE_SLA_DAYS, JOB_TYPE_LABELS } from '../../lib/constants'
 import { getCache, setCache } from '../../lib/cache'
 import type { CustomerAccount, CustomerProject, StageHistoryEntry, CustomerScheduleEntry, CustomerTaskState } from '../../lib/types'
@@ -16,6 +17,7 @@ const formatDate = (d: string | null) => {
 
 export default function DashboardScreen() {
   const colors = useThemeColors()
+  const router = useRouter()
   const [account, setAccount] = useState<CustomerAccount | null>(null)
   const [project, setProject] = useState<CustomerProject | null>(null)
   const [timeline, setTimeline] = useState<StageHistoryEntry[]>([])
@@ -24,6 +26,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [drillDownStage, setDrillDownStage] = useState<string | null>(null)
+  const [unreadMessages, setUnreadMessages] = useState(0)
 
   const load = useCallback(async () => {
     // Try cache first for instant render
@@ -46,12 +49,14 @@ export default function DashboardScreen() {
     if (!acct) return
     setAccount(acct)
     setCache('account', acct)
-    const [proj, tl, sched, tasks] = await Promise.all([
+    const [proj, tl, sched, tasks, msgCount] = await Promise.all([
       loadProject(acct.project_id),
       loadTimeline(acct.project_id),
       loadSchedule(acct.project_id),
       loadTaskStates(acct.project_id),
+      loadUnreadMessageCount(acct.project_id),
     ])
+    setUnreadMessages(msgCount)
     setProject(proj)
     setTimeline(tl)
     setSchedule(sched)
@@ -278,6 +283,73 @@ export default function DashboardScreen() {
           ))}
         </View>
       )}
+
+      {/* Quick Actions: Schedule Service */}
+      <TouchableOpacity
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/schedule-service') }}
+        activeOpacity={0.7}
+        style={{
+          backgroundColor: colors.surface, borderRadius: theme.radius.xl,
+          padding: 16, marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12,
+          borderWidth: 1, borderColor: colors.borderLight, ...theme.shadow.card,
+        }}
+      >
+        <View style={{
+          width: 40, height: 40, borderRadius: 20,
+          backgroundColor: colors.infoLight, alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Feather name="tool" size={20} color={colors.info} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, fontFamily: 'Inter_600SemiBold' }}>
+            Schedule Service
+          </Text>
+          <Text style={{ fontSize: 12, color: colors.textMuted, fontFamily: 'Inter_400Regular' }}>
+            Request maintenance or a service visit
+          </Text>
+        </View>
+        <Feather name="chevron-right" size={16} color={colors.textMuted} />
+      </TouchableOpacity>
+
+      {/* Messages Card */}
+      <TouchableOpacity
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/messages') }}
+        activeOpacity={0.7}
+        style={{
+          backgroundColor: colors.surface, borderRadius: theme.radius.xl,
+          padding: 16, marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12,
+          borderWidth: 1, borderColor: colors.borderLight, ...theme.shadow.card,
+        }}
+      >
+        <View style={{
+          width: 40, height: 40, borderRadius: 20,
+          backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Feather name="message-circle" size={20} color={colors.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, fontFamily: 'Inter_600SemiBold' }}>
+            Messages
+          </Text>
+          <Text style={{ fontSize: 12, color: colors.textMuted, fontFamily: 'Inter_400Regular' }}>
+            {unreadMessages > 0
+              ? `${unreadMessages} unread message${unreadMessages !== 1 ? 's' : ''}`
+              : 'Chat with your project manager'}
+          </Text>
+        </View>
+        {unreadMessages > 0 && (
+          <View style={{
+            backgroundColor: colors.accent, borderRadius: 10,
+            minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center',
+            paddingHorizontal: 6,
+          }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.accentText, fontFamily: 'Inter_700Bold' }}>
+              {unreadMessages}
+            </Text>
+          </View>
+        )}
+        <Feather name="chevron-right" size={16} color={colors.textMuted} />
+      </TouchableOpacity>
 
       {/* Timeline */}
       <View style={{
