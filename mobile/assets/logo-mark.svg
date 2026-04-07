@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- MicroGRID Logo Mark — 3x3 distributed energy grid -->
+  <!-- Primary: #1D7A5F  Accent: #2AAA7F  Background: #FAFAF7 -->
+
+  <!-- Background -->
+  <rect width="512" height="512" fill="#FAFAF7" rx="0"/>
+
+  <!-- Grid lines — horizontal -->
+  <line x1="136" y1="136" x2="376" y2="136" stroke="#1D7A5F" stroke-width="6" stroke-linecap="round" opacity="0.5"/>
+  <line x1="136" y1="256" x2="376" y2="256" stroke="#1D7A5F" stroke-width="6" stroke-linecap="round" opacity="0.5"/>
+  <line x1="136" y1="376" x2="376" y2="376" stroke="#1D7A5F" stroke-width="6" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Grid lines — vertical -->
+  <line x1="136" y1="136" x2="136" y2="376" stroke="#1D7A5F" stroke-width="6" stroke-linecap="round" opacity="0.5"/>
+  <line x1="256" y1="136" x2="256" y2="376" stroke="#1D7A5F" stroke-width="6" stroke-linecap="round" opacity="0.5"/>
+  <line x1="376" y1="136" x2="376" y2="376" stroke="#1D7A5F" stroke-width="6" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Outer nodes — lighter green (#2AAA7F) -->
+  <!-- Row 1 -->
+  <circle cx="136" cy="136" r="22" fill="#2AAA7F"/>
+  <circle cx="256" cy="136" r="22" fill="#2AAA7F"/>
+  <circle cx="376" cy="136" r="22" fill="#2AAA7F"/>
+  <!-- Row 2 edges -->
+  <circle cx="136" cy="256" r="22" fill="#2AAA7F"/>
+  <circle cx="376" cy="256" r="22" fill="#2AAA7F"/>
+  <!-- Row 3 -->
+  <circle cx="136" cy="376" r="22" fill="#2AAA7F"/>
+  <circle cx="256" cy="376" r="22" fill="#2AAA7F"/>
+  <circle cx="376" cy="376" r="22" fill="#2AAA7F"/>
+
+  <!-- Center node — larger, darker green (#1D7A5F) — YOUR home -->
+  <circle cx="256" cy="256" r="34" fill="#1D7A5F"/>
+
+  <!-- Subtle inner glow on center node -->
+  <circle cx="256" cy="256" r="18" fill="#2AAA7F" opacity="0.3"/>
+</svg>
