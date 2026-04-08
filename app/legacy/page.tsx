@@ -71,24 +71,6 @@ const PAGE_SIZE = 50
 export default function LegacyPage() {
   const { user: legacyUser, loading: legacyUserLoading } = useCurrentUser()
 
-  // Role gate: Manager+ only
-  if (!legacyUserLoading && legacyUser && !legacyUser.isManager) {
-    return (
-      <>
-        <Nav active="Legacy" />
-        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-lg text-gray-400">Access Restricted</p>
-            <p className="text-sm text-gray-500 mt-2">Legacy data is available to Managers and above.</p>
-            <a href="/command" className="inline-block mt-4 text-xs text-blue-400 hover:text-blue-300 transition-colors">
-              ← Back to Command Center
-            </a>
-          </div>
-        </div>
-      </>
-    )
-  }
-
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filterDisposition, setFilterDisposition] = useState<string>('In Service')
@@ -100,6 +82,7 @@ export default function LegacyPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<LegacyProject | null>(null)
+  const [dispositionCounts, setDispositionCounts] = useState<Record<string, number>>({})
 
   // Debounce search input
   useEffect(() => {
@@ -109,6 +92,23 @@ export default function LegacyPage() {
     }, 350)
     return () => clearTimeout(t)
   }, [search])
+
+  // Live disposition counts (replaces hardcoded tab labels)
+  useEffect(() => {
+    const supabase = db()
+    const dispositions = ['In Service', 'Loyalty', 'Legal']
+    Promise.all(
+      dispositions.map(d =>
+        supabase
+          .from('legacy_projects')
+          .select('id', { count: 'exact', head: true })
+          .eq('disposition', d)
+          .then(({ count }: { count: number | null }) => [d, count ?? 0] as const)
+      )
+    ).then(pairs => {
+      setDispositionCounts(Object.fromEntries(pairs))
+    }).catch(err => handleApiError(err, '[legacy] disposition counts'))
+  }, [])
 
   const fetchResults = useCallback(async () => {
     setLoading(true)
@@ -171,6 +171,24 @@ export default function LegacyPage() {
       : <ChevronDown className="w-3 h-3 text-green-400 inline ml-1" />
   }
 
+  // Role gate: Manager+ only (after all hooks to respect Rules of Hooks)
+  if (!legacyUserLoading && legacyUser && !legacyUser.isManager) {
+    return (
+      <>
+        <Nav active="Legacy" />
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg text-gray-400">Access Restricted</p>
+            <p className="text-sm text-gray-500 mt-2">Legacy data is available to Managers and above.</p>
+            <a href="/command" className="inline-block mt-4 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+              ← Back to Command Center
+            </a>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
       <Nav active="Legacy" />
@@ -185,22 +203,26 @@ export default function LegacyPage() {
           Historical projects — read-only archive
         </p>
 
-        {/* Disposition tabs */}
+        {/* Disposition tabs — counts pulled live from legacy_projects */}
         <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5 mb-4 w-fit">
           {[
-            { key: 'In Service', label: 'In Service', count: '15,330', color: 'green' },
-            { key: 'Loyalty', label: 'Loyalty', count: '149', color: 'blue' },
-            { key: 'Legal', label: 'Legal', count: '106', color: 'red' },
-          ].map(t => (
-            <button key={t.key} onClick={() => { setFilterDisposition(t.key); setPage(1) }}
-              className={`text-xs px-3 py-1.5 rounded-md transition-colors whitespace-nowrap ${
-                filterDisposition === t.key
-                  ? t.color === 'green' ? 'bg-green-700 text-white font-medium' : t.color === 'blue' ? 'bg-blue-700 text-white font-medium' : 'bg-red-700 text-white font-medium'
-                  : 'text-gray-400 hover:text-white'
-              }`}>
-              {t.label} ({t.count})
-            </button>
-          ))}
+            { key: 'In Service', label: 'In Service', color: 'green' },
+            { key: 'Loyalty', label: 'Loyalty', color: 'blue' },
+            { key: 'Legal', label: 'Legal', color: 'red' },
+          ].map(t => {
+            const count = dispositionCounts[t.key]
+            const display = count != null ? count.toLocaleString() : '…'
+            return (
+              <button key={t.key} onClick={() => { setFilterDisposition(t.key); setPage(1) }}
+                className={`text-xs px-3 py-1.5 rounded-md transition-colors whitespace-nowrap ${
+                  filterDisposition === t.key
+                    ? t.color === 'green' ? 'bg-green-700 text-white font-medium' : t.color === 'blue' ? 'bg-blue-700 text-white font-medium' : 'bg-red-700 text-white font-medium'
+                    : 'text-gray-400 hover:text-white'
+                }`}>
+                {t.label} ({display})
+              </button>
+            )
+          })}
         </div>
 
         <div className="relative max-w-xl">

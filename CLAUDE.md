@@ -17,7 +17,16 @@ Keep the report under 20 lines. If tests fail or TS errors exist, flag prominent
 
 ## Project
 
-MicroGRID — solar project management system for MicroGRID Energy / EDGE. Tracks ~938 active residential solar installation projects through a 7-stage pipeline (evaluation → survey → design → permit → install → inspection → complete). Built for PMs who each own a set of projects. Migrated from NetSuite. 14,705 legacy In Service projects in `legacy_projects` table.
+MicroGRID — solar project management system for MicroGRID Energy / EDGE. Tracks ~920 active residential solar installation projects (`projects` table where `disposition='Sale'`) through a 7-stage pipeline (evaluation → survey → design → permit → install → inspection → complete). Built for PMs who each own a set of projects. Migrated from NetSuite.
+
+**Data architecture (verified 2026-04-08):**
+- `projects` table: ~16,665 rows total
+  - 920 `Sale` (active pipeline — what every page shows)
+  - 15,098 `In Service` (shadow copies, see note below)
+  - 391 `Cancelled`, 149 `Loyalty`, 106 `Legal`, 1 `On Hold`
+- `legacy_projects` table: 15,585 rows (NetSuite archive: 15,330 In Service, 149 Loyalty, 106 Legal)
+- **April 6 2026 import event:** ~15,090 rows were bulk-inserted into `projects` from `legacy_projects` (no commit, no documentation). Of 15,585 legacy rows, 15,353 were copied (98.5%); 232 In Service rows didn't make it (likely failed `isLegacyImportEligible()`). The shadow copies are dead weight — no UI page references them, all active-projects views filter them out via `INACTIVE_DISPOSITIONS`. **Cleanup candidate**: either delete the duplicates from `projects` and rely on `legacy_projects` as the source of truth, OR formalize a one-way sync. Drift risk: no FK or trigger keeps the two in sync.
+- `/legacy` page reads from `legacy_projects` directly (not the shadow copies in `projects`).
 
 ## Commands
 
@@ -210,6 +219,8 @@ Email domain whitelist: `@gomicrogridenergy.com`, `@energydevelopmentgroup.com`,
 - Customer billing/messaging/QA tables (082-085) now fully typed in `types/database.ts`
 - All API routes now use `timingSafeEqual` consistently (portal/push, notifications/stuck-task converted in Session 29); all email cron routes have rate limiting + ESM `import 'crypto'` (no `require()`)
 - `/job-costing` and `/planset` now in main nav (Financial and Tools sections)
+- `/legacy` page tab counts now pulled live from `legacy_projects` (was hardcoded)
+- Drift between `projects` shadow copies and `legacy_projects` can be checked anytime: `npx tsx scripts/check-legacy-drift.ts` (uses pure logic in `lib/legacy-drift.ts`, exits 1 on disagreement)
 
 ## Co-Author Convention
 
