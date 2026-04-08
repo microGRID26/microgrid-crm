@@ -2,14 +2,15 @@
 
 import { useState, useMemo } from 'react'
 import { Nav } from '@/components/Nav'
-import { Pagination } from '@/components/Pagination'
-import { fmt$, daysAgo, STAGE_LABELS, SLA_THRESHOLDS, STAGE_TASKS } from '@/lib/utils'
+import { fmt$, STAGE_LABELS, STAGE_TASKS, INACTIVE_DISPOSITIONS } from '@/lib/utils'
+import { getSLA } from '@/lib/classify'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { useSupabaseQuery } from '@/lib/hooks'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import type { Project } from '@/types/database'
 
 const ALL_TASKS = Object.values(STAGE_TASKS).flat()
+const PROJECT_FETCH_LIMIT = 2000
 
 const STATUS_STYLE: Record<string, string> = {
   'Pending Resolution': 'bg-red-900 text-red-300',
@@ -36,20 +37,14 @@ export default function AuditPage() {
     data: rawProjects,
     loading: loadingProjects,
     refresh: refreshProjects,
-    totalCount: projectsTotalCount,
-    hasMore: projectsHasMore,
-    currentPage: projectsCurrentPage,
-    nextPage: projectsNextPage,
-    prevPage: projectsPrevPage,
-    setPage: projectsSetPage,
   } = useSupabaseQuery('projects', {
-    select: 'id, name, city, pm, pm_id, stage, contract, stage_date',
+    select: 'id, name, city, pm, pm_id, stage, contract, stage_date, sale_date, blocker',
     filters: {
       stage: { neq: 'complete' },
-      disposition: { not_in: ['Cancelled', 'In Service'] },
+      disposition: { not_in: [...INACTIVE_DISPOSITIONS] },
     },
-    page: 1,
-    pageSize: 200,
+    order: { column: 'stage_date', ascending: true },
+    limit: PROJECT_FETCH_LIMIT,
   })
 
   const { data: rawTaskStates, loading: loadingTasks, refresh: refreshTasks } = useSupabaseQuery('task_state', {
@@ -85,15 +80,6 @@ export default function AuditPage() {
 
   function ts(pid: string, tid: string): string {
     return taskStates[pid]?.[tid] ?? 'Not Ready'
-  }
-
-  function getSLA(p: Project) {
-    const t = SLA_THRESHOLDS[p.stage] ?? { crit: 7, risk: 5 }
-    const days = daysAgo(p.stage_date)
-    let status: 'ok' | 'risk' | 'crit' = 'ok'
-    if (days >= t.crit) status = 'crit'
-    else if (days >= t.risk) status = 'risk'
-    return { days, status }
   }
 
   // Build audit rows
@@ -161,19 +147,19 @@ export default function AuditPage() {
 
       {/* Filters */}
       <div className="bg-gray-900 border-b border-gray-800 flex items-center gap-2 px-4 py-2 flex-shrink-0 flex-wrap">
-        <select value={filter} onChange={e => { setFilter(e.target.value as AuditFilter); projectsSetPage(1) }}
+        <select value={filter} onChange={e => setFilter(e.target.value as AuditFilter)}
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
           <option value="stuck">Stuck (Pending + Revision)</option>
           <option value="active">Active tasks</option>
           <option value="incomplete">All incomplete required</option>
           <option value="missing">Not started required</option>
         </select>
-        <select value={stageFilter} onChange={e => { setStageFilter(e.target.value); projectsSetPage(1) }}
+        <select value={stageFilter} onChange={e => setStageFilter(e.target.value)}
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
           <option value="">All Stages</option>
           {Object.keys(STAGE_TASKS).map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
         </select>
-        <select value={pmFilter} onChange={e => { setPmFilter(e.target.value); projectsSetPage(1) }}
+        <select value={pmFilter} onChange={e => setPmFilter(e.target.value)}
           className="text-xs bg-gray-800 text-gray-300 border border-gray-700 rounded-md px-2 py-1.5">
           <option value="all">All PMs</option>
           {pms.map(pm => <option key={pm.id} value={pm.id}>{pm.name}</option>)}
@@ -185,19 +171,11 @@ export default function AuditPage() {
           <option value="contract">Contract value</option>
           <option value="name">Name A–Z</option>
         </select>
-        <span className="text-xs text-gray-500 ml-2">{rows.length} projects · {totalFlagged} flagged tasks</span>
-        {projectsTotalCount != null && (
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-gray-500">{projectsTotalCount} total</span>
-            <Pagination
-              currentPage={projectsCurrentPage}
-              totalCount={projectsTotalCount}
-              pageSize={200}
-              hasMore={projectsHasMore}
-              onPrevPage={projectsPrevPage}
-              onNextPage={projectsNextPage}
-            />
-          </div>
+        <span className="text-xs text-gray-500 ml-2">{rows.length} projects · {totalFlagged} flagged tasks · scanning {projects.length} active</span>
+        {projects.length >= PROJECT_FETCH_LIMIT && (
+          <span className="text-[11px] text-amber-400 ml-2" title={`Audit shows the first ${PROJECT_FETCH_LIMIT} active projects ordered by stage_date. Beyond this scale, switch to a server-side audit RPC.`}>
+            ⚠ Capped at {PROJECT_FETCH_LIMIT}
+          </span>
         )}
       </div>
 
