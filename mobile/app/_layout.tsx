@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useColorScheme } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import { useColorScheme, View } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
@@ -9,6 +9,8 @@ import { ThemeContext, getThemeColors } from '../lib/theme'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { OfflineBanner } from '../components/OfflineBanner'
 import { FeedbackButton } from '../components/FeedbackButton'
+import { NPSPrompt } from '../components/NPSPrompt'
+import { getDueNpsMilestone, type NpsMilestone } from '../lib/feedback'
 import { registerForPushNotifications, addNotificationResponseListener } from '../lib/notifications'
 import { loadPersistentCache } from '../lib/cache'
 import type { Session } from '@supabase/supabase-js'
@@ -88,6 +90,7 @@ export default function RootLayout() {
           break
         case 'stage_advance':
         case 'schedule_created':
+        case 'feedback_reply':
           router.push('/(tabs)')
           break
       }
@@ -95,6 +98,34 @@ export default function RootLayout() {
 
     return () => subscription.remove()
   }, [])
+
+  // Ref to the screen container — react-native-view-shot uses this to capture
+  // the current screen for the feedback feature. Must have collapsable={false}
+  // on the wrapping View so Android doesn't optimize it away.
+  const screenRef = useRef<View>(null)
+
+  // NPS prompt state — checked ONCE per authenticated session (not per nav).
+  // The npsCheckedRef prevents the check from re-firing on every tab change.
+  const [npsMilestone, setNpsMilestone] = useState<NpsMilestone | null>(null)
+  const npsCheckedRef = useRef(false)
+  useEffect(() => {
+    if (!session) {
+      npsCheckedRef.current = false // reset on logout so next login re-checks
+      return
+    }
+    if (npsCheckedRef.current || segments[0] !== '(tabs)') return
+    npsCheckedRef.current = true
+    // Delay 5 seconds after entering tabs so the prompt doesn't interrupt initial load
+    const timer = setTimeout(async () => {
+      try {
+        const due = await getDueNpsMilestone()
+        if (due) setNpsMilestone(due)
+      } catch (err) {
+        console.warn('[nps] check failed:', err instanceof Error ? err.message : err)
+      }
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [session, segments])
 
   if (!fontsLoaded || initializing) return null
 
@@ -106,18 +137,27 @@ export default function RootLayout() {
     <ErrorBoundary>
       <ThemeContext.Provider value={colors}>
         <StatusBar style={colors.statusBar} backgroundColor={colors.bg} />
-        <OfflineBanner />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="messages" options={{ presentation: 'card', animation: 'slide_from_right' }} />
-          <Stack.Screen name="notifications-settings" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="warranty" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="schedule-service" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="onboarding" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="outage-mode" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-        </Stack>
-        {showFeedback && <FeedbackButton />}
+        <View ref={screenRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.bg }}>
+          <OfflineBanner />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="messages" options={{ presentation: 'card', animation: 'slide_from_right' }} />
+            <Stack.Screen name="notifications-settings" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="warranty" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="schedule-service" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="onboarding" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="outage-mode" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          </Stack>
+        </View>
+        {showFeedback && <FeedbackButton screenRef={screenRef} />}
+        {showFeedback && npsMilestone && (
+          <NPSPrompt
+            visible={true}
+            milestone={npsMilestone}
+            onClose={() => setNpsMilestone(null)}
+          />
+        )}
       </ThemeContext.Provider>
     </ErrorBoundary>
   )

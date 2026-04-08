@@ -12,7 +12,10 @@ import { getCustomerAccount } from './api'
 import Constants from 'expo-constants'
 import * as Device from 'expo-device'
 
-export type FeedbackCategory = 'bug' | 'idea' | 'praise' | 'question' | 'confusing'
+export type FeedbackCategory = 'bug' | 'idea' | 'praise' | 'question' | 'confusing' | 'nps'
+
+/** NPS milestone identifiers — used as keys in customer_accounts.nps_prompts_shown */
+export type NpsMilestone = 'pto_complete' | 'first_billing_30d' | 'onboarding_complete'
 
 export interface FeedbackSubmission {
   category: FeedbackCategory
@@ -183,4 +186,104 @@ export async function submitFeedback(input: FeedbackSubmission): Promise<SubmitR
   }
 
   return result
+}
+
+// ── NPS prompt helpers ─────────────────────────────────────────────────────
+
+/**
+ * Submit a 0-10 NPS rating with an optional comment.
+ * Stored in customer_feedback with category='nps'.
+ */
+export async function submitNpsRating(
+  score: number,
+  milestone: NpsMilestone,
+  comment?: string,
+): Promise<boolean> {
+  if (score < 0 || score > 10) {
+    console.error('[nps] score out of range:', score)
+    return false
+  }
+  const result = await submitFeedback({
+    category: 'nps',
+    rating: score,
+    message: comment?.trim() || `NPS @ ${milestone}: ${score}`,
+    screenPath: `nps:${milestone}`,
+  })
+  if (!result.feedbackId) return false
+
+  // Mark this milestone as shown so we don't prompt again
+  const account = await getCustomerAccount()
+  if (account) {
+    const shown = { ...(account.nps_prompts_shown ?? {}), [milestone]: new Date().toISOString().slice(0, 10) }
+    await supabase
+      .from('customer_accounts')
+      .update({ nps_prompts_shown: shown })
+      .eq('id', account.id)
+  }
+  return true
+}
+
+/**
+ * Mark an NPS milestone as "shown" without submitting a score
+ * (e.g., when the user dismisses the prompt without rating).
+ * Prevents us from showing it again.
+ */
+export async function dismissNpsPrompt(milestone: NpsMilestone): Promise<void> {
+  const account = await getCustomerAccount()
+  if (!account) return
+  const shown = { ...(account.nps_prompts_shown ?? {}), [milestone]: new Date().toISOString().slice(0, 10) }
+  await supabase
+    .from('customer_accounts')
+    .update({ nps_prompts_shown: shown })
+    .eq('id', account.id)
+}
+
+/**
+ * Determine which NPS milestone (if any) should be shown to the current user.
+ * Returns null if no milestone is due.
+ *
+ * Logic:
+ * - pto_complete: project has pto_date set AND pto milestone not shown
+ * - first_billing_30d: project has pto_date >= 30 days ago AND not shown
+ * - onboarding_complete: project stage is 'complete' AND not shown
+ *
+ * Show only ONE milestone at a time (highest-priority first).
+ */
+export async function getDueNpsMilestone(): Promise<NpsMilestone | null> {
+  const account = await getCustomerAccount()
+  if (!account) return null
+
+  const shown = account.nps_prompts_shown ?? {}
+
+  const { data: proj, error: projError } = await supabase
+    .from('projects')
+    .select('stage, pto_date, install_complete_date')
+    .eq('id', account.project_id)
+    .single()
+
+  if (projError) {
+    console.warn('[nps] project lookup failed:', projError.message)
+    return null
+  }
+  if (!proj) return null
+  const project = proj as { stage: string | null; pto_date: string | null; install_complete_date: string | null }
+
+  // Highest priority: 30 days post-PTO (best signal of long-term satisfaction)
+  if (project.pto_date && !shown.first_billing_30d) {
+    const pto = new Date(project.pto_date)
+    const daysSincePto = Math.floor((Date.now() - pto.getTime()) / (1000 * 60 * 60 * 24))
+    if (daysSincePto >= 30) return 'first_billing_30d'
+  }
+
+  // Mid: PTO complete (system just turned on)
+  if (project.pto_date && !shown.pto_complete) {
+    return 'pto_complete'
+  }
+
+  // Low: project entirely complete
+  if (project.stage === 'complete' && !shown.onboarding_complete) {
+    return 'onboarding_complete'
+  }
+
+  return null
 }

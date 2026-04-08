@@ -16,6 +16,13 @@ export interface CustomerAccount {
     energy_reports: boolean
     promotions: boolean
   }
+  /**
+   * One-shot tracking for NPS prompts. Keys are milestone identifiers
+   * (pto_complete, first_billing_30d, onboarding_complete), values are
+   * ISO date strings of when the prompt was shown. Presence of a key
+   * means the prompt won't be shown again.
+   */
+  nps_prompts_shown?: Record<string, string>
   created_at: string
 }
 

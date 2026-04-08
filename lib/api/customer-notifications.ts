@@ -222,3 +222,41 @@ export async function sendCustomerTicketNotification(
 
   return anyOk
 }
+
+/**
+ * Send a feedback-reply push notification to the customer.
+ *
+ * Fired when an admin (or Atlas) updates customer_feedback.admin_response
+ * — closes the loop so customers know we read and acted on their feedback.
+ *
+ * Returns true if at least one notification was sent successfully.
+ */
+export async function sendCustomerFeedbackReplyNotification(
+  projectId: string,
+  feedbackId: string,
+  preview: string,
+): Promise<boolean> {
+  const tokens = await getCustomerPushTokens(projectId)
+  // Truncate the preview to fit a notification line
+  const body = preview.length > 120 ? `${preview.slice(0, 117)}…` : preview
+
+  if (tokens.length === 0) {
+    await logNotification(projectId, `feedback:${feedbackId}`, 'We responded to your feedback', body, false, 0)
+    return false
+  }
+
+  const messages: ExpoPushMessage[] = tokens.map(token => ({
+    to: token,
+    sound: 'default' as const,
+    title: '💬 We responded to your feedback',
+    body,
+    data: { type: 'feedback_reply', feedbackId, screen: 'home' },
+  }))
+
+  const tickets = await sendExpoPush(messages)
+  const anyOk = tickets.some(t => t.status === 'ok')
+
+  await logNotification(projectId, `feedback:${feedbackId}`, 'We responded to your feedback', body, anyOk, tokens.length)
+
+  return anyOk
+}

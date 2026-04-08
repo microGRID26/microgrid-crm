@@ -6,7 +6,7 @@
  * Auto-captures screen path, app version, device info on submit.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, Modal, ScrollView, Image,
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
@@ -22,6 +22,8 @@ interface Props {
   onClose: () => void
   /** Current screen path, captured by parent via expo-router usePathname() */
   screenPath?: string
+  /** Auto-captured screenshot URI from FeedbackButton (react-native-view-shot) */
+  initialScreenshotUri?: string | null
 }
 
 interface CategoryOption {
@@ -44,13 +46,25 @@ interface Attachment {
   mimeType: string
 }
 
-export function FeedbackModal({ visible, onClose, screenPath }: Props) {
+export function FeedbackModal({ visible, onClose, screenPath, initialScreenshotUri }: Props) {
   const colors = useThemeColors()
   const [category, setCategory] = useState<FeedbackCategory | null>(null)
   const [rating, setRating] = useState<number | null>(null)
   const [message, setMessage] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [submitting, setSubmitting] = useState(false)
+
+  // Pre-populate the auto-captured screenshot when the modal opens.
+  // User can still remove it (Trash2 icon) or add more attachments.
+  useEffect(() => {
+    if (visible && initialScreenshotUri) {
+      setAttachments([{
+        uri: initialScreenshotUri,
+        fileName: `auto-${Date.now()}.jpg`,
+        mimeType: 'image/jpeg',
+      }])
+    }
+  }, [visible, initialScreenshotUri])
 
   const reset = () => {
     setCategory(null)

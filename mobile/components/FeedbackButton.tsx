@@ -2,14 +2,16 @@
  * FeedbackButton — floating action button shown on every authenticated screen.
  *
  * Mounted globally in app/_layout.tsx so it appears everywhere except (auth)
- * screens. Tap → opens FeedbackModal. Auto-captures the current screen path
- * via expo-router usePathname().
+ * screens. Tap → captures the current screen via react-native-view-shot →
+ * opens FeedbackModal with the screenshot pre-attached. Also auto-captures
+ * the current screen path via expo-router usePathname().
  */
 
-import { useState } from 'react'
+import { useState, type RefObject } from 'react'
 import { TouchableOpacity, View } from 'react-native'
 import { usePathname } from 'expo-router'
 import * as Haptics from 'expo-haptics'
+import { captureRef } from 'react-native-view-shot'
 import { MessageSquarePlus } from 'lucide-react-native'
 import { useThemeColors } from '../lib/theme'
 import { FeedbackModal } from './FeedbackModal'
@@ -19,14 +21,42 @@ const FAB_BOTTOM_OFFSET = 100
 // OfflineBanner uses zIndex 999 — FAB sits above it
 const FAB_Z_INDEX = 1000
 
-export function FeedbackButton() {
+interface Props {
+  /** Ref to the screen container that should be captured when the FAB is tapped */
+  screenRef: RefObject<View | null>
+}
+
+export function FeedbackButton({ screenRef }: Props) {
   const colors = useThemeColors()
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const [autoScreenshot, setAutoScreenshot] = useState<string | null>(null)
 
-  const handlePress = () => {
+  const handlePress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    // Capture the current screen BEFORE opening the modal so the modal
+    // doesn't appear in the screenshot. Soft-fail if capture errors —
+    // user can still attach manually.
+    if (screenRef.current) {
+      try {
+        // Pass .current explicitly for React 19 ref typing compatibility
+        const uri = await captureRef(screenRef.current, {
+          format: 'jpg',
+          quality: 0.7,
+          result: 'tmpfile',
+        })
+        setAutoScreenshot(uri)
+      } catch (err) {
+        console.warn('[feedback] screen capture failed:', err instanceof Error ? err.message : err)
+        setAutoScreenshot(null)
+      }
+    }
     setOpen(true)
+  }
+
+  const handleClose = () => {
+    setOpen(false)
+    setAutoScreenshot(null)
   }
 
   return (
@@ -66,8 +96,9 @@ export function FeedbackButton() {
 
       <FeedbackModal
         visible={open}
-        onClose={() => setOpen(false)}
+        onClose={handleClose}
         screenPath={pathname}
+        initialScreenshotUri={autoScreenshot}
       />
     </>
   )
