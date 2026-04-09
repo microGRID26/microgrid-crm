@@ -301,7 +301,7 @@ Quick map of where things live:
 - iOS app on TestFlight (Expo SDK 54, RN 0.81, build via EAS GitHub integration → Mac builders)
 - **iOS 26 SDK deadline: April 28, 2026** — Apple ITMS-90725. Builds with iOS 18.4 SDK rejected after this date. Upgrade target: Expo SDK 55 (RN 0.83, Xcode 26). Effort: medium (1-3 days).
 - **Account deletion flow** in `mobile/app/(tabs)/account.tsx` — required by Apple guideline 5.1.1(v). Two-step typed-DELETE confirmation modal calls `POST /api/customer/delete-account`.
-- **Privacy Policy link** in mobile Account screen (Security section) opens `https://nova.gomicrogridenergy.com/privacy` via `Linking.openURL`.
+- **Privacy Policy link** in mobile Account screen (Security section) opens `https://microgrid-crm.vercel.app/privacy` via `Linking.openURL`. (Vercel default URL — `nova.gomicrogridenergy.com` is dead at DNS, no custom domain configured yet.)
 - Folly coroutine fix: `plugins/withFollyFix.js` injects `-DFOLLY_CFG_NO_COROUTINES=1`
 - Work order types: install, service, inspection, rnr (renamed from repair), survey
 - Vendor categories: manufacturer, distributor, install_partner, electrical, plumbing, hvac, roofing, interior, other

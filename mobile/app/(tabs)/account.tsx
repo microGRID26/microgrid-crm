@@ -149,8 +149,8 @@ export default function AccountScreen() {
 
   const handleOpenPrivacyPolicy = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    Linking.openURL('https://nova.gomicrogridenergy.com/privacy').catch(() => {
-      Alert.alert('Could not open link', 'Please visit nova.gomicrogridenergy.com/privacy in your browser.')
+    Linking.openURL('https://microgrid-crm.vercel.app/privacy').catch(() => {
+      Alert.alert('Could not open link', 'Please visit microgrid-crm.vercel.app/privacy in your browser.')
     })
   }
 

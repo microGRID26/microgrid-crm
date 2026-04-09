@@ -54,7 +54,7 @@
       },
       "supabaseUrl": "https://hzymsezqfxzpbcqryeim.supabase.co",
       "supabaseAnonKey": "sb_publishable_9yPXBcL2QGdKrYgHHWUKfg_kBKznGQT",
-      "apiBaseUrl": "https://nova.gomicrogridenergy.com"
+      "apiBaseUrl": "https://microgrid-crm.vercel.app"
     }
   }
 }

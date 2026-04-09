@@ -4,7 +4,7 @@ import { supabase } from './supabase'
 import Constants from 'expo-constants'
 import type { CustomerAccount, CustomerProject, StageHistoryEntry, CustomerScheduleEntry, CustomerTicket, TicketComment, CustomerDocument, CustomerTaskState, EnergyStats, CustomerReferral, CustomerWarranty, BillingStatement, PaymentMethod, PaymentRecord, CustomerMessage } from './types'
 
-const API_BASE = Constants.expoConfig?.extra?.apiBaseUrl ?? 'https://nova.gomicrogridenergy.com'
+const API_BASE = Constants.expoConfig?.extra?.apiBaseUrl ?? 'https://microgrid-crm.vercel.app'
 
 // Customer-safe fields only
 const PROJECT_FIELDS = 'id, name, address, city, zip, stage, stage_date, sale_date, survey_scheduled_date, survey_date, city_permit_date, utility_permit_date, install_scheduled_date, install_complete_date, city_inspection_date, utility_inspection_date, pto_date, in_service_date, module, module_qty, inverter, inverter_qty, battery, battery_qty, systemkw, financier, disposition'
