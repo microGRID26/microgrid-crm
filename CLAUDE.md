@@ -182,6 +182,39 @@ Email domain whitelist: `@gomicrogridenergy.com`, `@energydevelopmentgroup.com`,
 - All `lib/api/` queries have explicit `.limit()` calls (55 limits across 16 files)
 - Reference tables: `.limit(500)`, data tables: `.limit(1000)`-`.limit(2000)`, equipment: `.limit(5000)`
 
+## QA Daily Driver
+
+Daily QA banner on `/command` (Command Center) that hands each tester one specific test case per day. Mirrors the SPARK QA Daily Driver (Spark migration 035 / Session 16).
+
+**Gate:** authenticated user MUST have at least one `test_assignments` row OR be admin/manager/super_admin (admin override sees the full role-filtered pool). 8 testers already have assignments — see `test_assignments` table.
+
+**Tables:** `qa_runs`, `qa_run_events` (migration 096). `tester_id` is `text` matching `users.id` (NOT auth.uid()).
+
+**Selection algorithm** (`lib/qa/case-selection.ts`, pure / unit-tested):
+1. Filter cases the tester has run in the last 14 days (cooldown).
+2. Filter by role — MicroGRID has `role_filter` values `'all'`, `'manager'`, `'admin'`. `user`/`sales`/`finance` see `'all'` only; `manager` sees `all` + `manager`; admins see everything.
+3. Sort by priority desc → days-since-last-run desc → plan/case sort_order → daily seed hash (`djb2(testerId:utcDate:caseId)`).
+4. When `assignedCaseIds` is non-null, the picker is constrained to ONLY those cases.
+
+**Components:**
+- `components/qa/QADailyDriver.tsx` — banner mounted in `app/command/page.tsx` between Nav and filter bar
+- `components/qa/QARunOverlay.tsx` — global side panel mounted in `components/Providers.tsx` via Suspense, activates when URL has `?qa_run=<id>`
+- `app/testing/components/QADrivers.tsx` — Daily Drivers sub-tab inside the existing Admin testing panel (toggle: Manual Tests / Daily Drivers)
+- `app/testing/components/QAEditor.tsx` — inline "New Plan" / "New Case" forms inside Manual Tests sub-tab
+
+**API routes:**
+- `GET /api/qa/today` — returns `{ done, streak, case|activeRun, empty?, hasMore? }`. Accepts `?force=1` for "Run another"
+- `POST /api/qa/runs/start` — creates qa_runs row, idempotent for double-clicks
+- `POST /api/qa/runs/[id]/event` — append qa_run_events (nav, console_error, click, etc.)
+- `POST /api/qa/runs/[id]/complete` — atomic claim → finalize → dual-write test_results
+- `POST /api/qa/runs/[id]/skip` — finalize as skipped
+- `POST /api/qa/skip-today` — create a fresh skipped row when banner hits Skip without ever starting
+- `POST /api/admin/qa-plans` — admin only, create new plan
+- `POST /api/admin/qa-cases` — admin only, create new case
+- `GET /api/cron/qa-runs-cleanup` — daily 5 AM UTC, abandons stale `started` runs (>8h)
+
+**Type note:** the Database type doesn't include qa_runs/qa_run_events, so `lib/qa/server.ts` uses an untyped admin client (cast to `any`). All input validation is enforced explicitly in the routes.
+
 ## Cron Jobs (Vercel)
 - `/api/email/send-daily` — weekdays 1 PM UTC (onboarding emails)
 - `/api/email/onboarding-reminder` — weekdays 3 PM UTC
@@ -222,6 +255,7 @@ Running list of applied Supabase migrations (recent first):
 
 | # | Purpose |
 |---|---|
+| **096** | QA Daily Driver — `qa_runs` + `qa_run_events` tables for the daily QA banner on `/command`. Indexes on `(tester_id, started_at desc)`, `test_case_id`, `status`. RLS mirrors test_results (permissive read/write for authenticated, admin override via `auth_is_admin()`). |
 | **088** | NPS support — adds `'nps'` category to `customer_feedback`, extends rating CHECK to 0-10, adds `customer_accounts.nps_prompts_shown JSONB` for one-shot prompt tracking |
 | **087** | Customer in-app feedback — `customer_feedback` + `customer_feedback_attachments` tables, RLS, public storage bucket `customer-feedback` |
 | **086** | Security fixes — tightened `customer_messages.cm_update_read` (was wide-open `USING(true)`), added `org_id` + org-scoped RLS to `customer_payment_methods` and `customer_payments` |

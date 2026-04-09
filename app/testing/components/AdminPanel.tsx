@@ -8,9 +8,11 @@ import {
   ClipboardCheck, CheckCircle2, XCircle, Ban, SkipForward,
   MessageSquare, Users, BarChart3, Loader2, Filter,
   ChevronDown, ChevronUp, Clock, AlertTriangle, RotateCcw, Send,
-  UserPlus, X, Shield,
+  UserPlus, X, Shield, Beaker,
 } from 'lucide-react'
 import type { TestPlan, TestCase, TestResult, TestAssignment, TestComment } from '../types'
+import QADrivers from './QADrivers'
+import QAEditor from './QAEditor'
 
 interface UserRow {
   id: string
@@ -46,6 +48,12 @@ function relativeTime(dateStr: string): string {
 
 export function AdminPanel() {
   const { user: currentUser } = useCurrentUser()
+  const [subTab, setSubTab] = useState<'manual' | 'drivers'>('manual')
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const showToast = useCallback((msg: string, type: 'success' | 'error') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }, [])
   const [loading, setLoading] = useState(true)
   const [plans, setPlans] = useState<TestPlan[]>([])
   const [cases, setCases] = useState<TestCase[]>([])
@@ -287,6 +295,42 @@ export function AdminPanel() {
         <Shield className="w-5 h-5 text-green-400" />
         <h2 className="text-lg font-bold text-white">QA Admin Dashboard</h2>
       </div>
+
+      {/* Sub-tab toggle */}
+      <div className="flex items-center gap-1 bg-gray-800 rounded-md p-1 w-fit">
+        <button
+          onClick={() => setSubTab('manual')}
+          className={`px-3 py-1.5 rounded text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            subTab === 'manual' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <ClipboardCheck className="w-3.5 h-3.5" />
+          Manual Tests
+        </button>
+        <button
+          onClick={() => setSubTab('drivers')}
+          className={`px-3 py-1.5 rounded text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            subTab === 'drivers' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <Beaker className="w-3.5 h-3.5" />
+          Daily Drivers
+        </button>
+      </div>
+
+      {toast && (
+        <div className={`rounded-md px-4 py-2 text-xs font-medium ${
+          toast.type === 'success' ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300' : 'bg-red-500/15 border border-red-500/30 text-red-300'
+        }`}>
+          {toast.msg}
+        </div>
+      )}
+
+      {subTab === 'drivers' && <QADrivers />}
+
+      {subTab === 'manual' && <>
+      {/* New: inline plan/case editor */}
+      <QAEditor plans={plans} onCreated={loadData} onToast={showToast} />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -679,6 +723,7 @@ export function AdminPanel() {
           )}
         </div>
       </div>
+      </>}
     </div>
   )
 }

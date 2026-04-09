@@ -17,6 +17,7 @@ import { useCurrentUser } from '@/lib/useCurrentUser'
 import { useSupabaseQuery, usePmFilter, useOrg } from '@/lib/hooks'
 import { useRouter } from 'next/navigation'
 import type { Project, Schedule } from '@/types/database'
+import QADailyDriver from '@/components/qa/QADailyDriver'
 
 /** Schedule entry enriched with project/crew names for today's schedule display */
 type ScheduleEntry = Schedule & { project_name?: string | null; crew_name?: string | null }
@@ -449,6 +450,9 @@ export default function CommandPage() {
 
       {/* ── TOP NAV ──────────────────────────────────────────────────────── */}
       <Nav active="Command" onNewProject={() => setShowNewProject(true)} />
+
+      {/* ── QA DAILY DRIVER ─────────────────────────────────────────────── */}
+      <QADailyDriver />
 
       {/* ── FILTER BAR ──────────────────────────────────────────────────── */}
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-2 flex flex-wrap items-center gap-2">
