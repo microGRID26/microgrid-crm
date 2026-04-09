@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Share, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Share, Modal, TextInput, KeyboardAvoidingView, Platform, Linking } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import Constants from 'expo-constants'
 import { theme, useThemeColors } from '../../lib/theme'
 import { supabase } from '../../lib/supabase'
-import { getCustomerAccount, loadProject, loadReferrals, submitReferral } from '../../lib/api'
+import { getCustomerAccount, loadProject, loadReferrals, submitReferral, deleteCustomerAccount } from '../../lib/api'
 import type { CustomerAccount, CustomerProject, CustomerReferral } from '../../lib/types'
 
 export default function AccountScreen() {
@@ -22,6 +22,9 @@ export default function AccountScreen() {
   const [refEmail, setRefEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   const fetchReferrals = useCallback(async (accountId: string) => {
     const refs = await loadReferrals(accountId)
@@ -100,6 +103,55 @@ export default function AccountScreen() {
         },
       },
     ])
+  }
+
+  // Required by Apple App Store guideline 5.1.1(v) — in-app account deletion.
+  // Two-step flow: confirm intent → type DELETE → server-side cascade delete.
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account?',
+      'This permanently removes your account, in-app feedback, referrals, and saved payment methods. Your solar installation records remain with MicroGRID for warranty and service purposes. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
+            setDeleteConfirmText('')
+            setDeleteModalVisible(true)
+          },
+        },
+      ],
+    )
+  }
+
+  const confirmDelete = async () => {
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
+      Alert.alert('Type DELETE to confirm', 'Please type the word DELETE exactly to confirm account deletion.')
+      return
+    }
+    setDeleting(true)
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+    const result = await deleteCustomerAccount()
+    setDeleting(false)
+    if (result.ok) {
+      setDeleteModalVisible(false)
+      Alert.alert(
+        'Account Deleted',
+        'Your account has been permanently deleted. Thank you for being part of MicroGRID.',
+        [{ text: 'OK', onPress: async () => { await supabase.auth.signOut() } }],
+      )
+    } else {
+      Alert.alert('Could not delete account', result.error ?? 'Please try again or contact support.')
+    }
+  }
+
+  const handleOpenPrivacyPolicy = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    Linking.openURL('https://nova.gomicrogridenergy.com/privacy').catch(() => {
+      Alert.alert('Could not open link', 'Please visit nova.gomicrogridenergy.com/privacy in your browser.')
+    })
   }
 
   if (loading) {
@@ -465,6 +517,33 @@ export default function AccountScreen() {
         <Feather name="chevron-right" size={16} color={colors.textMuted} />
       </TouchableOpacity>
 
+      {/* Privacy Policy */}
+      <TouchableOpacity
+        onPress={handleOpenPrivacyPolicy}
+        activeOpacity={0.7}
+        style={{
+          backgroundColor: colors.surface, borderRadius: theme.radius.xl,
+          padding: 16, marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12,
+          borderWidth: 1, borderColor: colors.borderLight, ...theme.shadow.card,
+        }}
+      >
+        <View style={{
+          width: 36, height: 36, borderRadius: 18,
+          backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Feather name="lock" size={18} color={colors.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: '500', color: colors.text, fontFamily: 'Inter_500Medium' }}>
+            Privacy Policy
+          </Text>
+          <Text style={{ fontSize: 12, color: colors.textMuted, fontFamily: 'Inter_400Regular' }}>
+            How we handle your data
+          </Text>
+        </View>
+        <Feather name="external-link" size={14} color={colors.textMuted} />
+      </TouchableOpacity>
+
       {/* Sign Out */}
       <TouchableOpacity onPress={handleSignOut} activeOpacity={0.7}
         style={{
@@ -475,6 +554,118 @@ export default function AccountScreen() {
         <Feather name="log-out" size={16} color={colors.error} />
         <Text style={{ fontSize: 14, fontWeight: '500', color: colors.error, fontFamily: 'Inter_500Medium' }}>Sign Out</Text>
       </TouchableOpacity>
+
+      {/* Delete Account — required by Apple App Store guideline 5.1.1(v) */}
+      <TouchableOpacity onPress={handleDeleteAccount} activeOpacity={0.7}
+        style={{
+          backgroundColor: 'transparent', borderRadius: theme.radius.xl,
+          padding: 16, marginTop: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+          borderWidth: 1, borderColor: colors.error,
+        }}>
+        <Feather name="trash-2" size={16} color={colors.error} />
+        <Text style={{ fontSize: 14, fontWeight: '500', color: colors.error, fontFamily: 'Inter_500Medium' }}>Delete Account</Text>
+      </TouchableOpacity>
+      <Text style={{ fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 8, paddingHorizontal: 24, fontFamily: 'Inter_400Regular', lineHeight: 16 }}>
+        Permanently removes your portal account and personal data. Your installation records remain with MicroGRID for warranty and service.
+      </Text>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        visible={deleteModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => !deleting && setDeleteModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, backgroundColor: colors.bg }}
+        >
+          {/* Modal Header */}
+          <View style={{
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+            padding: 16, paddingTop: 20, borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+          }}>
+            <TouchableOpacity onPress={() => !deleting && setDeleteModalVisible(false)} disabled={deleting}>
+              <Feather name="x" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, fontFamily: 'Inter_600SemiBold' }}>
+              Confirm Deletion
+            </Text>
+            <View style={{ width: 22 }} />
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 24 }}>
+            <View style={{ alignItems: 'center', marginBottom: 28 }}>
+              <View style={{
+                width: 72, height: 72, borderRadius: 36,
+                backgroundColor: colors.errorLight,
+                alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+                borderWidth: 2, borderColor: colors.error,
+              }}>
+                <Feather name="alert-triangle" size={32} color={colors.error} />
+              </View>
+              <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text, fontFamily: 'Inter_700Bold', textAlign: 'center' }}>
+                This is permanent
+              </Text>
+              <Text style={{ fontSize: 14, color: colors.textSecondary, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: 12, lineHeight: 20 }}>
+                Deleting your account will permanently remove your portal access, in-app feedback, referrals, and any saved payment methods. Your solar installation, contract, warranty, and service history remain with MicroGRID.
+              </Text>
+              <Text style={{ fontSize: 14, color: colors.textSecondary, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: 12, lineHeight: 20 }}>
+                This cannot be undone.
+              </Text>
+            </View>
+
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, fontFamily: 'Inter_600SemiBold' }}>
+              Type DELETE to confirm
+            </Text>
+            <TextInput
+              value={deleteConfirmText}
+              onChangeText={setDeleteConfirmText}
+              placeholder="DELETE"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              editable={!deleting}
+              style={{
+                backgroundColor: colors.surface, borderRadius: theme.radius.md,
+                borderWidth: 1, borderColor: colors.borderLight,
+                padding: 14, fontSize: 15, color: colors.text, fontFamily: 'Inter_400Regular',
+                marginBottom: 24,
+              }}
+            />
+
+            <TouchableOpacity
+              onPress={confirmDelete}
+              disabled={deleting || deleteConfirmText.trim().toUpperCase() !== 'DELETE'}
+              activeOpacity={0.8}
+              style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                backgroundColor: deleteConfirmText.trim().toUpperCase() === 'DELETE' ? colors.error : colors.stageUpcoming,
+                borderRadius: theme.radius.lg, paddingVertical: 16,
+              }}>
+              {deleting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Feather name="trash-2" size={16} color="#FFFFFF" />
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: '#FFFFFF', fontFamily: 'Inter_600SemiBold' }}>
+                    Delete My Account
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => !deleting && setDeleteModalVisible(false)}
+              disabled={deleting}
+              activeOpacity={0.7}
+              style={{ marginTop: 12, paddingVertical: 12, alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: 14, color: colors.textMuted, fontFamily: 'Inter_500Medium' }}>Cancel</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Branding */}
       <View style={{ alignItems: 'center', marginTop: 32 }}>

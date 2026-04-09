@@ -288,6 +288,8 @@ Quick map of where things live:
 - **`/legacy` page** reads from `legacy_projects` directly. Tab counts pulled live (not hardcoded).
 - **Drift detection:** `npx tsx scripts/check-legacy-drift.ts` (pure logic in `lib/legacy-drift.ts`, exits 1 on disagreement, 11 unit tests)
 - **Customer in-app feedback** (mobile): floating FAB on every `(tabs)` screen of customer app → category/rating/message/screenshots + auto-captures screen path + app version + device info via `react-native-view-shot`. Files: `mobile/lib/feedback.ts`, `mobile/components/FeedbackButton.tsx`, `mobile/components/FeedbackModal.tsx`, `mobile/components/NPSPrompt.tsx`. Storage bucket `customer-feedback` (public).
+- **Privacy policy** at `/privacy` (public, no auth — added to `PUBLIC_ROUTES` in `proxy.ts`). Static page in `app/privacy/page.tsx`. App Store Connect → Privacy Policy URL points here. Required for App Store submission.
+- **Account deletion** (App Store guideline 5.1.1(v)): mobile Account screen → "Delete Account" button → two-step typed-DELETE confirmation modal → calls `POST /api/customer/delete-account` → deletes `customer_accounts` row (FK CASCADE handles feedback/billing/payments/referrals) + `auth.users` row via admin client. Does NOT touch `projects`, `customer_messages`, or any installation business records (retained for warranty/legal per privacy policy). Rate limited 3/hour/user. Files: `app/api/customer/delete-account/route.ts`, `mobile/lib/api.ts` (`deleteCustomerAccount()`), `mobile/app/(tabs)/account.tsx`.
 - **NPS prompts** trigger once per session 5s after entering tabs (deduped via useRef). Milestones: `pto_complete`, `first_billing_30d`, `onboarding_complete`.
 - **Feedback reply API:** `POST /api/notifications/feedback-reply` (timing-safe + Supabase session auth, rate limit 30/min/feedback). Looks up feedback row, bumps `status='responded'`, fires Expo push via `sendCustomerFeedbackReplyNotification`. Atlas calls this after writing `admin_response`.
 - **Customer billing/messaging/QA tables (082-085)** are fully typed in `types/database.ts`.
@@ -297,6 +299,9 @@ Quick map of where things live:
 ## Mobile App Reference
 
 - iOS app on TestFlight (Expo SDK 54, RN 0.81, build via EAS GitHub integration → Mac builders)
+- **iOS 26 SDK deadline: April 28, 2026** — Apple ITMS-90725. Builds with iOS 18.4 SDK rejected after this date. Upgrade target: Expo SDK 55 (RN 0.83, Xcode 26). Effort: medium (1-3 days).
+- **Account deletion flow** in `mobile/app/(tabs)/account.tsx` — required by Apple guideline 5.1.1(v). Two-step typed-DELETE confirmation modal calls `POST /api/customer/delete-account`.
+- **Privacy Policy link** in mobile Account screen (Security section) opens `https://nova.gomicrogridenergy.com/privacy` via `Linking.openURL`.
 - Folly coroutine fix: `plugins/withFollyFix.js` injects `-DFOLLY_CFG_NO_COROUTINES=1`
 - Work order types: install, service, inspection, rnr (renamed from repair), survey
 - Vendor categories: manufacturer, distributor, install_partner, electrical, plumbing, hvac, roofing, interior, other

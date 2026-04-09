@@ -304,6 +304,33 @@ export async function sendAtlasMessage(
   return data.response
 }
 
+// ── Account Deletion ──────────────────────────────────────────────────────
+// Apple App Store guideline 5.1.1(v): users must be able to delete their account in-app.
+// Calls the web API which deletes customer_accounts (cascade) + auth.users.
+
+export async function deleteCustomerAccount(): Promise<{ ok: boolean; error?: string }> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) return { ok: false, error: 'Not signed in' }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/customer/delete-account`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      return { ok: false, error: data.error ?? `HTTP ${res.status}` }
+    }
+    return { ok: true }
+  } catch (err) {
+    console.error('[deleteCustomerAccount]', err)
+    return { ok: false, error: err instanceof Error ? err.message : 'Network error' }
+  }
+}
+
 // ── Warranties ────────────────────────────────────────────────────────────
 
 export async function loadWarranties(projectId: string): Promise<CustomerWarranty[]> {
