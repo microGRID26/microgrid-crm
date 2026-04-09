@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { db } from '@/lib/db'
 import { useCurrentUser } from '@/lib/useCurrentUser'
-import { isInternalEmail } from '@/lib/utils'
 import {
   ClipboardCheck, CheckCircle2, XCircle, Ban, SkipForward,
   MessageSquare, Users, BarChart3, Loader2, Filter,
@@ -97,7 +96,15 @@ export function AdminPanel() {
       setPlans((plansRes.data ?? []) as TestPlan[])
       setCases((casesRes.data ?? []) as TestCase[])
       setResults((resultsRes.data ?? []) as TestResult[])
-      setUsers(((usersRes.data ?? []) as UserRow[]).filter(u => isInternalEmail(u.email)))
+      // QA admin: only @gomicrogridenergy.com users (no edg/trismart shadow rows),
+      // and exclude non-tester accounts (Aaron, Mark) explicitly
+      const QA_EXCLUDED_EMAILS = new Set([
+        'aaron@gomicrogridenergy.com',  // not a tester
+        'e2e-test@gomicrogridenergy.com', // Playwright fixture, not a person
+      ])
+      setUsers(((usersRes.data ?? []) as UserRow[]).filter(u =>
+        u.email?.endsWith('@gomicrogridenergy.com') && !QA_EXCLUDED_EMAILS.has(u.email)
+      ))
       setAllAssignments((assignRes.data ?? []) as TestAssignment[])
 
       const cMap = new Map<string, TestComment[]>()
