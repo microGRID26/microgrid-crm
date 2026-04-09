@@ -103,19 +103,28 @@ def find_folder(service, proj_id: str):
     exact = [f for f in candidates if is_exact_match(f['name'])]
     if not exact:
         return None  # name-contains hit but no clean match — skip rather than guess
-    chosen = exact[0]
 
-    parent_name = ''
-    if chosen.get('parents'):
-        try:
-            parent = service.files().get(
-                fileId=chosen['parents'][0],
-                fields='name',
-                supportsAllDrives=True,
-            ).execute()
-            parent_name = parent.get('name', '')
-        except Exception:
-            pass
+    # Resolve parent name for each candidate, then prefer non-"Drive" parents.
+    # A parent named "Drive" means My Drive root — usually an empty placeholder.
+    # The real BluDocs folders live under a vendor/PROJECTS folder.
+    enriched = []
+    for c in exact:
+        parent_name = ''
+        if c.get('parents'):
+            try:
+                parent = service.files().get(
+                    fileId=c['parents'][0],
+                    fields='name',
+                    supportsAllDrives=True,
+                ).execute()
+                parent_name = parent.get('name', '')
+            except Exception:
+                pass
+        enriched.append((c, parent_name))
+
+    # Prefer matches whose parent is NOT "Drive" (i.e., not at My Drive root)
+    real = [e for e in enriched if e[1] and e[1] != 'Drive']
+    chosen, parent_name = real[0] if real else enriched[0]
 
     return (chosen['id'], chosen['name'], parent_name)
 
