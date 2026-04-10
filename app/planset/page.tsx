@@ -346,17 +346,41 @@ function handlePrintAll(data: PlansetData) {
     sheetsHtml += el.outerHTML
   })
 
+  // Collect all image URLs from sheets for preloading
+  const imgUrls: string[] = []
+  sheetElements.forEach(el => {
+    el.querySelectorAll('img').forEach(img => {
+      if (img.src) imgUrls.push(img.src)
+    })
+  })
+  const preloadLinks = imgUrls.map(url => `<link rel="preload" href="${url}" as="image" />`).join('\n')
+
   printWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
   <title>Plan Set — ${data.projectId} ${data.owner}</title>
+  ${preloadLinks}
   <style>${PRINT_CSS}</style>
 </head>
-<body>${sheetsHtml}</body>
+<body>${sheetsHtml}
+<script>
+  // Wait for fonts + all images to load before printing
+  Promise.all([
+    document.fonts.ready,
+    ...Array.from(document.images).map(img =>
+      img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; })
+    ),
+  ]).then(() => {
+    // Extra 200ms buffer for layout settle
+    setTimeout(() => window.print(), 200);
+  });
+  // Safety fallback: print after 3s regardless
+  setTimeout(() => window.print(), 3000);
+</script>
+</body>
 </html>`)
 
   printWindow.document.close()
-  setTimeout(() => printWindow.print(), 500)
 }
 
 
