@@ -82,7 +82,7 @@ describe('calculateSldLayout', () => {
   it('includes text for module count and power', () => {
     const layout = calculateSldLayout(makeConfig())
     const texts = layout.elements.filter(e => e.type === 'text')
-    const moduleText = texts.find(t => t.text.includes('30') && t.text.includes('410W'))
+    const moduleText = texts.find(t => t.text.includes('30') && t.text.includes('440W'))
     expect(moduleText).toBeDefined()
   })
 

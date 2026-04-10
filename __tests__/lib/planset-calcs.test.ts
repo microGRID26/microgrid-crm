@@ -147,8 +147,8 @@ describe('autoDistributeStrings', () => {
 describe('buildPlansetData', () => {
   it('calculates system DC kW correctly', () => {
     const data = buildPlansetData(makeProject({ module_qty: 30 }))
-    // 30 × 410W / 1000 = 12.3 kW
-    expect(data.systemDcKw).toBe(12.3)
+    // 30 × 440W / 1000 = 13.2 kW (Seraphim 440 default)
+    expect(data.systemDcKw).toBe(13.2)
   })
 
   it('calculates system AC kW correctly', () => {
@@ -166,9 +166,9 @@ describe('buildPlansetData', () => {
   it('calculates Voc temperature correction', () => {
     const data = buildPlansetData(makeProject())
     // absCoeff = |(-0.28)| / 100 = 0.0028
-    // vocCorrected = 37.4 × (1 + 0.0028 × (25 - (-5)))
-    // = 37.4 × (1 + 0.0028 × 30) = 37.4 × 1.084 = 40.5416
-    expect(data.vocCorrected).toBeCloseTo(40.54, 1)
+    // vocCorrected = 41.5 × (1 + 0.0028 × (25 - (-5)))
+    // = 41.5 × (1 + 0.0028 × 30) = 41.5 × 1.084 = 44.986 (Seraphim 440 Voc=41.5)
+    expect(data.vocCorrected).toBeCloseTo(44.99, 1)
   })
 
   it('sets PCS current to bus rating', () => {
