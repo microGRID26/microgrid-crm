@@ -36,7 +36,7 @@ export function SheetPV2({ data }: { data: PlansetData }) {
     ['MODULE WATTAGE', `${data.existingPanelWattage ?? 0}W`],
     ['INVERTER', `(${data.existingInverterCount ?? 0}) ${data.existingInverterModel ?? 'N/A'}`],
     ['BATTERY', 'N/A'],
-    ['SYSTEM DC', `${existingDcKw} kW`],
+    ['SYSTEM DC', existingDcKw ? `${existingDcKw} kW` : 'N/A'],
     ['SYSTEM AC', 'N/A'],
     ['TOTAL STORAGE', 'N/A'],
   ] : []

@@ -57,6 +57,10 @@ export function SheetPV3({ data }: { data: PlansetData }) {
             })
           }
 
+          // Find strings assigned to this roof face
+          const stringsOnFace = d.strings.filter(s => s.roofFace === rf.id)
+          let panelIdx = 0
+
           return (
             <g key={faceIdx}>
               {/* Roof face label */}
@@ -67,9 +71,26 @@ export function SheetPV3({ data }: { data: PlansetData }) {
               {panels.map((p, i) => (
                 <rect key={i} x={p.x} y={p.y} width={panelW} height={panelH} fill="#1a7a4c" fillOpacity="0.7" stroke="#0d5c36" strokeWidth="0.5" />
               ))}
-              {/* String label */}
+              {/* String labels overlaid on panel groups */}
+              {stringsOnFace.map((s) => {
+                const sStartIdx = panelIdx
+                panelIdx += s.modules
+                // Place string label at the center of this string's panel group
+                const midIdx = sStartIdx + Math.floor(s.modules / 2)
+                const labelPanel = panels[Math.min(midIdx, panels.length - 1)]
+                if (!labelPanel) return null
+                return (
+                  <g key={s.id}>
+                    <rect x={labelPanel.x - 1} y={labelPanel.y - 1} width={panelW + 2} height={panelH + 2} fill="none" stroke="#fff" strokeWidth="1.5" />
+                    <text x={labelPanel.x + panelW / 2} y={labelPanel.y + panelH / 2 + 2} textAnchor="middle" fontSize="5" fill="#fff" fontWeight="bold">
+                      S{s.id}
+                    </text>
+                  </g>
+                )
+              })}
+              {/* Face detail */}
               <text x={startX} y={startY + rows * (panelH + panelGap) + 8} fontSize="4" fill="#1a7a4c">
-                {modulesOnFace} MODULES, TILT {rf.tilt}&deg;, AZ {rf.azimuth}&deg;
+                {modulesOnFace} MODULES ({stringsOnFace.length} STRINGS), TILT {rf.tilt}&deg;, AZ {rf.azimuth}&deg;
               </text>
             </g>
           )
