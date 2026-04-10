@@ -3,6 +3,7 @@ import { DURACELL_DEFAULTS } from '@/lib/planset-types'
 import { autoDistributeStrings } from '@/lib/planset-calcs'
 import { calculateSldLayout } from '@/lib/sld-layout'
 import { SldRenderer } from '@/components/SldRenderer'
+import { TitleBlockHtml } from './TitleBlockHtml'
 
 export function SheetPV5({ data }: { data: PlansetData }) {
   let sldStrings = data.strings
@@ -66,12 +67,12 @@ export function SheetPV5({ data }: { data: PlansetData }) {
 
   const layout = calculateSldLayout(config)
 
-  // PV-5 stays as SVG — render inside a sheet div
   return (
-    <div className="sheet sld-sheet" style={{ display: 'grid', gridTemplateColumns: '1fr', border: '2px solid #000', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '8pt', width: '16.5in', height: '10.5in', overflow: 'hidden', position: 'relative' }}>
-      <div className="sld-content">
+    <div className="sheet" style={{ display: 'grid', gridTemplateColumns: '1fr 2.5in', border: '2px solid #000', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '8pt', width: '16.5in', height: '10.5in', overflow: 'hidden', position: 'relative' }}>
+      <div className="sld-content" style={{ overflow: 'hidden' }}>
         <SldRenderer layout={layout} />
       </div>
+      <TitleBlockHtml sheetName="ELECTRICAL SINGLE LINE DIAGRAM" sheetNumber="PV-5" data={data} />
     </div>
   )
 }
