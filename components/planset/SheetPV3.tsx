@@ -71,20 +71,28 @@ export function SheetPV3({ data }: { data: PlansetData }) {
               {panels.map((p, i) => (
                 <rect key={i} x={p.x} y={p.y} width={panelW} height={panelH} fill="#1a7a4c" fillOpacity="0.7" stroke="#0d5c36" strokeWidth="0.5" />
               ))}
-              {/* String labels overlaid on panel groups */}
+              {/* String labels overlaid on panel groups with inverter assignment */}
               {stringsOnFace.map((s) => {
                 const sStartIdx = panelIdx
                 panelIdx += s.modules
-                // Place string label at the center of this string's panel group
                 const midIdx = sStartIdx + Math.floor(s.modules / 2)
                 const labelPanel = panels[Math.min(midIdx, panels.length - 1)]
                 if (!labelPanel) return null
+                // Find which inverter this string belongs to
+                const stringGlobalIdx = d.strings.findIndex(st => st.id === s.id)
+                const invIdx = d.stringsPerInverter?.findIndex(inv => inv.includes(stringGlobalIdx)) ?? -1
                 return (
                   <g key={s.id}>
                     <rect x={labelPanel.x - 1} y={labelPanel.y - 1} width={panelW + 2} height={panelH + 2} fill="none" stroke="#fff" strokeWidth="1.5" />
                     <text x={labelPanel.x + panelW / 2} y={labelPanel.y + panelH / 2 + 2} textAnchor="middle" fontSize="5" fill="#fff" fontWeight="bold">
                       S{s.id}
                     </text>
+                    {/* Inverter assignment label below string label */}
+                    {invIdx >= 0 && (
+                      <text x={labelPanel.x + panelW / 2} y={labelPanel.y + panelH + 6} textAnchor="middle" fontSize="3" fill="#0d5c36">
+                        INV {invIdx + 1}
+                      </text>
+                    )}
                   </g>
                 )
               })}

@@ -38,7 +38,7 @@ export function SheetPV8({ data }: { data: PlansetData }) {
   const condRows: CondRow[] = []
 
   condRows.push([
-    'RSD', 'RSD DEVICES', 'N/A', 'N/A', 'N/A',
+    '① RSD', 'RSD DEVICES (PV MODULES → JBOX)', 'N/A', 'N/A', 'N/A',
     String(stringCount * 2), '#10 AWG', '1', '#6 AWG BARE', 'PV WIRE', 'FREE AIR',
     String(string10Ampacity), String(ambientTemp), String(tempFactor), String(stringCorrected),
     String(string75CMax), String(stringUsable),
@@ -46,7 +46,7 @@ export function SheetPV8({ data }: { data: PlansetData }) {
 
   data.strings.forEach((s) => {
     condRows.push([
-      `S${s.id}`, `STRING ${s.id} (${s.modules} MOD)`,
+      `② S${s.id}`, `STRING ${s.id} (${s.modules} MOD, JBOX → PV LC)`,
       panelImp.toFixed(1), fla125.toFixed(1), String(stringOcpd),
       '8', '#10 AWG', '1', '#8 AWG', 'THWN-2', '3/4" EMT',
       String(string10Ampacity), String(ambientTemp), String(tempFactor), String(stringCorrected),
@@ -56,7 +56,7 @@ export function SheetPV8({ data }: { data: PlansetData }) {
 
   if (data.batteryCount > 0) {
     condRows.push([
-      'BATT', `BATTERY (${data.batteryCount}x ${data.batteryModel})`,
+      '⑤ BATT', `BATTERY → COMBINER (${data.batteryCount}x ${data.batteryModel})`,
       battFla.toFixed(1), battFla125.toFixed(1), '80',
       '3', '#4 AWG', '1', '#6 AWG', 'THWN-2', '3/4" EMT',
       String(batt4Ampacity), String(ambientTemp), String(tempFactor), String(battCorrected),
@@ -65,7 +65,7 @@ export function SheetPV8({ data }: { data: PlansetData }) {
   }
 
   condRows.push([
-    'INV', `INVERTER (${data.inverterCount}x ${data.inverterModel.split(' ').slice(0, 3).join(' ')})`,
+    '③ INV', `INVERTER → MSP (${data.inverterCount}x ${data.inverterModel.split(' ').slice(0, 3).join(' ')})`,
     invFla.toFixed(1), invFla125.toFixed(1), '100',
     '3', '#1 AWG', '1', '#6 AWG', 'THWN-2', '1-1/4" EMT',
     String(inv1Ampacity), String(ambientTemp), String(tempFactor), String(invCorrected),
@@ -75,7 +75,7 @@ export function SheetPV8({ data }: { data: PlansetData }) {
   // Generation disconnect — only for systems with utility interconnection
   if (data.inverterCount > 0) {
     condRows.push([
-      'GEN', 'GENERATION DISCONNECT',
+      '⑦ GEN', 'SERVICE DISCONNECT → UTILITY METER',
       String(genFla), String(genFla125), '125',
       '3', '#1 AWG', '1', '#6 AWG', 'THWN-2', '1-1/4" EMT',
       String(inv1Ampacity), String(ambientTemp), String(tempFactor), String(invCorrected),
