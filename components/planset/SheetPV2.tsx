@@ -62,7 +62,7 @@ export function SheetPV2({ data }: { data: PlansetData }) {
                     ['', `${data.city}, TX ${data.zip}`],
                     ['OWNER', data.owner],
                     ['SYSTEM SIZE (DC)', `${data.systemDcKw.toFixed(2)} kWdc`],
-                    ['SYSTEM SIZE (AC)', `${(data.panelCount * data.panelWattage / 1000).toFixed(2)} kWac`],
+                    ['SYSTEM SIZE (AC)', `${data.systemAcKw.toFixed(2)} kWac`],
                   ] as [string, string][]).map(([label, value], i) => (
                     <tr key={i}>
                       {label ? <td style={{ fontWeight: 'bold', color: '#999', padding: '2px 4px', width: '40%' }}>{label}</td> : <td style={{ padding: '2px 4px' }} />}
