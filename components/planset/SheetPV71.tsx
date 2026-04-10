@@ -13,12 +13,16 @@ export function SheetPV71({ data }: { data: PlansetData }) {
 
   interface Placard { title: string; rows: [string, string][] }
 
+  // Extract manufacturer from model name (e.g., "Duracell Power Center Max Hybrid 15kW" → "DURACELL")
+  const inverterManufacturer = data.inverterModel.split(' ')[0].toUpperCase()
+  const batteryManufacturer = data.batteryModel.split(' ')[0].toUpperCase()
+
   const placards: Placard[] = [
     {
       title: 'INVERTER PLACARD',
       rows: [
         ['EQUIPMENT', `(${data.inverterCount}) ${data.inverterModel}`],
-        ['MANUFACTURER', 'DURACELL / HUBBLE TECHNOLOGY'],
+        ['MANUFACTURER', inverterManufacturer],
         ['TYPE', 'HYBRID INVERTER (PV + ESS)'],
         ['RATED AC OUTPUT', `${data.inverterAcPower} kW PER UNIT (${data.systemAcKw} kW TOTAL)`],
         ['AC VOLTAGE', '240/120V SPLIT PHASE'],
@@ -35,7 +39,7 @@ export function SheetPV71({ data }: { data: PlansetData }) {
       title: 'BATTERY PLACARD',
       rows: [
         ['EQUIPMENT', `(${data.batteryCount}) ${data.batteryModel}`],
-        ['MANUFACTURER', 'DURACELL / HUBBLE TECHNOLOGY'],
+        ['MANUFACTURER', batteryManufacturer],
         ['CHEMISTRY', 'LITHIUM IRON PHOSPHATE (LiFePO4 / LFP)'],
         ['CAPACITY PER UNIT', `${data.batteryCapacity} kWh`],
         ['TOTAL CAPACITY', `${data.totalStorageKwh} kWh`],

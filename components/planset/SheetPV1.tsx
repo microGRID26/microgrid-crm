@@ -166,8 +166,8 @@ export function SheetPV1({ data, aerialPhotoUrl, housePhotoUrl, enhanced = false
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <tbody>
                   <tr><td style={cell}>VOLTAGE:</td><td style={val}>{data.voltage ?? '120/240V'}</td></tr>
-                  <tr><td style={cell}>MSP BUS RATING:</td><td style={val}>{data.mspBusRating ?? '200A'}</td></tr>
-                  <tr><td style={cell}>MAIN BREAKER:</td><td style={val}>{data.mainBreaker ?? '200A'}</td></tr>
+                  <tr><td style={cell}>MSP BUS RATING:</td><td style={val}>{data.mspBusRating}A</td></tr>
+                  <tr><td style={cell}>MAIN BREAKER:</td><td style={val}>{data.mainBreaker}</td></tr>
                   <tr><td style={cell}>SERVICE DISCONNECT RATING:</td><td style={val}>200A</td></tr>
                   <tr><td style={cell}>SERVICE DISCONNECT FUSE RATING:</td><td style={val}>200A</td></tr>
                   <tr><td style={cell}>INTERCONNECTION TYPE:</td><td style={val}>UTILITY INTERCONNECTION</td></tr>

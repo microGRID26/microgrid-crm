@@ -15,7 +15,9 @@ export function SheetPV8({ data }: { data: PlansetData }) {
   const string75CMax = 30
   const stringUsable = Math.min(stringCorrected, string75CMax)
 
-  const battFla = 63.16
+  // Derive battery FLA from capacity: P(W) / V(nom) per stack
+  // batteryCapacity is per unit in kWh, batteriesPerStack units per stack, 51.2V nominal
+  const battFla = parseFloat(((data.batteryCapacity * 1000 * data.batteriesPerStack) / 51.2).toFixed(2))
   const battFla125 = parseFloat((battFla * 1.25).toFixed(1))
   const batt4Ampacity = 95
   const battCorrected = parseFloat((batt4Ampacity * conduitFillFactor * tempFactor).toFixed(1))
@@ -71,13 +73,16 @@ export function SheetPV8({ data }: { data: PlansetData }) {
     String(inv75CMax), String(invUsable),
   ])
 
-  condRows.push([
-    'GEN', 'GENERATION DISCONNECT',
-    String(genFla), String(genFla125), '125',
-    '3', '#1 AWG', '1', '#6 AWG', 'THWN-2', '1-1/4" EMT',
-    String(inv1Ampacity), String(ambientTemp), String(tempFactor), String(invCorrected),
-    String(inv75CMax), String(invUsable),
-  ])
+  // Generation disconnect — only for systems with utility interconnection
+  if (data.inverterCount > 0) {
+    condRows.push([
+      'GEN', 'GENERATION DISCONNECT',
+      String(genFla), String(genFla125), '125',
+      '3', '#1 AWG', '1', '#6 AWG', 'THWN-2', '1-1/4" EMT',
+      String(inv1Ampacity), String(ambientTemp), String(tempFactor), String(invCorrected),
+      String(inv75CMax), String(invUsable),
+    ])
+  }
 
   const condColHeaders = [
     'TAG', 'CIRCUIT ORIGIN', 'FLA (A)', 'FLA\u00D71.25', 'OCPD (A)',
