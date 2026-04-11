@@ -335,7 +335,8 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
 
   const panelWattage = overrides.panelWattage ?? d.panelWattage
   const panelCount = overrides.panelCount ?? project.module_qty ?? 0
-  const inverterCount = overrides.inverterCount ?? project.inverter_qty ?? d.inverterCount
+  // New system inverter count: use override or default (NOT project.inverter_qty which is the OLD microinverter count)
+  const inverterCount = overrides.inverterCount ?? d.inverterCount
   const inverterAcPower = overrides.inverterAcPower ?? d.inverterAcPower
   const batteryCount = overrides.batteryCount ?? project.battery_qty ?? d.batteryCount
   const batteryCapacity = overrides.batteryCapacity ?? d.batteryCapacity
