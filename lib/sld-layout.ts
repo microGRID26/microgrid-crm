@@ -993,13 +993,12 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
   elements.push({ type: 'text', x: 30, y: notesY + 12, text: 'NOTES:', fontSize: 6, bold: true })
   const noteLines = [
     '1. ALL ELECTRICAL MATERIALS SHALL BE NEW AND LISTED BY RECOGNIZED TESTING LABORATORY.',
-    '2. OUTDOOR EQUIPMENT SHALL BE AT LEAST NEMA 3R RATED.',
-    '3. ALL METALLIC EQUIPMENT SHALL BE GROUNDED PER NEC 250.',
-    `4. PV SYSTEM SIZE: ${config.systemDcKw.toFixed(2)} kW DC / ${config.systemAcKw} kW AC.`,
-    `5. BATTERY SYSTEM: (${config.batteryCount}) ${config.batteryModel.toUpperCase()}, ${config.totalStorageKwh} kWh TOTAL.`,
-    `6. RACKING: ${config.rackingModel.toUpperCase()}.`,
-    '7. ALL WORK SHALL BE IN ACCORD WITH THE 2020 NEC WITH SPECIAL EMPHASIS ON ARTICLE 690.',
-    `NOTE: PCS CONTROLLED CURRENT SETTING: ${config.pcsCurrentSetting ?? 200}A.`,
+    '2. OUTDOOR EQUIPMENT SHALL BE AT LEAST NEMA 3R RATED. ALL METALLIC EQUIPMENT GROUNDED PER NEC 250.',
+    `3. PV SYSTEM: ${config.systemDcKw.toFixed(2)} kW DC / ${config.systemAcKw} kW AC. BATTERY: ${config.totalStorageKwh} kWh.`,
+    '4. IF POWER IS USED THROUGH ATTIC, WIRE SHALL BE KEPT AT LEAST 12" AWAY FROM HOT SURFACE.',
+    '5. IF CONDUIT IS USED ON EXTERIOR, RUNS SHALL BE MIN. 7/8" ABOVE ROOF.',
+    '6. ALL WORK PER 2020 NEC WITH EMPHASIS ON ARTICLES 690, 705, 706.',
+    `7. PCS CONTROLLED CURRENT SETTING: ${config.pcsCurrentSetting ?? 200}A. STRING CALCULATIONS REQUIRE PE REVIEW.`,
   ]
   noteLines.forEach((line, i) => {
     elements.push({ type: 'text', x: 30, y: notesY + 22 + i * 9, text: line, fontSize: 5 })
