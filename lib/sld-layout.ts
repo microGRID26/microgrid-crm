@@ -704,6 +704,19 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
     elements.push({ type: 'text', x: 28, y: 82 + i * 7, text: `- ${line}`, fontSize: 4, fill: '#444' })
   })
 
+  // SCOPE block (top-right, matching RUSH)
+  const scopeX = W - 300, scopeY = 68
+  elements.push({ type: 'rect', x: scopeX, y: scopeY, w: 300, h: 45 })
+  elements.push({ type: 'text', x: scopeX + 8, y: scopeY + 10, text: 'SCOPE', fontSize: 5, bold: true })
+  const scopeLines = [
+    `(${config.inverterCount}) ${config.inverterModel.toUpperCase()}`,
+    `(${config.batteryCount}) ${config.batteryModel.toUpperCase()}`,
+    `SERVICE DISCONNECT RATING    200A`,
+  ]
+  scopeLines.forEach((line, i) => {
+    elements.push({ type: 'text', x: scopeX + 8, y: scopeY + 20 + i * 8, text: line, fontSize: 4, fill: '#444' })
+  })
+
   // ── Drawing border ──
   elements.push({ type: 'rect', x: 3, y: 3, w: W - 6, h: H - 6, strokeWidth: 2 })
 
@@ -770,17 +783,36 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
   elements.push({ type: 'text', x: jbX + 65, y: jbY + 24, text: config.dcHomerunConduit ?? '3/4" EMT TYPE CONDUIT', fontSize: 3.5, fill: '#444', italic: true })
 
   // ══════════════════════════════════════════════════════════════
-  // CENTER-LEFT: DC Disconnect (x: 320-400)
+  // CENTER-LEFT: PV Load Center + DC Disconnect (x: 310-430)
   // ══════════════════════════════════════════════════════════════
-  const dcDiscX = 340
-  elements.push({ type: 'disconnect', x: dcDiscX, y: jbY + 12, label: '(N) DC DISCONNECT' })
-  elements.push({ type: 'callout', cx: dcDiscX, cy: jbY - 5, number: 2 })
-  elements.push({ type: 'text', x: dcDiscX, y: jbY + 28, text: 'FUSED, 600V DC', fontSize: 4, anchor: 'middle', fill: '#666' })
 
-  // Wire from DC disc → DPC
-  elements.push({ type: 'line', x1: dcDiscX + 15, y1: jbY + 12, x2: 420, y2: jbY + 12, strokeWidth: 1.5 })
-  elements.push({ type: 'text', x: dcDiscX + 25, y: jbY + 2, text: '(3) #3 AWG CU THWN-2', fontSize: 3.5, fill: '#444', italic: true })
-  elements.push({ type: 'text', x: dcDiscX + 25, y: jbY + 24, text: '1" EMT TYPE CONDUIT', fontSize: 3.5, fill: '#444', italic: true })
+  // PV Load Center (RUSH: BRP12L125R)
+  const pvlcX = 310, pvlcY = jbY - 20
+  elements.push({ type: 'rect', x: pvlcX, y: pvlcY, w: 80, h: 55, strokeWidth: 1.5 })
+  elements.push({ type: 'text', x: pvlcX + 40, y: pvlcY + 12, text: '(N) PV LOAD CENTER', fontSize: 4.5, anchor: 'middle', bold: true })
+  elements.push({ type: 'text', x: pvlcX + 40, y: pvlcY + 22, text: 'BRP12L125R 125A', fontSize: 4, anchor: 'middle', fill: '#666' })
+  elements.push({ type: 'text', x: pvlcX + 40, y: pvlcY + 30, text: 'RATED 100A MAIN', fontSize: 4, anchor: 'middle', fill: '#666' })
+  elements.push({ type: 'text', x: pvlcX + 40, y: pvlcY + 38, text: 'NEMA3R, UL LISTED', fontSize: 3.5, anchor: 'middle', fill: '#999' })
+  elements.push({ type: 'text', x: pvlcX + 40, y: pvlcY + 48, text: '(EXTERIOR)', fontSize: 3.5, anchor: 'middle', fill: '#999' })
+
+  // Wire from PV LC down to DC Disconnect
+  elements.push({ type: 'line', x1: pvlcX + 40, y1: pvlcY + 55, x2: pvlcX + 40, y2: pvlcY + 75, strokeWidth: 1.5 })
+
+  // DC Disconnect (below PV LC)
+  const dcDiscX = pvlcX + 40
+  const dcDiscY = pvlcY + 80
+  elements.push({ type: 'disconnect', x: dcDiscX, y: dcDiscY, label: '(N) PV DISCONNECT' })
+  elements.push({ type: 'callout', cx: dcDiscX + 22, cy: dcDiscY, number: 2 })
+  elements.push({ type: 'text', x: dcDiscX, y: dcDiscY + 16, text: 'NON-FUSIBLE', fontSize: 3.5, anchor: 'middle', fill: '#666' })
+  elements.push({ type: 'text', x: dcDiscX, y: dcDiscY + 23, text: '200A, 2P, 240V (N)', fontSize: 3.5, anchor: 'middle', fill: '#666' })
+  elements.push({ type: 'text', x: dcDiscX, y: dcDiscY + 32, text: 'VISIBLE, LOCKABLE,', fontSize: 3, anchor: 'middle', fill: '#999' })
+  elements.push({ type: 'text', x: dcDiscX, y: dcDiscY + 39, text: 'LABELED DISCONNECT', fontSize: 3, anchor: 'middle', fill: '#999' })
+  elements.push({ type: 'callout', cx: dcDiscX - 22, cy: dcDiscY, number: 3 })
+
+  // Wire from DC disc → right to DPC
+  elements.push({ type: 'line', x1: dcDiscX + 15, y1: dcDiscY, x2: 420, y2: dcDiscY, strokeWidth: 1.5 })
+  elements.push({ type: 'text', x: dcDiscX + 25, y: dcDiscY - 8, text: '(3) #3 AWG CU THWN-2', fontSize: 3.5, fill: '#444', italic: true })
+  elements.push({ type: 'text', x: dcDiscX + 25, y: dcDiscY + 50, text: '1" EMT TYPE CONDUIT', fontSize: 3.5, fill: '#444', italic: true })
 
   // ══════════════════════════════════════════════════════════════
   // CENTER: Duracell Power Center blocks (x: 420-750)
@@ -789,31 +821,42 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
     const dpcY = topY + 20 + inv * 200
     const dpcX = 420
 
-    // DPC container
-    const dpcW = 310, dpcH = 170
+    // DPC container — larger to fit individual battery units
+    const dpcW = 310, dpcH = Math.max(170, 22 + config.batteriesPerStack * 20 + 60)
     elements.push({ type: 'rect', x: dpcX, y: dpcY, w: dpcW, h: dpcH, strokeWidth: 1.5, dash: true })
     elements.push({ type: 'text', x: dpcX + dpcW / 2, y: dpcY + 12, text: 'DURACELL POWER CENTER', fontSize: 6, anchor: 'middle', bold: true })
+    // Physical mounting label
+    elements.push({ type: 'text', x: dpcX + dpcW / 2, y: dpcY + dpcH - 5, text: 'INSTALLED ON (N) RIGID RACK (EXTERIOR MOUNTED)', fontSize: 3.5, anchor: 'middle', fill: '#999' })
 
-    // Battery stack (left inside DPC)
-    const battX = dpcX + 15, battY = dpcY + 25
-    const battW = 90, battH = 80
-    elements.push({ type: 'rect', x: battX, y: battY, w: battW, h: battH, strokeWidth: 1 })
-    elements.push({ type: 'text', x: battX + battW / 2, y: battY + 14, text: `(N)(${config.batteriesPerStack})`, fontSize: 5, anchor: 'middle', bold: true })
-    elements.push({ type: 'text', x: battX + battW / 2, y: battY + 24, text: config.batteryModel.toUpperCase(), fontSize: 4.5, anchor: 'middle' })
-    elements.push({ type: 'text', x: battX + battW / 2, y: battY + 34, text: `${config.batteryCapacity}KWH, 380VDC`, fontSize: 4, anchor: 'middle', fill: '#666' })
-    elements.push({ type: 'text', x: battX + battW / 2, y: battY + 44, text: 'IP67, NEMA 3R', fontSize: 4, anchor: 'middle', fill: '#666' })
-    elements.push({ type: 'text', x: battX + battW / 2, y: battY + 58, text: `STACK OF ${config.batteriesPerStack}`, fontSize: 4, anchor: 'middle', fill: '#666' })
-    elements.push({ type: 'text', x: battX + battW / 2, y: battY + 68, text: `${config.batteriesPerStack * config.batteryCapacity} kWh`, fontSize: 4, anchor: 'middle', fill: '#666' })
-    elements.push({ type: 'callout', cx: battX - 12, cy: battY + battH / 2, number: 5 })
+    // Battery stack (left inside DPC) — draw individual battery units like RUSH
+    const battX = dpcX + 10, battY = dpcY + 22
+    const battUnitH = 18, battUnitW = 70
+    const battCount = config.batteriesPerStack
+    // Draw individual battery rectangles stacked
+    for (let b = 0; b < battCount; b++) {
+      const by = battY + b * (battUnitH + 2)
+      elements.push({ type: 'rect', x: battX, y: by, w: battUnitW, h: battUnitH, strokeWidth: 0.8 })
+      elements.push({ type: 'text', x: battX + battUnitW / 2, y: by + 11, text: 'DURACELL', fontSize: 4, anchor: 'middle', fill: '#444' })
+    }
+    // Battery stack label
+    const battStackBottom = battY + battCount * (battUnitH + 2)
+    elements.push({ type: 'text', x: battX + battUnitW / 2, y: battStackBottom + 8, text: `(N)(${battCount}) ${config.batteryModel.toUpperCase()}`, fontSize: 3.5, anchor: 'middle', bold: true })
+    elements.push({ type: 'text', x: battX + battUnitW / 2, y: battStackBottom + 16, text: `(${config.batteryCapacity}KWH)`, fontSize: 3.5, anchor: 'middle', fill: '#666' })
+    elements.push({ type: 'callout', cx: battX - 12, cy: battY + (battCount * (battUnitH + 2)) / 2, number: 5 })
+    // Harness / distribution bar
+    elements.push({ type: 'line', x1: battX + battUnitW, y1: battY + 5, x2: battX + battUnitW, y2: battStackBottom - 5, strokeWidth: 2 })
+    elements.push({ type: 'text', x: battX + battUnitW + 4, y: battY + (battStackBottom - battY) / 2, text: '(N) HARNESS', fontSize: 3, fill: '#666' })
+    elements.push({ type: 'text', x: battX + battUnitW + 4, y: battY + (battStackBottom - battY) / 2 + 7, text: 'DISTRIBUTION BAR', fontSize: 3, fill: '#666' })
 
     // Battery combiner (center inside DPC)
-    const combX = battX + battW + 15, combY = battY + 15
+    const combX = battX + battUnitW + 25, combY = battY + 15
     elements.push({ type: 'rect', x: combX, y: combY, w: 65, h: 40, strokeWidth: 1 })
     elements.push({ type: 'text', x: combX + 32, y: combY + 16, text: '(N) BATTERY', fontSize: 4.5, anchor: 'middle', bold: true })
     elements.push({ type: 'text', x: combX + 32, y: combY + 26, text: 'COMBINER', fontSize: 4.5, anchor: 'middle', bold: true })
-    // Wire from battery to combiner
-    elements.push({ type: 'line', x1: battX + battW, y1: battY + 35, x2: combX, y2: combY + 20, strokeWidth: 1 })
-    elements.push({ type: 'text', x: battX + battW + 5, y: battY + 25, text: config.batteryWire ?? '#4/0 AWG', fontSize: 3.5, fill: '#444' })
+    // Wire from battery harness to combiner
+    const battMidY = battY + (battCount * (battUnitH + 2)) / 2
+    elements.push({ type: 'line', x1: battX + battUnitW + 2, y1: battMidY, x2: combX, y2: combY + 20, strokeWidth: 1 })
+    elements.push({ type: 'text', x: battX + battUnitW + 8, y: battMidY - 8, text: config.batteryWire ?? '#4/0 AWG', fontSize: 3.5, fill: '#444' })
 
     // Inverter (right inside DPC)
     const invX = dpcX + 195, invY = dpcY + 20
