@@ -430,7 +430,7 @@ function PlanSetPageInner() {
       const inverterCount = overrides.inverterCount ?? project.inverter_qty ?? d.inverterCount
       const mpptsPerInverter = overrides.mpptsPerInverter ?? d.mpptsPerInverter
       const stringsPerMppt = overrides.stringsPerMppt ?? d.stringsPerMppt
-      const maxVoc = overrides.maxPvPower ? 500 : d.maxVoc
+      const maxVoc = d.maxVoc // Duracell Max Hybrid: 500V max input voltage
 
       const autoStrings = autoDistributeStrings(
         panelCount, vocCorrected, panelVmp, panelImp,

@@ -355,7 +355,7 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
   const absCoeff = Math.abs(vocTempCoeff / 100)
   const vocCorrected = panelVoc * (1 + absCoeff * (25 - designTempLow))
 
-  // PCS current setting: 120% of bus rating, or per MSP
+  // PCS controlled current setting: matches MSP bus rating (NEC 705.12 120% rule is for backfeed breaker sizing, not PCS)
   const busRatingNum = parseInt(mspBusRating) || 200
   const pcsCurrentSetting = busRatingNum
 

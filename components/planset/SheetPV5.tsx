@@ -63,6 +63,19 @@ export function SheetPV5({ data }: { data: PlansetData }) {
     contractorPhone: data.contractor.phone,
     contractorLicense: data.contractor.license,
     contractorEmail: data.contractor.email,
+    // Wire specs — pass overrides to SLD so diagram labels match PV-6/PV-8
+    dcStringWire: data.dcStringWire,
+    dcConduit: data.dcConduit,
+    // SldConfig uses dcHomerunWire/dcEgc/dcHomerunConduit — map from PlansetData equivalents
+    dcHomerunWire: undefined, // uses SldConfig default: '(2) #10 AWG CU THWN-2'
+    dcEgc: undefined,        // uses SldConfig default: '(1) #6 AWG BARE CU EGC'
+    dcHomerunConduit: undefined, // uses SldConfig default: '3/4" EMT TYPE CONDUIT'
+    acInverterWire: data.acWireInverter,
+    acToPanelWire: data.acWireToPanel,
+    acConduit: data.acConduit,
+    batteryWire: data.batteryWire,
+    batteryConduit: data.batteryConduit,
+    pcsCurrentSetting: data.pcsCurrentSetting,
   }
 
   const layout = calculateSldLayout(config)
