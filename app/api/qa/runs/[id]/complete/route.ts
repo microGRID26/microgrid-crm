@@ -95,7 +95,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single() as { data: { id: string } | null }
 
   if (result_row?.id) {
-    await admin.from('qa_runs').update({ test_result_id: result_row.id }).eq('id', id)
+    const { error: linkErr } = await admin
+      .from('qa_runs')
+      .update({ test_result_id: result_row.id })
+      .eq('id', id)
+    if (linkErr) {
+      console.error('[qa/complete] failed to link qa_run to test_result', {
+        runId: id,
+        resultId: result_row.id,
+        error: linkErr,
+      })
+    }
   }
 
   await admin.from('qa_run_events').insert({

@@ -1,9 +1,24 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Enforce ROLE_COOKIE_SECRET in production — without it, role cookies fall back to the public anon key
+// Enforce ROLE_COOKIE_SECRET in production. Without it, role cookie caching
+// is DISABLED and every request hits the DB for the role. The public anon
+// key is not safe as an HMAC secret — it's shipped to the client, so anyone
+// who knows their own user.id could forge a cookie claiming any role.
 if (process.env.NODE_ENV === 'production' && !process.env.ROLE_COOKIE_SECRET) {
-  console.warn('[SECURITY] ROLE_COOKIE_SECRET not set — role cookies use fallback key. Set this env var in Vercel.')
+  console.warn('[SECURITY] ROLE_COOKIE_SECRET not set — role cookie caching disabled, every request will re-query the DB. Set this env var in Vercel.')
+}
+
+/** HMAC secret for signing/verifying the role cookie. In production we
+ *  refuse to fall back to the anon key; if unset, we return null and the
+ *  proxy skips the cookie path entirely. In dev/test we fall back to the
+ *  anon key (or a literal) so local testing still exercises the cookie path. */
+function getRoleCookieSecret(): string | null {
+  if (process.env.ROLE_COOKIE_SECRET) return process.env.ROLE_COOKIE_SECRET
+  if (process.env.NODE_ENV !== 'production') {
+    return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'dev-fallback'
+  }
+  return null
 }
 
 // Routes that require no authentication
@@ -134,15 +149,14 @@ export async function proxy(request: NextRequest) {
   }
 
   // Role check — always query DB when cookie is missing or expired; validate cookie with HMAC
+  const hmacSecret = getRoleCookieSecret()
   const isSensitiveRoute = pathname.startsWith('/admin') || pathname.startsWith('/system')
-  const roleCookieRaw = isSensitiveRoute ? undefined : request.cookies.get(ROLE_COOKIE)?.value
+  const roleCookieRaw = !hmacSecret || isSensitiveRoute ? undefined : request.cookies.get(ROLE_COOKIE)?.value
   // Cookie format: "role:hmac" — verify integrity to prevent forgery
   let userRole: string | undefined
-  if (roleCookieRaw && roleCookieRaw.includes(':')) {
+  if (hmacSecret && roleCookieRaw && roleCookieRaw.includes(':')) {
     const [cookieRole, cookieHmac] = roleCookieRaw.split(':')
-    const hmacSecret = process.env.ROLE_COOKIE_SECRET ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'fallback'
-    const { createHmac } = await import('crypto')
-    const { timingSafeEqual } = await import('crypto')
+    const { createHmac, timingSafeEqual } = await import('crypto')
     const expectedHmac = createHmac('sha256', hmacSecret).update(cookieRole + ':' + user.id).digest('hex').slice(0, 32)
     const a = Buffer.from(cookieHmac)
     const b = Buffer.from(expectedHmac)
@@ -164,17 +178,21 @@ export async function proxy(request: NextRequest) {
       userRole = 'user'
     }
 
-    // Sign the cookie with HMAC to prevent forgery
-    const { createHmac } = await import('crypto')
-    const hmacSecret = process.env.ROLE_COOKIE_SECRET ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'fallback'
-    const hmac = createHmac('sha256', hmacSecret).update(userRole + ':' + user.id).digest('hex').slice(0, 32)
-    response.cookies.set(ROLE_COOKIE, `${userRole}:${hmac}`, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: ROLE_COOKIE_MAX_AGE,
-      path: '/',
-    })
+    // Sign the cookie with HMAC to prevent forgery. Skip caching entirely
+    // when no secret is configured (prod without ROLE_COOKIE_SECRET) — the
+    // proxy will re-query the DB on every request, which is less efficient
+    // but avoids signing with the public anon key.
+    if (hmacSecret) {
+      const { createHmac } = await import('crypto')
+      const hmac = createHmac('sha256', hmacSecret).update(userRole + ':' + user.id).digest('hex').slice(0, 32)
+      response.cookies.set(ROLE_COOKIE, `${userRole}:${hmac}`, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: ROLE_COOKIE_MAX_AGE,
+        path: '/',
+      })
+    }
   }
 
   const resolvedRole = userRole ?? 'user'

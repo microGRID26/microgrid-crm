@@ -7,21 +7,46 @@
  * Note: in MicroGRID, tester_id is `users.id` stored as text — NOT auth.uid().
  * Routes look up users.id from auth.user.email and pass it in.
  */
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { QACandidateCase, QARecentRun } from './case-selection'
 import { QA_CASE_COOLDOWN_DAYS } from './case-selection'
 
 export const QA_RUN_TERMINAL_STATUSES = ['pass', 'fail', 'blocked', 'skipped', 'abandoned'] as const
 export const QA_RUN_ABANDON_AFTER_HOURS = 8
 
-// MicroGRID's generated Database type doesn't include qa_runs / qa_run_events.
-// Using the untyped Generic schema lets us touch them without TS gymnastics.
-// (Routes still validate inputs explicitly.)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let adminClient: any = null
+export type QaRunStatus = 'started' | 'pass' | 'fail' | 'blocked' | 'skipped' | 'abandoned'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getAdmin(): any {
+/** Row shape for qa_runs. Table isn't in the generated Database type, so
+ *  call sites narrow results to this instead of using wholesale `any`. */
+export interface QaRunRow {
+  id: string
+  tester_id: string
+  test_case_id: string
+  status: QaRunStatus
+  started_at: string
+  completed_at: string | null
+  duration_ms: number | null
+  star_rating: number | null
+  notes: string | null
+  screenshot_url: string | null
+  test_result_id: string | null
+}
+
+export interface QaRunEventRow {
+  id: string
+  run_id: string
+  event_type: string
+  elapsed_ms: number
+  metadata: Record<string, unknown> | null
+  created_at: string
+}
+
+// qa_runs / qa_run_events aren't in the generated Database type. Using the
+// default SupabaseClient (no generic) lets us reference them without TS
+// complaining — call sites narrow results to QaRunRow / QaRunEventRow.
+let adminClient: SupabaseClient | null = null
+
+function getAdmin(): SupabaseClient {
   if (adminClient) return adminClient
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -35,7 +60,8 @@ export async function resolveTesterId(email: string): Promise<{ id: string; role
   const admin = getAdmin()
   const { data } = await admin.from('users').select('id, role, name').eq('email', email).single()
   if (!data) return null
-  return { id: data.id as string, role: (data.role as string) ?? 'user', name: (data.name as string) ?? email }
+  const row = data as { id: string; role: string | null; name: string | null }
+  return { id: row.id, role: row.role ?? 'user', name: row.name ?? email }
 }
 
 /** Load every test case + its parent plan, joined into a flat shape. */
@@ -45,8 +71,20 @@ export async function loadCandidateCases(): Promise<QACandidateCase[]> {
     .from('test_cases')
     .select('id, plan_id, title, instructions, expected_result, page_url, priority, sort_order, plan:test_plans!inner(id, name, role_filter, sort_order)')
   if (error || !data) return []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data as any[]).map((c) => ({
+  type Row = {
+    id: string
+    plan_id: string
+    title: string
+    instructions: string | null
+    expected_result: string | null
+    page_url: string | null
+    priority: string
+    sort_order: number
+    plan: { id: string; name: string; role_filter: string | null; sort_order: number } | null
+  }
+  // Cast via unknown — PostgREST types the `plan:test_plans!inner(...)` join
+  // as an array, but at runtime it flattens to a single object for !inner joins.
+  return (data as unknown as Row[]).map((c) => ({
     id: c.id,
     plan_id: c.plan_id,
     plan_name: c.plan?.name ?? '',
@@ -66,8 +104,7 @@ export async function loadAssignedCaseIds(testerId: string): Promise<string[]> {
   const admin = getAdmin()
   const { data } = await admin.from('test_assignments').select('test_case_id').eq('tester_id', testerId)
   if (!data) return []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data as any[]).map((r) => r.test_case_id as string)
+  return (data as { test_case_id: string }[]).map((r) => r.test_case_id)
 }
 
 /** Load all terminal runs for a tester within the cooldown window. */
@@ -81,8 +118,8 @@ export async function loadRecentRuns(testerId: string, now = new Date()): Promis
     .in('status', QA_RUN_TERMINAL_STATUSES as unknown as string[])
     .gte('started_at', cutoff)
   if (!data) return []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data as any[]).map((r) => ({ test_case_id: r.test_case_id as string, started_at: r.started_at as string }))
+  const rows = data as Pick<QaRunRow, 'test_case_id' | 'started_at'>[]
+  return rows.map((r) => ({ test_case_id: r.test_case_id, started_at: r.started_at }))
 }
 
 /** Has the tester completed any run today (UTC)? */
@@ -97,7 +134,7 @@ export async function findTodayRun(testerId: string, now = new Date()) {
     .order('started_at', { ascending: false })
     .limit(1)
     .maybeSingle()
-  return data ?? null
+  return (data as Pick<QaRunRow, 'id' | 'status' | 'test_case_id' | 'started_at' | 'completed_at'> | null) ?? null
 }
 
 /** Compute current consecutive-day streak for a tester (UTC days). */
@@ -113,9 +150,9 @@ export async function computeStreak(testerId: string, now = new Date()): Promise
     .order('started_at', { ascending: false })
   if (!data || data.length === 0) return 0
 
+  const rows = data as Pick<QaRunRow, 'started_at' | 'status'>[]
   const days = new Set<string>()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const row of data as any[]) {
+  for (const row of rows) {
     days.add(new Date(row.started_at).toISOString().slice(0, 10))
   }
 
@@ -132,8 +169,8 @@ export async function computeStreak(testerId: string, now = new Date()): Promise
 }
 
 /** Get a fresh admin client (used by routes that need ad-hoc inserts).
- *  Returns `any` because MicroGRID's typed Database doesn't include qa_runs. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getQaAdmin(): any {
+ *  qa_runs / qa_run_events aren't in the generated Database type, so callers
+ *  narrow result types to QaRunRow / QaRunEventRow at the call site. */
+export function getQaAdmin(): SupabaseClient {
   return getAdmin()
 }
