@@ -396,43 +396,56 @@ export function CostBasisPDF({ project, lineItems, summary, generatedAt }: CostB
           </View>
         </View>
 
-        {/* Sectioned line item table */}
+        {/* Sectioned line item table.
+            Each section's header + table header + FIRST row are wrapped in a
+            <View wrap={false}> so a section header can never be orphaned at
+            the bottom of a page. The remaining rows wrap normally. */}
         {sections.map((section) => {
           const sectionItems = lineItems.filter((li) => li.section === section)
+          if (sectionItems.length === 0) return null
+          const [firstItem, ...restItems] = sectionItems
+
+          const renderRow = (li: ProjectCostLineItem) => {
+            const rowStyle = {
+              ...styles.tableRow,
+              ...(li.is_epc_internal ? styles.tableRowEpcInternal : {}),
+              ...(li.is_itc_excluded ? styles.tableRowItcExcluded : {}),
+            }
+            return (
+              <View key={li.id ?? li.item_name} style={rowStyle} wrap={false}>
+                <Text style={styles.cellItem}>{li.item_name}</Text>
+                <Text style={styles.cellBucket}>{li.system_bucket}</Text>
+                <Text style={styles.cellRaw}>{fmtMoney(li.raw_cost)}</Text>
+                <Text style={styles.cellMarkup}>{fmtMarkupX(li.markup_to_distro)}</Text>
+                <Text style={styles.cellEpc}>{fmtMoney(li.epc_price)}</Text>
+                <Text style={styles.cellBattery}>{fmtMoney(li.battery_cost)}</Text>
+                <Text style={styles.cellPv}>{fmtMoney(li.pv_cost)}</Text>
+                <Text style={styles.cellEligibility}>{li.basis_eligibility}</Text>
+              </View>
+            )
+          }
+
           return (
             <View key={section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionHeaderText}>{section}</Text>
+              {/* Section header + column header + first row stay together */}
+              <View wrap={false}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionHeaderText}>{section}</Text>
+                </View>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableHeaderCell, styles.cellItem]}>Item</Text>
+                  <Text style={[styles.tableHeaderCell, styles.cellBucket]}>Bucket</Text>
+                  <Text style={[styles.tableHeaderCell, styles.cellRaw]}>Raw</Text>
+                  <Text style={[styles.tableHeaderCell, styles.cellMarkup]}>K</Text>
+                  <Text style={[styles.tableHeaderCell, styles.cellEpc]}>EPC Price</Text>
+                  <Text style={[styles.tableHeaderCell, styles.cellBattery]}>Battery</Text>
+                  <Text style={[styles.tableHeaderCell, styles.cellPv]}>PV</Text>
+                  <Text style={[styles.tableHeaderCell, styles.cellEligibility]}>Basis</Text>
+                </View>
+                {renderRow(firstItem)}
               </View>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeaderCell, styles.cellItem]}>Item</Text>
-                <Text style={[styles.tableHeaderCell, styles.cellBucket]}>Bucket</Text>
-                <Text style={[styles.tableHeaderCell, styles.cellRaw]}>Raw</Text>
-                <Text style={[styles.tableHeaderCell, styles.cellMarkup]}>K</Text>
-                <Text style={[styles.tableHeaderCell, styles.cellEpc]}>EPC Price</Text>
-                <Text style={[styles.tableHeaderCell, styles.cellBattery]}>Battery</Text>
-                <Text style={[styles.tableHeaderCell, styles.cellPv]}>PV</Text>
-                <Text style={[styles.tableHeaderCell, styles.cellEligibility]}>Basis</Text>
-              </View>
-              {sectionItems.map((li) => {
-                const rowStyle = {
-                  ...styles.tableRow,
-                  ...(li.is_epc_internal ? styles.tableRowEpcInternal : {}),
-                  ...(li.is_itc_excluded ? styles.tableRowItcExcluded : {}),
-                }
-                return (
-                  <View key={li.id ?? li.item_name} style={rowStyle}>
-                    <Text style={styles.cellItem}>{li.item_name}</Text>
-                    <Text style={styles.cellBucket}>{li.system_bucket}</Text>
-                    <Text style={styles.cellRaw}>{fmtMoney(li.raw_cost)}</Text>
-                    <Text style={styles.cellMarkup}>{fmtMarkupX(li.markup_to_distro)}</Text>
-                    <Text style={styles.cellEpc}>{fmtMoney(li.epc_price)}</Text>
-                    <Text style={styles.cellBattery}>{fmtMoney(li.battery_cost)}</Text>
-                    <Text style={styles.cellPv}>{fmtMoney(li.pv_cost)}</Text>
-                    <Text style={styles.cellEligibility}>{li.basis_eligibility}</Text>
-                  </View>
-                )
-              })}
+              {/* Remaining rows wrap normally */}
+              {restItems.map(renderRow)}
             </View>
           )
         })}
