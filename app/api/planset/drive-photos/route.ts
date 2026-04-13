@@ -2,18 +2,22 @@
  * GET /api/planset/drive-photos?projectId=PROJ-XXX
  *
  * Auto-pulls photos from a project's Google Drive folder for /planset image slots.
- * Scopes to "07 Site Survey" and "08 Design" subfolders. Classifies by filename
- * regex. Returns proxy URLs pointing at /api/planset/drive-image/[fileId].
+ * Scopes to "07 Site Survey" subfolder (08 Design is a nested workspace, not
+ * a photo dump). Uses Claude Haiku 4.5 vision to classify up to 20 images into
+ * planset-slot categories — filename-based classification is impossible because
+ * TriSMART's checklist app names files sequentially (checklist_media_..._0.jpg).
  *
  * Falls back silently to null slots on any failure — /planset UI treats null as
- * "show upload placeholder" so there's zero regression when Drive is unavailable.
+ * "show upload placeholder" so there's zero regression when Drive or vision
+ * is unavailable.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { rateLimit } from '@/lib/rate-limit'
-import { listFolderChildren, findSubfolder, getFileMetadata, type DriveFile } from '@/lib/google-drive'
+import { listFolderChildren, findSubfolder, getFileMetadata, getFileBytes, type DriveFile } from '@/lib/google-drive'
+import { classifyImage, type PhotoLabel } from '@/lib/planset/vision-classify'
 
-const DEBUG_VERSION = 'v3-driveId-discovery'
+const DEBUG_VERSION = 'v4-vision-classify'
 
 interface PlansetPhotos {
   aerialPhotoUrl: string | null
@@ -27,7 +31,9 @@ interface PlansetPhotos {
     driveId: string | null
     subfoldersSearched: string[]
     filesListed: number
+    imagesClassified: number
     imagesMatched: number
+    classificationBreakdown: Record<string, number>
     fallbackReason?: string
     elapsedMs: number
     debugVersion: string
@@ -35,21 +41,36 @@ interface PlansetPhotos {
 }
 
 const IMAGE_MIMES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp'])
-const SUBFOLDERS = ['07 Site Survey', '08 Design'] as const
+const SITE_SURVEY_FOLDER = '07 Site Survey'
+const DESIGN_FOLDER = '08 Design'
+const SUBFOLDERS = [SITE_SURVEY_FOLDER, DESIGN_FOLDER] as const
 const CACHE_TTL_MS = 5 * 60 * 1000
 
-const classifiers = {
-  aerial: /^(aerial|satellite|drone|overhead)/i,
-  house: /^(house|front|elevation|property)/i,
-  sitePlan: /^(site[ _-]?plan|layout|lot)/i,
-  roofPlan: /^(roof[ _-]?plan|modules|string|subhub)/i,
-  equipment: /^(equipment|inverter|battery|panel|wall)/i,
-}
+// Hard cap on images classified per request. 20 × ~$0.0015 = ~$0.03 per load.
+// Most site surveys cover aerial/house/msp/meter/inverter/battery in the first
+// 20 checklist steps, so this captures the important photos without burning
+// budget on the trailing "additional shots" section.
+const MAX_CLASSIFY = 20
+
+// Max raw image size for vision classification. Anthropic caps vision payloads
+// at ~5MB base64-encoded, which is ~3.75MB raw. Skip anything larger to avoid
+// wasted download + encoding + guaranteed API rejection.
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024
+
+// Equipment labels mapped to the PV-3.1 equipment photo slots. Each slot takes
+// one distinct equipment photo.
+const EQUIPMENT_LABELS: ReadonlySet<PhotoLabel> = new Set(['msp', 'inverter', 'battery', 'meter'])
 
 // In-memory cache — Vercel server instance scope. Keyed by projectId.
 const cache = new Map<string, { value: PlansetPhotos; expiresAt: number }>()
 
-function emptyResult(folderId: string | null, reason: string, started: number, filesListed = 0, driveId: string | null = null): PlansetPhotos {
+function emptyResult(
+  folderId: string | null,
+  reason: string,
+  started: number,
+  filesListed = 0,
+  driveId: string | null = null,
+): PlansetPhotos {
   return {
     aerialPhotoUrl: null,
     housePhotoUrl: null,
@@ -61,7 +82,9 @@ function emptyResult(folderId: string | null, reason: string, started: number, f
       driveId,
       subfoldersSearched: [],
       filesListed,
+      imagesClassified: 0,
       imagesMatched: 0,
+      classificationBreakdown: {},
       fallbackReason: reason,
       elapsedMs: Date.now() - started,
       debugVersion: DEBUG_VERSION,
@@ -80,8 +103,10 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Tight rate limit — each call triggers up to 20 vision classifications
+  // at ~$0.03 per invocation. 10/min caps runaway cost at ~$0.30/min/user.
   const { success } = await rateLimit(`planset-drive:${user.email}`, {
-    windowMs: 60_000, max: 60, prefix: 'planset-drive',
+    windowMs: 60_000, max: 10, prefix: 'planset-drive',
   })
   if (!success) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
@@ -94,11 +119,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(cached.value)
   }
 
-  // Load project folder from project_folders table.
-  // Canonical source: project_folders.folder_url (100% populated).
-  // project_folders.folder_id column is only populated for ~1.6% of rows,
-  // so we parse the folder ID out of the URL ourselves when needed.
-  // Typed db() helper (untyped) because project_folders isn't in Database types.
+  // Load project folder from project_folders join table. folder_url is 100%
+  // populated, folder_id column is only populated for ~1.6% of rows so we
+  // parse the Drive folder ID out of the URL ourselves when needed.
   const pfResult = await (supabase as unknown as {
     from: (t: string) => {
       select: (c: string) => {
@@ -117,7 +140,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(emptyResult(null, `project_folders row not found`, started))
   }
 
-  // Prefer the column; fall back to parsing out of folder_url.
   let folderId = pfResult.data.folder_id
   if (!folderId && pfResult.data.folder_url) {
     const match = pfResult.data.folder_url.match(/\/folders\/([a-zA-Z0-9_-]+)/)
@@ -129,17 +151,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(result)
   }
 
-  // Step 1: discover the parent Shared Drive ID from the folder metadata.
-  // This is REQUIRED because service accounts can only list Shared Drive
-  // contents when corpora=drive + driveId is passed. corpora=allDrives
-  // alone returns empty results silently (verified 2026-04-13).
+  // Discover the parent Shared Drive ID — required so listFolderChildren can
+  // use corpora=drive + driveId, which is the only pattern that reliably
+  // returns Shared Drive content to a service account.
   const parentMeta = await getFileMetadata(folderId)
   if (!parentMeta) {
     return NextResponse.json(emptyResult(folderId, 'could not fetch parent folder metadata (check service account grant)', started))
   }
   const parentDriveId = parentMeta.driveId ?? null
 
-  // Step 2: find the two target subfolders by name + list their children
+  // Find 07 Site Survey + 08 Design subfolders. Only 07 contains flat photos
+  // (08 is a nested workspace). We still search both for the file count so
+  // diagnostics reflect reality.
   const allFiles: DriveFile[] = []
   const subfoldersSearched: string[] = []
   try {
@@ -158,10 +181,51 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(emptyResult(folderId, `drive listing failed: ${(err as Error).message}`, started, 0, parentDriveId))
   }
 
-  // Filter to image MIMEs only
-  const images = allFiles.filter(f => IMAGE_MIMES.has(f.mimeType))
+  // Bail early if the classification key is missing — otherwise every image
+  // silently falls through to 'other' and the diagnostic breadcrumbs are
+  // useless for debugging.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json(
+      emptyResult(folderId, 'ANTHROPIC_API_KEY not set on server — vision classification disabled', started, allFiles.length, parentDriveId)
+    )
+  }
 
-  // Classify
+  // Only classify images from 07 Site Survey (flat photos). 08 Design is a
+  // nested workspace — recursing into its subfolders is a v2 enhancement.
+  // Filter out oversized images before classification (Drive's `size` field
+  // is a string-encoded number on the file metadata). Files without a size
+  // field still get classified — assume they're small and let getFileBytes
+  // find out.
+  const images = allFiles
+    .filter(f => IMAGE_MIMES.has(f.mimeType))
+    .filter(f => !f.size || parseInt(f.size, 10) <= MAX_IMAGE_BYTES)
+  const toClassify = images.slice(0, MAX_CLASSIFY)
+
+  // Classify images in parallel. classifyImage never throws — returns
+  // { label: 'other', error } on any failure so Promise.all stays safe.
+  const classifications = await Promise.all(
+    toClassify.map(async img => {
+      const bytes = await getFileBytes(img.id)
+      if (!bytes) return { img, label: 'other' as PhotoLabel }
+      // Second-pass size check — getFileBytes already downloaded, so this is
+      // belt-and-braces for files that had no size in metadata.
+      if (bytes.bytes.byteLength > MAX_IMAGE_BYTES) {
+        return { img, label: 'other' as PhotoLabel }
+      }
+      const result = await classifyImage(bytes.bytes, bytes.mimeType)
+      return { img, label: result.label }
+    })
+  )
+
+  // Tally breakdown for diagnostics
+  const breakdown: Record<string, number> = {}
+  for (const c of classifications) {
+    breakdown[c.label] = (breakdown[c.label] ?? 0) + 1
+  }
+
+  // Slot-filling: take the FIRST image of each class into its slot. The
+  // checklist order is roughly chronological (aerial shots come before
+  // equipment closeups), so first-match usually gets the hero photo.
   const result: PlansetPhotos = {
     aerialPhotoUrl: null,
     housePhotoUrl: null,
@@ -173,7 +237,9 @@ export async function GET(req: NextRequest) {
       driveId: parentDriveId,
       subfoldersSearched,
       filesListed: allFiles.length,
+      imagesClassified: classifications.length,
       imagesMatched: 0,
+      classificationBreakdown: breakdown,
       elapsedMs: 0,
       debugVersion: DEBUG_VERSION,
     },
@@ -181,25 +247,23 @@ export async function GET(req: NextRequest) {
 
   let matched = 0
   const equipmentFound: string[] = []
-  for (const img of images) {
-    const base = img.name.replace(/\.[^.]+$/, '').trim()
-    if (!result.aerialPhotoUrl && classifiers.aerial.test(base)) {
+  for (const { img, label } of classifications) {
+    if (label === 'aerial' && !result.aerialPhotoUrl) {
       result.aerialPhotoUrl = proxyUrl(img.id); matched++; continue
     }
-    if (!result.housePhotoUrl && classifiers.house.test(base)) {
+    if (label === 'house' && !result.housePhotoUrl) {
       result.housePhotoUrl = proxyUrl(img.id); matched++; continue
     }
-    if (!result.sitePlanImageUrl && classifiers.sitePlan.test(base)) {
+    if (label === 'site_plan' && !result.sitePlanImageUrl) {
       result.sitePlanImageUrl = proxyUrl(img.id); matched++; continue
     }
-    if (!result.roofPlanImageUrl && classifiers.roofPlan.test(base)) {
+    if (label === 'roof_plan' && !result.roofPlanImageUrl) {
       result.roofPlanImageUrl = proxyUrl(img.id); matched++; continue
     }
-    if (equipmentFound.length < 4 && classifiers.equipment.test(base)) {
+    if (EQUIPMENT_LABELS.has(label) && equipmentFound.length < 4) {
       equipmentFound.push(proxyUrl(img.id)); matched++
     }
   }
-  // Pad equipmentPhotos to length 4
   while (equipmentFound.length < 4) equipmentFound.push(null as unknown as string)
   result.equipmentPhotos = equipmentFound as (string | null)[]
 
