@@ -152,10 +152,13 @@ export async function fireMilestoneInvoices(input: TriggerInput): Promise<Trigge
   const proj = project as Project
 
   // 2. Load all active rules matching this milestone
+  // Filter rule_kind='milestone' so chain rules (Tier 2, fired by
+  // /api/invoices/generate-chain) don't get accidentally fired by task events.
   const { data: rules, error: rulesErr } = await admin
     .from('invoice_rules')
     .select('*')
     .eq('milestone', input.milestone)
+    .eq('rule_kind', 'milestone')
     .eq('active', true)
     .limit(50)
   if (rulesErr) {

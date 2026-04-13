@@ -926,6 +926,8 @@ export interface InvoiceLineItem {
   created_at: string
 }
 
+export type InvoiceRuleKind = 'milestone' | 'chain' | 'monthly'
+
 export interface InvoiceRule {
   id: string
   name: string
@@ -934,6 +936,7 @@ export interface InvoiceRule {
   to_org_type: string
   line_items: Record<string, unknown>[]
   active: boolean
+  rule_kind: InvoiceRuleKind
   created_at: string
   updated_at: string
 }
@@ -1070,7 +1073,15 @@ export interface CommissionAdvance {
   updated_at: string
 }
 
-export type OrgType = 'platform' | 'epc' | 'sales' | 'engineering' | 'supply' | 'customer'
+export type OrgType =
+  | 'platform'
+  | 'epc'
+  | 'sales'
+  | 'engineering'
+  | 'supply'
+  | 'customer'
+  | 'direct_supply_equity_corp'
+  | 'newco_distribution'
 export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer'
 
 export interface Organization {

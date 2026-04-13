@@ -90,6 +90,7 @@ const ntpRule: InvoiceRule = {
     { description: 'Engineering, Procurement & Construction — NTP Milestone (30%)', category: 'epc' },
   ],
   active: true,
+  rule_kind: 'milestone',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 }
@@ -104,6 +105,7 @@ const engineeringRule: InvoiceRule = {
     { description: 'System Design & Engineering', quantity: 1, unit_price: 1200, category: 'engineering' },
   ],
   active: true,
+  rule_kind: 'milestone',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 }
@@ -118,6 +120,7 @@ const monthlyRule: InvoiceRule = {
     { description: '$6/kWh battery capacity', category: 'energy' },
   ],
   active: true,
+  rule_kind: 'monthly',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 }
@@ -132,6 +135,7 @@ const priceTbdRule: InvoiceRule = {
     { description: 'Retail Energy & VPP Revenue (price under negotiation)', category: 'energy' },
   ],
   active: false,
+  rule_kind: 'milestone',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 }

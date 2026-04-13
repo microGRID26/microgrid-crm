@@ -9,7 +9,16 @@ import { Building2, Users, ChevronDown, ChevronRight, Trash2, UserPlus, X } from
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const ORG_TYPES: OrgType[] = ['platform', 'epc', 'sales', 'engineering', 'supply', 'customer']
+const ORG_TYPES: OrgType[] = [
+  'platform',
+  'epc',
+  'sales',
+  'engineering',
+  'supply',
+  'customer',
+  'direct_supply_equity_corp',
+  'newco_distribution',
+]
 
 const ORG_TYPE_LABELS: Record<OrgType, string> = {
   platform: 'Platform',
@@ -18,6 +27,8 @@ const ORG_TYPE_LABELS: Record<OrgType, string> = {
   engineering: 'Engineering',
   supply: 'Supply',
   customer: 'Customer',
+  direct_supply_equity_corp: 'DSE Corp',
+  newco_distribution: 'NewCo Distro',
 }
 
 const ORG_TYPE_COLORS: Record<OrgType, string> = {
@@ -27,6 +38,8 @@ const ORG_TYPE_COLORS: Record<OrgType, string> = {
   engineering: 'bg-amber-900/40 text-amber-400 border-amber-800',
   supply: 'bg-cyan-900/40 text-cyan-400 border-cyan-800',
   customer: 'bg-gray-800 text-gray-400 border-gray-700',
+  direct_supply_equity_corp: 'bg-indigo-900/40 text-indigo-300 border-indigo-800',
+  newco_distribution: 'bg-yellow-900/40 text-yellow-300 border-yellow-800',
 }
 
 const ORG_ROLES: OrgRole[] = ['owner', 'admin', 'member', 'viewer']

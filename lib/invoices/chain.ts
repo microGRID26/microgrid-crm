@@ -1,0 +1,389 @@
+// lib/invoices/chain.ts — Multi-tenant invoicing chain orchestrator (Tier 2)
+//
+// This module fires the 4-link tax-substantiation chain that Mark Bench
+// specified in the 2026-04-13 meeting:
+//
+//   Direct Supply Equity Corp → NewCo Distribution → EPC → EDGE
+//                            + Rush Engineering   → EPC
+//                            + MicroGRID Sales    → EPC
+//
+// Unlike the milestone trigger (lib/invoices/trigger.ts), this orchestrator
+// is fired explicitly by /api/invoices/generate-chain with a project_id. It
+// can be called retroactively on existing projects to backfill theoretical
+// chain invoices for appraiser/tax-attorney review.
+//
+// All rules with rule_kind='chain' are loaded at once and processed in a
+// single pass. The existing buildInvoiceFromRule() pure calculator handles
+// the per-line-item math (it already supports flat-rate mode, which is what
+// chain rules use — line items have explicit `unit_price` values from the
+// proforma seed). Sales tax is applied here as a separate step on the
+// EPC → EDGE link only.
+//
+// Idempotent: relies on the same unique partial index on
+// (project_id, rule_id, milestone) added in migration 098. Calling twice
+// returns the existing draft IDs on the second call rather than creating
+// duplicates.
+
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+
+import { buildInvoiceFromRule, type CalculatorError } from '@/lib/invoices/calculate'
+import type { InvoiceRule, OrgType, Project } from '@/types/database'
+
+// ── Constants ───────────────────────────────────────────────────────────────
+
+/** Texas sales tax rate, applied only to the EPC → EDGE chain link. */
+export const TX_SALES_TAX_RATE = 0.0825
+
+/** Magic milestone string used by every chain rule. */
+export const CHAIN_MILESTONE = 'chain'
+
+// ── Types ───────────────────────────────────────────────────────────────────
+
+export interface ChainTriggerInput {
+  projectId: string
+  /** Optional: pin "now" for due-date deterministic tests. */
+  now?: Date
+  /** When true, do NOT persist anything — return the would-be invoices for review. */
+  dryRun?: boolean
+}
+
+export interface ChainSkippedRule {
+  ruleId: string
+  ruleName: string
+  reason: CalculatorError | 'from_org_unresolved' | 'to_org_unresolved' | 'self_invoice_skip' | 'insert_failed'
+  detail?: string
+}
+
+export interface ChainCreatedInvoice {
+  invoiceId: string | null // null in dry-run mode
+  invoiceNumber: string
+  ruleId: string
+  ruleName: string
+  fromOrgId: string
+  toOrgId: string
+  subtotal: number
+  tax: number
+  total: number
+  isDryRun: boolean
+}
+
+export interface ChainTriggerResult {
+  projectId: string
+  rulesEvaluated: number
+  created: ChainCreatedInvoice[]
+  skippedExisting: Array<{ ruleId: string; ruleName: string }>
+  skippedError: ChainSkippedRule[]
+  dryRun: boolean
+}
+
+// ── Service-role client ─────────────────────────────────────────────────────
+
+let _admin: SupabaseClient | null = null
+
+function getAdminClient(): SupabaseClient {
+  if (_admin) return _admin
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error('[invoice-chain] Supabase service credentials not configured (SUPABASE_SECRET_KEY)')
+  }
+  _admin = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+  return _admin
+}
+
+// ── Org resolver ────────────────────────────────────────────────────────────
+
+/**
+ * Resolve a concrete organization id for a given org_type in the context of
+ * a project. Mirrors lib/invoices/trigger.ts resolveOrgByType but with the
+ * two new chain org types (direct_supply_equity_corp, newco_distribution)
+ * added to the singleton-lookup path.
+ *
+ * For 'sales': looks up the singleton org with settings.is_sales_originator=true.
+ * Falls back to the oldest active 'sales' org if no flag is set.
+ */
+async function resolveChainOrgByType(
+  admin: SupabaseClient,
+  orgType: OrgType,
+  project: Project,
+): Promise<{ id: string } | null> {
+  // EPC is per-project (project.org_id)
+  if (orgType === 'epc') {
+    if (!project.org_id) return null
+    return { id: project.org_id }
+  }
+
+  // Sales originator: try the flagged MicroGRID Energy org first
+  if (orgType === 'sales') {
+    const { data: flagged } = await admin
+      .from('organizations')
+      .select('id, settings')
+      .eq('active', true)
+      .or('org_type.eq.sales,org_type.eq.epc')
+      .order('created_at', { ascending: true })
+      .limit(20)
+    const flaggedRow = ((flagged as Array<{ id: string; settings: Record<string, unknown> | null }> | null) ?? [])
+      .find((r) => r.settings && (r.settings as Record<string, unknown>).is_sales_originator === true)
+    if (flaggedRow) return { id: flaggedRow.id }
+    // fall through to type-based singleton lookup
+  }
+
+  // All other types resolve to the oldest active org of that type
+  const { data, error } = await admin
+    .from('organizations')
+    .select('id')
+    .eq('org_type', orgType)
+    .eq('active', true)
+    .order('created_at', { ascending: true })
+    .limit(1)
+
+  if (error) {
+    console.error('[invoice-chain] org lookup failed:', orgType, error.message)
+    return null
+  }
+  const row = (data as { id: string }[] | null)?.[0]
+  if (!row) return null
+  return { id: row.id }
+}
+
+// ── Invoice number generation (chain-prefixed) ──────────────────────────────
+
+async function generateChainInvoiceNumber(admin: SupabaseClient): Promise<string> {
+  const today = new Date().toISOString().split('T')[0].replace(/-/g, '')
+  const prefix = `CHN-${today}-`
+  const { data } = await admin
+    .from('invoices')
+    .select('invoice_number')
+    .like('invoice_number', `${prefix}%`)
+    .order('invoice_number', { ascending: false })
+    .limit(1)
+  const last = (data as { invoice_number: string }[] | null)?.[0]?.invoice_number
+  const nextNum = last ? parseInt(last.split('-').pop() ?? '0', 10) + 1 : 1
+  return `${prefix}${String(nextNum).padStart(3, '0')}`
+}
+
+// ── Sales tax application ───────────────────────────────────────────────────
+
+/**
+ * Determine whether a chain rule should have TX sales tax (8.25%) applied.
+ * Per Mark + Paul in the 2026-04-13 meeting: only the EPC → EDGE invoice
+ * carries sales tax. Other links use resale-exempt tax IDs.
+ */
+export function shouldApplySalesTax(rule: InvoiceRule): boolean {
+  return rule.from_org_type === 'epc' && rule.to_org_type === 'platform'
+}
+
+// ── Main orchestrator ───────────────────────────────────────────────────────
+
+/**
+ * Fire all active chain rules against a project. Idempotent: if chain
+ * invoices already exist for this project, returns their existing IDs.
+ *
+ * In dryRun mode, computes the would-be invoices but does NOT persist —
+ * useful for preview UIs and test runs.
+ */
+export async function generateProjectChain(input: ChainTriggerInput): Promise<ChainTriggerResult> {
+  const admin = getAdminClient()
+  const result: ChainTriggerResult = {
+    projectId: input.projectId,
+    rulesEvaluated: 0,
+    created: [],
+    skippedExisting: [],
+    skippedError: [],
+    dryRun: input.dryRun ?? false,
+  }
+
+  // 1. Load project
+  const { data: project, error: projectErr } = await admin
+    .from('projects')
+    .select('*')
+    .eq('id', input.projectId)
+    .single()
+  if (projectErr || !project) {
+    throw new Error(`[invoice-chain] project not found: ${input.projectId}`)
+  }
+  const proj = project as Project
+
+  // 2. Load all active chain rules
+  const { data: rules, error: rulesErr } = await admin
+    .from('invoice_rules')
+    .select('*')
+    .eq('rule_kind', 'chain')
+    .eq('active', true)
+    .order('created_at', { ascending: true })
+    .limit(50)
+  if (rulesErr) {
+    throw new Error(`[invoice-chain] failed to load chain rules: ${rulesErr.message}`)
+  }
+  const chainRules = (rules ?? []) as InvoiceRule[]
+  result.rulesEvaluated = chainRules.length
+
+  // 3. For each rule: resolve orgs, build draft, optionally persist
+  for (const rule of chainRules) {
+    const fromOrg = await resolveChainOrgByType(admin, rule.from_org_type as OrgType, proj)
+    if (!fromOrg) {
+      result.skippedError.push({
+        ruleId: rule.id,
+        ruleName: rule.name,
+        reason: 'from_org_unresolved',
+        detail: `no active org of type ${rule.from_org_type}`,
+      })
+      continue
+    }
+
+    const toOrg = await resolveChainOrgByType(admin, rule.to_org_type as OrgType, proj)
+    if (!toOrg) {
+      result.skippedError.push({
+        ruleId: rule.id,
+        ruleName: rule.name,
+        reason: 'to_org_unresolved',
+        detail: `no active org of type ${rule.to_org_type}`,
+      })
+      continue
+    }
+
+    // Self-invoice skip: when from_org_id === to_org_id (e.g. MG Energy is
+    // both the sales originator AND the EPC on a project), skip the rule
+    // rather than insert a same-org invoice.
+    if (fromOrg.id === toOrg.id) {
+      result.skippedError.push({
+        ruleId: rule.id,
+        ruleName: rule.name,
+        reason: 'self_invoice_skip',
+        detail: `from_org === to_org === ${fromOrg.id}`,
+      })
+      continue
+    }
+
+    const invoiceNumber = await generateChainInvoiceNumber(admin)
+
+    // Reuse the existing flat-rate calculator. Chain rules embed `unit_price`
+    // values from the proforma in their line_items JSONB, so the calculator's
+    // flat-rate mode handles them directly without needing a new pricing path.
+    // Chain rules can carry totals well above the milestone calculator's safety
+    // ceiling (the EPC → EDGE invoice includes the full bill of materials),
+    // so we override maxTotal to a higher chain-specific cap.
+    const calc = buildInvoiceFromRule({
+      project: proj,
+      rule,
+      fromOrg,
+      toOrg,
+      invoiceNumber,
+      now: input.now ?? new Date(),
+      maxTotal: 5_000_000, // chain ceiling — large commercial projects can exceed $1M
+    })
+
+    if (!calc.ok) {
+      result.skippedError.push({
+        ruleId: rule.id,
+        ruleName: rule.name,
+        reason: calc.reason,
+      })
+      continue
+    }
+
+    const draft = calc.draft
+
+    // Apply 8.25% TX sales tax on the EPC → EDGE link only.
+    let tax = 0
+    let total = draft.total
+    if (shouldApplySalesTax(rule)) {
+      tax = Math.round(draft.subtotal * TX_SALES_TAX_RATE * 100) / 100
+      total = Math.round((draft.subtotal + tax) * 100) / 100
+    }
+
+    // Dry-run: collect the would-be invoice and continue.
+    if (result.dryRun) {
+      result.created.push({
+        invoiceId: null,
+        invoiceNumber,
+        ruleId: rule.id,
+        ruleName: rule.name,
+        fromOrgId: fromOrg.id,
+        toOrgId: toOrg.id,
+        subtotal: draft.subtotal,
+        tax,
+        total,
+        isDryRun: true,
+      })
+      continue
+    }
+
+    // Persist: insert invoice + line items.
+    const { data: insertedInvoice, error: invErr } = await admin
+      .from('invoices')
+      .insert({
+        invoice_number: draft.invoice_number,
+        project_id: draft.project_id,
+        from_org: draft.from_org,
+        to_org: draft.to_org,
+        status: 'draft',
+        milestone: CHAIN_MILESTONE,
+        subtotal: draft.subtotal,
+        tax,
+        total,
+        due_date: draft.due_date,
+        rule_id: draft.rule_id,
+        generated_by: 'rule',
+        notes: `Auto-generated chain rule "${rule.name}" — chain orchestrator${tax > 0 ? ` (incl. ${(TX_SALES_TAX_RATE * 100).toFixed(2)}% TX sales tax)` : ''}`,
+      })
+      .select('id, invoice_number')
+      .single()
+
+    if (invErr) {
+      // Unique index on (project_id, rule_id, milestone) → already generated
+      if (invErr.code === '23505') {
+        result.skippedExisting.push({ ruleId: rule.id, ruleName: rule.name })
+        continue
+      }
+      result.skippedError.push({
+        ruleId: rule.id,
+        ruleName: rule.name,
+        reason: 'insert_failed',
+        detail: invErr.message,
+      })
+      continue
+    }
+
+    const invoiceRow = insertedInvoice as { id: string; invoice_number: string }
+
+    // Bulk-insert line items
+    const items = draft.line_items.map((li) => ({
+      invoice_id: invoiceRow.id,
+      description: li.description,
+      quantity: li.quantity,
+      unit_price: li.unit_price,
+      total: li.quantity * li.unit_price,
+      category: li.category,
+      sort_order: li.sort_order,
+    }))
+    const { error: itemsErr } = await admin.from('invoice_line_items').insert(items)
+    if (itemsErr) {
+      console.error('[invoice-chain] line item insert failed:', itemsErr.message)
+      result.skippedError.push({
+        ruleId: rule.id,
+        ruleName: rule.name,
+        reason: 'insert_failed',
+        detail: `line items: ${itemsErr.message}`,
+      })
+      continue
+    }
+
+    result.created.push({
+      invoiceId: invoiceRow.id,
+      invoiceNumber: invoiceRow.invoice_number,
+      ruleId: rule.id,
+      ruleName: rule.name,
+      fromOrgId: fromOrg.id,
+      toOrgId: toOrg.id,
+      subtotal: draft.subtotal,
+      tax,
+      total,
+      isDryRun: false,
+    })
+  }
+
+  return result
+}
