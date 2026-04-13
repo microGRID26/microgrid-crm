@@ -18,12 +18,24 @@ interface CostBasisResponse {
   isEphemeral: boolean
 }
 
-function fmtMoney(n: number): string {
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+// Postgres NUMERIC columns come back as strings via PostgREST. Coerce
+// defensively before any number-only methods to avoid runtime crashes.
+function num(v: number | string | null | undefined): number {
+  if (v === null || v === undefined) return 0
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) ? n : 0
 }
 
-function fmtPct(n: number): string {
-  return `${(n * 100).toFixed(2)}%`
+function fmtMoney(v: number | string | null | undefined): string {
+  return `$${num(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function fmtPct(v: number | string | null | undefined): string {
+  return `${(num(v) * 100).toFixed(2)}%`
+}
+
+function fmtMarkupX(v: number | string | null | undefined): string {
+  return `${num(v).toFixed(2)}x`
 }
 
 export function ProjectCostBasisTab({ project }: ProjectCostBasisTabProps) {
@@ -215,7 +227,7 @@ export function ProjectCostBasisTab({ project }: ProjectCostBasisTabProps) {
                         {showAdvanced ? (
                           <>
                             <td className="px-2 py-1.5 text-right">{fmtMoney(li.raw_cost)}</td>
-                            <td className="px-2 py-1.5 text-right text-gray-500">{li.markup_to_distro.toFixed(2)}x</td>
+                            <td className="px-2 py-1.5 text-right text-gray-500">{fmtMarkupX(li.markup_to_distro)}</td>
                             <td className="px-2 py-1.5 text-right">{fmtMoney(li.distro_price)}</td>
                           </>
                         ) : null}

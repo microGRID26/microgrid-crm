@@ -35,12 +35,31 @@ export interface CostBasisPDFProps {
 
 // ── Formatters ──────────────────────────────────────────────────────────────
 
-function fmtMoney(n: number): string {
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+// Defensive numeric coercion: Postgres NUMERIC columns come back from PostgREST
+// as strings, not numbers. Calling .toFixed() / .toLocaleString() on a string
+// throws inside @react-pdf's render tree walker and surfaces as the misleading
+// "Cannot read properties of null (reading 'props')" error. Always coerce.
+function num(v: number | string | null | undefined): number {
+  if (v === null || v === undefined) return 0
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) ? n : 0
 }
 
-function fmtPct(n: number): string {
-  return `${(n * 100).toFixed(2)}%`
+function fmtMoney(v: number | string | null | undefined): string {
+  return `$${num(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function fmtPct(v: number | string | null | undefined): string {
+  return `${(num(v) * 100).toFixed(2)}%`
+}
+
+function fmtKw(v: number | string | null | undefined): string {
+  if (v === null || v === undefined || v === '') return '—'
+  return `${num(v).toFixed(1)} kW DC`
+}
+
+function fmtMarkupX(v: number | string | null | undefined): string {
+  return `${num(v).toFixed(2)}x`
 }
 
 function fmtDate(d: Date): string {
@@ -300,9 +319,7 @@ export function CostBasisPDF({ project, lineItems, summary, generatedAt }: CostB
           </View>
           <View style={styles.projectCol}>
             <Text style={styles.projectLabel}>System Size</Text>
-            <Text style={styles.projectValue}>
-              {project.systemkw ? `${project.systemkw.toFixed(1)} kW DC` : '—'}
-            </Text>
+            <Text style={styles.projectValue}>{fmtKw(project.systemkw)}</Text>
             <Text style={[styles.projectLabel, { marginTop: 4 }]}>Battery Units</Text>
             <Text style={styles.projectValue}>
               {project.battery_qty ? `${project.battery_qty} units` : '—'}
@@ -355,7 +372,7 @@ export function CostBasisPDF({ project, lineItems, summary, generatedAt }: CostB
                     <Text style={styles.cellItem}>{li.item_name}</Text>
                     <Text style={styles.cellBucket}>{li.system_bucket}</Text>
                     <Text style={styles.cellRaw}>{fmtMoney(li.raw_cost)}</Text>
-                    <Text style={styles.cellMarkup}>{li.markup_to_distro.toFixed(2)}x</Text>
+                    <Text style={styles.cellMarkup}>{fmtMarkupX(li.markup_to_distro)}</Text>
                     <Text style={styles.cellEpc}>{fmtMoney(li.epc_price)}</Text>
                     <Text style={styles.cellBattery}>{fmtMoney(li.battery_cost)}</Text>
                     <Text style={styles.cellPv}>{fmtMoney(li.pv_cost)}</Text>
