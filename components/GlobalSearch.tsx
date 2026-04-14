@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { db } from '@/lib/db'
-import { escapeIlike } from '@/lib/utils'
+import { escapeIlike, INACTIVE_DISPOSITION_FILTER } from '@/lib/utils'
 import { Search, X } from 'lucide-react'
 
 export function GlobalSearch() {
@@ -19,7 +19,7 @@ export function GlobalSearch() {
       const { data } = await db().from('projects')
         .select('id, name, city, stage')
         .or(`name.ilike.%${escaped}%,id.ilike.%${escaped}%,city.ilike.%${escaped}%`)
-        .not('disposition', 'in', '("In Service","Loyalty","Cancelled","Legal","On Hold")')
+        .not('disposition', 'in', INACTIVE_DISPOSITION_FILTER)
         .limit(8)
       if (!stale && data) setResults(data as { id: string; name: string; city: string | null; stage: string }[])
     }, 200)

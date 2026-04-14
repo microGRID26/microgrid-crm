@@ -258,7 +258,7 @@ Always-do patterns. Breaking these will be caught in audit.
 - **`escapeFilterValue()`** in `utils.ts` for PostgREST `.or()` contexts. Use instead of `escapeIlike()` in `.or()` strings. All existing `.or()` calls use it.
 - **`timingSafeEqual()`** for ALL secret/token comparison in API routes — never plain `===`. Use `import { timingSafeEqual } from 'crypto'` (ESM) — never `require('crypto')`.
 - **Rate limiting** via `lib/rate-limit.ts` — uses Upstash Redis when `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` are set, falls back to in-memory. All sensitive routes are rate-limited.
-- **`INACTIVE_DISPOSITIONS`** / **`INACTIVE_DISPOSITION_FILTER`** constants in `utils.ts` for all active project queries. Includes: In Service, Loyalty, Cancelled, Legal, On Hold.
+- **`INACTIVE_DISPOSITIONS`** / **`INACTIVE_DISPOSITION_FILTER`** constants in `utils.ts` for all active project queries. Includes: In Service, Loyalty, Cancelled, Legal, On Hold, Test. Never inline the filter string — import the constant so adding a new inactive state is a one-line change. The `Test` disposition was added 2026-04-14 for 10 test/QA rows that were inflating dashboards; new test rows in MG CRM should be flagged `disposition='Test'` at creation time.
 - **Error boundaries:** all user-facing routes have `error.tsx` files (parent boundaries cover nested routes).
 - **`lib/tasks.ts`** is the single source of truth for `JOB_LABELS` and `JOB_LABELS_SHORT`. Never redefine job labels locally.
 - **`lib/api/` API wrappers** for cross-page queries: `loadLiveStats()`, `loadAHJs()`, `loadProjectsForMap()`, `loadOrgNames()`, `loadTodaySchedule()`, `loadScheduleForCrewWeek()`.

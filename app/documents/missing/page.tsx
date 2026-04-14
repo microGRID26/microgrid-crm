@@ -8,7 +8,7 @@ import { useCurrentUser } from '@/lib/useCurrentUser'
 import { db } from '@/lib/db'
 import { loadDocumentRequirements, loadProjectFiles } from '@/lib/api/documents'
 import { loadProjectById } from '@/lib/api'
-import { escapeIlike, STAGE_ORDER, STAGE_LABELS } from '@/lib/utils'
+import { escapeIlike, STAGE_ORDER, STAGE_LABELS, INACTIVE_DISPOSITION_FILTER } from '@/lib/utils'
 import type { DocumentRequirement, ProjectFile } from '@/lib/api/documents'
 import type { Project } from '@/types/database'
 import { Search, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react'
@@ -62,7 +62,7 @@ export default function MissingDocumentsPage() {
     const { data: projData } = await supabase
       .from('projects')
       .select('*')
-      .not('disposition', 'in', '("In Service","Loyalty","Cancelled","Legal","On Hold")')
+      .not('disposition', 'in', INACTIVE_DISPOSITION_FILTER)
       .order('id')
       .limit(2000)
 

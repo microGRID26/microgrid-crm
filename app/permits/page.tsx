@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Nav } from '@/components/Nav'
 import { useCurrentUser } from '@/lib/useCurrentUser'
-import { cn } from '@/lib/utils'
+import { cn, INACTIVE_DISPOSITION_FILTER } from '@/lib/utils'
 import { db } from '@/lib/db'
 import { loadAHJs } from '@/lib/api'
 import { Search, ExternalLink, Globe, Phone, Eye, EyeOff, ChevronDown, ChevronUp, Shield, Download, Clock, FileCheck2, Building2 } from 'lucide-react'
@@ -66,7 +66,7 @@ export default function PermitsPage() {
     const { data: projects } = await supabase
       .from('projects')
       .select('ahj')
-      .not('disposition', 'in', '("In Service","Loyalty","Cancelled","Legal","On Hold")')
+      .not('disposition', 'in', INACTIVE_DISPOSITION_FILTER)
       .not('ahj', 'is', null)
       .limit(5000)
 

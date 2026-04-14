@@ -3,6 +3,7 @@
 // or survey. Scores by crew availability and geographic proximity.
 
 import { db } from '@/lib/db'
+import { INACTIVE_DISPOSITION_FILTER } from '@/lib/utils'
 
 export interface ScheduleSuggestion {
   project_id: string
@@ -69,7 +70,7 @@ export async function generateScheduleSuggestions(orgId?: string): Promise<Sched
     const { data: projects, error: projErr } = await db().from('projects')
       .select('id, name, city, zip, systemkw, org_id')
       .in('id', projectIds)
-      .not('disposition', 'in', '("In Service","Loyalty","Cancelled","Legal","On Hold")')
+      .not('disposition', 'in', INACTIVE_DISPOSITION_FILTER)
       .limit(500)
     if (projErr) {
       console.error('[schedule-suggestions] projects query failed:', projErr)
@@ -120,7 +121,7 @@ export async function generateScheduleSuggestions(orgId?: string): Promise<Sched
       const { data: schedProjects } = await db().from('projects')
         .select('id, city, zip')
         .in('id', scheduledProjectIds)
-        .not('disposition', 'in', '("In Service","Loyalty","Cancelled","Legal","On Hold")')
+        .not('disposition', 'in', INACTIVE_DISPOSITION_FILTER)
         .limit(2000)
       scheduledProjectMap = new Map(
         ((schedProjects ?? []) as { id: string; city: string | null; zip: string | null }[])

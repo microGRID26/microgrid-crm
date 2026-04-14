@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { db } from '@/lib/db'
+import { INACTIVE_DISPOSITION_FILTER } from '@/lib/utils'
 import { useCurrentUser } from './useCurrentUser'
 
 export interface Notification {
@@ -64,7 +65,7 @@ export function useNotifications(filterPrefs?: NotificationFilterPrefs) {
       .from('projects')
       .select('id, name, blocker, stage')
       .eq('pm_id', user.id)
-      .not('disposition', 'in', '("In Service","Loyalty","Cancelled","Legal","On Hold")') as { data: { id: string; name: string; blocker: string | null; stage: string }[] | null }
+      .not('disposition', 'in', INACTIVE_DISPOSITION_FILTER) as { data: { id: string; name: string; blocker: string | null; stage: string }[] | null }
 
     const pids = (projects ?? []).map(p => p.id)
 

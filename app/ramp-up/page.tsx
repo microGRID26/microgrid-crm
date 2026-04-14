@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Nav } from '@/components/Nav'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { useOrg } from '@/lib/hooks'
-import { fmtDate, fmt$, cn } from '@/lib/utils'
+import { fmtDate, fmt$, cn, INACTIVE_DISPOSITION_FILTER } from '@/lib/utils'
 import { loadProjectById, loadActiveCrews, upsertTaskState, insertTaskHistory } from '@/lib/api'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
@@ -105,7 +105,7 @@ export default function RampUpPage() {
     // Load ALL active projects (every stage — if install_done is Complete, filtered below)
     let q = db().from('projects')
       .select('id, name, city, address, zip, ahj, stage, module, inverter, battery, systemkw, contract, pm, blocker, financier')
-      .not('disposition', 'in', '("In Service","Loyalty","Cancelled","Legal","On Hold")')
+      .not('disposition', 'in', INACTIVE_DISPOSITION_FILTER)
       .not('stage', 'eq', 'complete')
       .limit(2000)
     if (orgId) q = q.eq('org_id', orgId)

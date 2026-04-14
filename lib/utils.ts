@@ -64,10 +64,10 @@ export const STAGE_ORDER = ['evaluation','survey','design','permit','install','i
 
 /** Dispositions excluded from active project views (pipeline, queue, command, etc.).
  *  Use with .not('disposition', 'in', `(${INACTIVE_DISPOSITIONS.map(d => `"${d}"`).join(',')})`) */
-export const INACTIVE_DISPOSITIONS = ['In Service', 'Loyalty', 'Cancelled', 'Legal', 'On Hold'] as const
+export const INACTIVE_DISPOSITIONS = ['In Service', 'Loyalty', 'Cancelled', 'Legal', 'On Hold', 'Test'] as const
 
 /** PostgREST-formatted exclusion string for .not('disposition', 'in', ...) */
-export const INACTIVE_DISPOSITION_FILTER = `("In Service","Loyalty","Cancelled","Legal","On Hold")`
+export const INACTIVE_DISPOSITION_FILTER = `("In Service","Loyalty","Cancelled","Legal","On Hold","Test")`
 
 // ── Centralised SLA thresholds (single source of truth) ───────────────────────
 export const SLA_THRESHOLDS: Record<string, { target: number; risk: number; crit: number }> = {

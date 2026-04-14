@@ -6,7 +6,7 @@ import { useCurrentUser } from '@/lib/useCurrentUser'
 import { useOrg } from '@/lib/hooks'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
-import { fmt$, fmtDate, cn } from '@/lib/utils'
+import { fmt$, fmtDate, cn, INACTIVE_DISPOSITION_FILTER } from '@/lib/utils'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { loadProjectById } from '@/lib/api'
 import type { Project } from '@/types/database'
@@ -113,7 +113,7 @@ function OpsContent({ embedded }: { embedded: boolean }) {
       setLoading(true)
       let q = db().from('projects')
         .select('id, name, stage, disposition, sale_date, install_complete_date, pto_date, contract, systemkw, financier, utility, ahj, city, pm, consultant, blocker, battery, energy_community, module, module_qty, dealer')
-        .not('disposition', 'in', '("In Service","Loyalty","Cancelled","Legal","On Hold")')
+        .not('disposition', 'in', INACTIVE_DISPOSITION_FILTER)
         .limit(5000)
       if (orgId) q = q.eq('org_id', orgId)
       const { data } = await q

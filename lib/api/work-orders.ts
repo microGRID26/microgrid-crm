@@ -1,7 +1,7 @@
 // lib/api/work-orders.ts — Work order data access layer
 import { db } from '@/lib/db'
 import { createClient } from '@/lib/supabase/client'
-import { escapeIlike } from '@/lib/utils'
+import { escapeIlike, INACTIVE_DISPOSITION_FILTER } from '@/lib/utils'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,7 +173,7 @@ export async function loadWorkOrders(filters?: WorkOrderFilters, orgId?: string)
       .from('projects')
       .select('id, name, city, address, pm')
       .in('id', projectIds)
-      .not('disposition', 'in', '("In Service","Loyalty","Cancelled","Legal","On Hold")')
+      .not('disposition', 'in', INACTIVE_DISPOSITION_FILTER)
     if (projData) {
       const projMap: Record<string, { name: string; city: string | null; address: string | null; pm: string | null }> = {}
       ;(projData as { id: string; name: string; city: string | null; address: string | null; pm: string | null }[]).forEach(p => {

@@ -4,6 +4,7 @@
 
 import { db } from '@/lib/db'
 import { createClient } from '@/lib/supabase/client'
+import { INACTIVE_DISPOSITION_FILTER } from '@/lib/utils'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -292,7 +293,7 @@ export async function loadProjectCostSummaries(orgId?: string): Promise<ProjectC
   const { data: projects } = await supabase.from('projects')
     .select('id, name, contract, systemkw')
     .in('id', projectIds)
-    .not('disposition', 'in', '("In Service","Loyalty","Cancelled","Legal","On Hold")')
+    .not('disposition', 'in', INACTIVE_DISPOSITION_FILTER)
     .limit(5000)
 
   const projMap: Record<string, { name: string; contract: number; systemkw: number }> = {}

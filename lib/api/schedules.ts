@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { escapeFilterValue } from '@/lib/utils'
+import { escapeFilterValue, INACTIVE_DISPOSITION_FILTER } from '@/lib/utils'
 
 // ── Schedule data access ─────────────────────────────────────────────────────
 
@@ -22,7 +22,7 @@ export async function loadScheduleByDateRange(startDate: string, endDate: string
   if (entries.length > 0) {
     const projectIds = [...new Set(entries.map(e => e.project_id).filter(Boolean))]
     if (projectIds.length > 0) {
-      const { data: projects } = await db().from('projects').select('id, name, city, address, zip, phone, systemkw, module, inverter, battery, ahj').in('id', projectIds).not('disposition', 'in', '("In Service","Loyalty","Cancelled","Legal","On Hold")').limit(2000)
+      const { data: projects } = await db().from('projects').select('id, name, city, address, zip, phone, systemkw, module, inverter, battery, ahj').in('id', projectIds).not('disposition', 'in', INACTIVE_DISPOSITION_FILTER).limit(2000)
       const projectMap = new Map((projects ?? []).map((p: { id: string; [k: string]: unknown }) => [p.id, p]))
       for (const entry of entries) {
         entry.project = (projectMap.get(entry.project_id) as Record<string, unknown>) ?? null

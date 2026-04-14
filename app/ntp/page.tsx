@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Nav } from '@/components/Nav'
 import { ProjectPanel } from '@/components/project/ProjectPanel'
-import { cn, fmtDate, daysAgo, escapeIlike } from '@/lib/utils'
+import { cn, fmtDate, daysAgo, escapeIlike, INACTIVE_DISPOSITION_FILTER } from '@/lib/utils'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { useOrg } from '@/lib/hooks'
 import { useRealtimeSubscription } from '@/lib/hooks'
@@ -69,7 +69,7 @@ function SubmitNTPModal({
         .from('projects')
         .select('id, name, stage')
         .or(`name.ilike.%${q}%,id.ilike.%${q}%`)
-        .not('disposition', 'in', '("In Service","Loyalty","Cancelled","Legal","On Hold")')
+        .not('disposition', 'in', INACTIVE_DISPOSITION_FILTER)
         .eq('org_id', orgId)
         .limit(10)
       setSearchResults((data ?? []) as { id: string; name: string; stage: string }[])
