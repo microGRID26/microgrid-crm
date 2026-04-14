@@ -65,6 +65,19 @@ describe('computeNetPayment', () => {
     expect(result.appliedDeductionIds).toContain('d1')
   })
 
+  it('NaN grossAmount is treated as 0 (guard against corrupted DB records)', () => {
+    const result = computeNetPayment(NaN, [])
+    expect(result.grossAmount).toBe(0)
+    expect(result.netAmount).toBe(0)
+    expect(result.totalDeducted).toBe(0)
+  })
+
+  it('Infinity grossAmount is treated as 0', () => {
+    const result = computeNetPayment(Infinity, [row('d1', 100)])
+    expect(result.grossAmount).toBe(0)
+    expect(result.netAmount).toBe(0)
+  })
+
   it('string amounts from PostgREST are coerced via Number()', () => {
     // Supabase NUMERIC columns return as strings — verify Number() coercion
     const deductionWithStringAmount = {

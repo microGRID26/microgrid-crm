@@ -86,12 +86,15 @@ export function computeNetPayment(
   grossAmount: number,
   openDeductions: DeductionRow[],
 ): FundingDeductionResult {
+  // Guard: if grossAmount is NaN or Infinity (e.g., malformed DB record),
+  // treat it as 0 — conservative behavior that avoids writing garbage to paid_amount.
+  const safeGross = Number.isFinite(grossAmount) ? grossAmount : 0
   const totalDeducted = Math.round(
     openDeductions.reduce((sum, d) => sum + Number(d.amount), 0) * 100,
   ) / 100
-  const netAmount = Math.max(0, Math.round((grossAmount - totalDeducted) * 100) / 100)
+  const netAmount = Math.max(0, Math.round((safeGross - totalDeducted) * 100) / 100)
   return {
-    grossAmount: Math.round(grossAmount * 100) / 100,
+    grossAmount: Math.round(safeGross * 100) / 100,
     totalDeducted,
     netAmount,
     appliedDeductionIds: openDeductions.map((d) => d.id),

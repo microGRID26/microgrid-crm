@@ -113,28 +113,47 @@ export async function PATCH(
   const newStatus = (updates.status ?? claim.status) as string
   const newAmount = (updates.claim_amount ?? claim.claim_amount) as number | null
 
-  if (newStatus === 'invoiced' && newAmount && newAmount > 0) {
+  const adminKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!adminKey) {
+    console.error('[warranty] SUPABASE_SECRET_KEY not configured — funding deduction side-effect skipped')
+  } else {
     const adminClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+      adminKey,
       { auth: { persistSession: false, autoRefreshToken: false } },
     )
-    const { error: deductErr } = await adminClient
-      .from('funding_deductions')
-      .upsert(
-        {
-          target_epc_id: claim.original_epc_id,
-          source_claim_id: id,
-          amount: newAmount,
-          status: 'open',
-          created_by_id: session.userId,
-          notes: `Auto-created from warranty claim ${id} reaching invoiced status.`,
-        },
-        { onConflict: 'source_claim_id', ignoreDuplicates: false },
-      )
-    if (deductErr) {
-      // Non-fatal: log it but don't fail the claim update
-      console.error('[warranty] failed to upsert funding_deduction:', deductErr.message)
+
+    if (newStatus === 'invoiced' && newAmount && newAmount > 0) {
+      // Create or update the funding_deduction for this claim. The upsert with
+      // onConflict='source_claim_id' will UPDATE amount on repeat calls, so if
+      // the invoiced amount is corrected, the deduction reflects the new value.
+      // The unique partial index (status != 'cancelled') ensures idempotency.
+      const { error: deductErr } = await adminClient
+        .from('funding_deductions')
+        .upsert(
+          {
+            target_epc_id: claim.original_epc_id,
+            source_claim_id: id,
+            amount: newAmount,
+            status: 'open',
+            created_by_id: session.userId,
+            notes: `Auto-created from workmanship claim ${id} reaching invoiced status.`,
+          },
+          { onConflict: 'source_claim_id', ignoreDuplicates: false },
+        )
+      if (deductErr) {
+        console.error('[warranty] failed to upsert funding_deduction:', deductErr.message)
+      }
+    } else if (newStatus === 'voided') {
+      // Voiding the claim cancels any open deduction — the EPC won't be charged.
+      const { error: cancelErr } = await adminClient
+        .from('funding_deductions')
+        .update({ status: 'cancelled', notes: `Cancelled: parent workmanship claim ${id} was voided.` })
+        .eq('source_claim_id', id)
+        .eq('status', 'open')
+      if (cancelErr) {
+        console.error('[warranty] failed to cancel funding_deduction on void:', cancelErr.message)
+      }
     }
   }
 
