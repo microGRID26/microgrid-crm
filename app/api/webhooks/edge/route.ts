@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import crypto from 'crypto'
 
 // ── EDGE → MicroGRID Webhook: Funding Status Updates ────────────────────────────
 // Receives POST from EDGE Portal when funding status changes.
@@ -22,18 +21,32 @@ function supabase() {
   return createClient(SUPABASE_URL, SUPABASE_SECRET)
 }
 
-/** Timing-safe secret comparison */
-function verifySignature(body: string, signature: string): boolean {
-  if (!WEBHOOK_SECRET) return false
+/**
+ * Timing-safe HMAC-SHA256 signature verification using Web Crypto.
+ * Matches the signing implementation in EDGE (`lib/microgrid-sync.ts:signPayload`).
+ */
+async function verifySignature(body: string, signature: string): Promise<boolean> {
+  if (!WEBHOOK_SECRET || !signature) return false
   try {
-    const expected = crypto
-      .createHmac('sha256', WEBHOOK_SECRET)
-      .update(body)
-      .digest('hex')
-    return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expected)
+    const encoder = new TextEncoder()
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(WEBHOOK_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
     )
+    const expected = await crypto.subtle.sign('HMAC', key, encoder.encode(body))
+    const expectedHex = Array.from(new Uint8Array(expected))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+
+    if (signature.length !== expectedHex.length) return false
+    let diff = 0
+    for (let i = 0; i < signature.length; i++) {
+      diff |= signature.charCodeAt(i) ^ expectedHex.charCodeAt(i)
+    }
+    return diff === 0
   } catch {
     return false
   }
@@ -102,7 +115,7 @@ export async function POST(request: NextRequest) {
 
   // Verify webhook signature
   const signature = request.headers.get('x-webhook-signature') ?? ''
-  if (!verifySignature(bodyText, signature)) {
+  if (!await verifySignature(bodyText, signature)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
