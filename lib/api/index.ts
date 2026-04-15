@@ -70,3 +70,11 @@ export { loadVendorScores } from './vendor-scorecard'
 export type { VendorScore, VendorMetrics } from './vendor-scorecard'
 export { loadBillingStatements, getCurrentStatement, loadProjectBillingStatements, loadPaymentMethods, loadPaymentHistory, loadStatementPayments, BILLING_STATUSES, BILLING_STATUS_LABELS, BILLING_STATUS_BADGE, PAYMENT_STATUSES, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_BADGE } from './customer-billing'
 export type { BillingStatement, BillingStatementStatus, PaymentMethod, PaymentRecord, PaymentStatus } from './customer-billing'
+export {
+  loadDealerRelationships, addDealerRelationship, updateDealerRelationship, deleteDealerRelationship,
+  loadUnderwritingFees, addUnderwritingFee, updateUnderwritingFee, deleteUnderwritingFee,
+  DEALER_STATUSES, DEALER_STATUS_LABELS, DEALER_STATUS_BADGE,
+  UNDERWRITING_FEE_TYPES, UNDERWRITING_FEE_TYPE_LABELS,
+  UNDERWRITING_FEE_STATUSES, UNDERWRITING_FEE_STATUS_BADGE,
+} from './dealer-relationships'
+export type { SalesDealerRelationship, SalesDealerStatus, EpcUnderwritingFee, UnderwritingFeeType, UnderwritingFeeStatus } from './dealer-relationships'

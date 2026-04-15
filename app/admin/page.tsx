@@ -24,6 +24,7 @@ import { InvoiceRulesManager } from '@/components/admin/InvoiceRulesManager'
 import { PayScaleManager } from '@/components/admin/PayScaleManager'
 import { PayDistributionManager } from '@/components/admin/PayDistributionManager'
 import { TicketConfigManager } from '@/components/admin/TicketConfigManager'
+import { DealerRelationshipsManager } from '@/components/admin/DealerRelationshipsManager'
 
 export default function AdminPage() {
   const { user: authUser, loading } = useCurrentUser()
@@ -144,6 +145,7 @@ export default function AdminPage() {
             {activeModule === 'commissions' && <CommissionRatesManager isSuperAdmin={isSuperAdmin} />}
             {activeModule === 'engineering_config' && <EngineeringConfigManager />}
             {activeModule === 'invoice_rules' && <InvoiceRulesManager isSuperAdmin={isSuperAdmin} />}
+            {activeModule === 'dealer_relationships' && <DealerRelationshipsManager isSuperAdmin={isSuperAdmin} />}
             {activeModule === 'pay_scales' && <PayScaleManager isSuperAdmin={isSuperAdmin} />}
             {activeModule === 'pay_distribution' && <PayDistributionManager isSuperAdmin={isSuperAdmin} />}
             {activeModule === 'ticket_config' && <TicketConfigManager />}

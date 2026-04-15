@@ -45,7 +45,7 @@ export interface CRMStats {
   serviceCalls: number
 }
 
-export type Module = 'ahj' | 'utility' | 'hoa' | 'financier' | 'equipment' | 'vendors' | 'users' | 'crews' | 'sla' | 'info' | 'releases' | 'feedback' | 'audit' | 'permissions' | 'notifications' | 'queue_config' | 'reasons' | 'doc_requirements' | 'edge_integration' | 'email_onboarding' | 'custom_fields' | 'calendar_sync' | 'feature_flags' | 'organizations' | 'commissions' | 'engineering_config' | 'invoice_rules' | 'pay_scales' | 'pay_distribution' | 'ticket_config' | 'customer_portal'
+export type Module = 'ahj' | 'utility' | 'hoa' | 'financier' | 'equipment' | 'vendors' | 'users' | 'crews' | 'sla' | 'info' | 'releases' | 'feedback' | 'audit' | 'permissions' | 'notifications' | 'queue_config' | 'reasons' | 'doc_requirements' | 'edge_integration' | 'email_onboarding' | 'custom_fields' | 'calendar_sync' | 'feature_flags' | 'organizations' | 'commissions' | 'engineering_config' | 'invoice_rules' | 'pay_scales' | 'pay_distribution' | 'ticket_config' | 'customer_portal' | 'dealer_relationships'
 
 export const DEPARTMENTS = [
   'Inside Operations', 'Sales', 'Executive', 'Field Operations',
@@ -291,6 +291,10 @@ export const ADMIN_SIDEBAR_ITEMS: SidebarItem[] = [
   {
     id: 'invoice_rules' as Module, label: 'Invoice Rules', desc: '8 billing templates',
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" /></svg>,
+  },
+  {
+    id: 'dealer_relationships' as Module, label: 'Dealer Relationships', desc: 'EPC contracts + underwriting fees',
+    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
   },
   {
     id: 'pay_scales' as Module, label: 'Pay Scales', desc: 'Sales pay tiers',
