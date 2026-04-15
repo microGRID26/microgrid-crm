@@ -150,7 +150,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
   }, [pid])
 
   const loadServiceCalls = useCallback(async () => {
-    const { data, error } = await supabase.from('service_calls').select('*').eq('project_id', pid).order('created_at', { ascending: false }).limit(5)
+    const { data, error } = await supabase.from('service_calls').select('*').eq('project_id', pid).order('created', { ascending: false }).limit(5)
     if (error) handleApiError(error, '[ProjectPanel] loadServiceCalls')
     if (data) setServiceCalls(data)
   }, [pid])
