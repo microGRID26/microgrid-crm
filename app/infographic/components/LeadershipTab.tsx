@@ -10,6 +10,7 @@ interface LeadershipTabProps {
     totalValue: number
     pipeline: PipelineStage[]
     ahjCount: number
+    legacyRecordsCount: number
   }
   maxCount: number
 }
@@ -28,7 +29,7 @@ export function LeadershipTab({ stats, maxCount }: LeadershipTabProps) {
           Portfolio Under Management
         </div>
         <div className="animate-count text-xs md:text-sm text-gray-500 mt-1 md:mt-2" style={{ animationDelay: '0.4s' }}>
-          {stats.totalProjects.toLocaleString()} active projects · 7 automated pipeline stages · 14,705 legacy records preserved
+          {stats.totalProjects.toLocaleString()} active projects · 7 automated pipeline stages · {stats.legacyRecordsCount.toLocaleString()} legacy records preserved
         </div>
       </div>
 

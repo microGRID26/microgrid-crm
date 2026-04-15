@@ -19,6 +19,8 @@ export interface LiveStats {
   activeUsers: number
   totalAHJs: number
   totalEquipment: number
+  /** Archived NetSuite records in `legacy_projects` (In Service + Loyalty + Legal). */
+  legacyRecordsCount: number
 }
 
 const EMPTY_STATS: LiveStats = {
@@ -31,6 +33,7 @@ const EMPTY_STATS: LiveStats = {
   activeUsers: 0,
   totalAHJs: 0,
   totalEquipment: 0,
+  legacyRecordsCount: 0,
 }
 
 /** Load live dashboard stats via parallel count queries.
@@ -50,7 +53,7 @@ export async function loadLiveStats(orgId?: string): Promise<LiveStats> {
     let crewsQ = supabase.from('crews').select('id', { count: 'exact', head: true }).eq('active', 'TRUE')
     if (orgId) { ticketsQ = ticketsQ.eq('org_id', orgId); crewsQ = crewsQ.eq('org_id', orgId) }
 
-    const [projectsRes, ticketsRes, crewsRes, notesRes, usersRes, ahjsRes, equipRes] = await Promise.all([
+    const [projectsRes, ticketsRes, crewsRes, notesRes, usersRes, ahjsRes, equipRes, legacyRes] = await Promise.all([
       projectQ,
       ticketsQ,
       crewsQ,
@@ -58,6 +61,7 @@ export async function loadLiveStats(orgId?: string): Promise<LiveStats> {
       supabase.from('users').select('id', { count: 'exact', head: true }).eq('active', true),
       supabase.from('ahjs').select('id', { count: 'exact', head: true }),
       supabase.from('equipment').select('id', { count: 'exact', head: true }),
+      supabase.from('legacy_projects').select('id', { count: 'exact', head: true }),
     ])
 
     const projectsByStage: Record<string, StageStat> = {}
@@ -81,6 +85,7 @@ export async function loadLiveStats(orgId?: string): Promise<LiveStats> {
       activeUsers: usersRes.count ?? 0,
       totalAHJs: ahjsRes.count ?? 0,
       totalEquipment: equipRes.count ?? 0,
+      legacyRecordsCount: legacyRes.count ?? 0,
     }
   } catch (err) {
     console.error('loadLiveStats failed:', err)

@@ -3,8 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "generate-stats": "node scripts/generate-codebase-stats.mjs",
+    "generate-stats:fast": "STATS_SKIP_VITEST=1 node scripts/generate-codebase-stats.mjs",
+    "predev": "npm run generate-stats:fast",
     "dev": "next dev",
+    "prebuild": "npm run generate-stats",
     "build": "next build",
+    "postinstall": "npm run generate-stats:fast",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",

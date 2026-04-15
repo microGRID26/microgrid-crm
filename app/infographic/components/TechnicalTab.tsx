@@ -1,6 +1,7 @@
 'use client'
 
 import { CascadeSection } from './CascadeSection'
+import { CODEBASE_STATS } from '@/lib/infographic/codebase-stats'
 
 interface TechnicalTabProps {
   stats: {
@@ -8,37 +9,47 @@ interface TechnicalTabProps {
     noteCount: number
     ahjCount: number
     equipmentCount: number
+    legacyRecordsCount: number
   }
+}
+
+const fmtN = (n: number): string => n.toLocaleString('en-US')
+const fmtGenerated = (iso: string): string => {
+  const d = new Date(iso)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export function TechnicalTab({ stats }: TechnicalTabProps) {
   return (
     <div className="space-y-8 md:space-y-14">
 
-      {/* HERO — The Scale */}
+      {/* HERO — The Scale (auto-refreshed at build time from scripts/generate-codebase-stats.mjs) */}
       <div className="text-center py-6 md:py-10 relative">
         <div className="absolute inset-0 rounded-3xl" style={{ background: 'radial-gradient(ellipse at center, rgba(59,130,246,0.06) 0%, transparent 70%)' }} />
         <div className="text-xs text-gray-500 uppercase tracking-widest mb-3 font-semibold">What Powers MicroGRID</div>
         <div className="animate-count text-4xl md:text-6xl font-black bg-gradient-to-r from-blue-400 via-green-400 to-purple-400 bg-clip-text text-transparent tracking-tight">
-          139,147
+          {fmtN(CODEBASE_STATS.loc_total)}
         </div>
         <div className="animate-count text-base md:text-lg text-gray-400 mt-2" style={{ animationDelay: '0.2s' }}>
           Lines of Code
         </div>
         <div className="flex justify-center gap-4 md:gap-8 mt-6 flex-wrap">
           {[
-            { n: '545', label: 'Source Files' },
-            { n: '49', label: 'Pages' },
-            { n: '115', label: 'Components' },
-            { n: '30', label: 'API Modules' },
-            { n: '3,003', label: 'Automated Tests' },
-            { n: '76', label: 'DB Migrations' },
+            { n: fmtN(CODEBASE_STATS.app_source_files), label: 'Source Files' },
+            { n: fmtN(CODEBASE_STATS.pages), label: 'Pages' },
+            { n: fmtN(CODEBASE_STATS.components), label: 'Components' },
+            { n: fmtN(CODEBASE_STATS.api_modules), label: 'API Modules' },
+            { n: fmtN(CODEBASE_STATS.test_count), label: 'Automated Tests' },
+            { n: fmtN(CODEBASE_STATS.max_migration_number), label: 'DB Migrations' },
           ].map(s => (
             <div key={s.label} className="text-center animate-count" style={{ animationDelay: '0.4s' }}>
               <div className="text-lg md:text-2xl font-black text-white">{s.n}</div>
               <div className="text-[10px] text-gray-500">{s.label}</div>
             </div>
           ))}
+        </div>
+        <div className="text-[9px] text-gray-600 mt-4 italic">
+          Auto-generated {fmtGenerated(CODEBASE_STATS.generated_at)} from the live codebase.
         </div>
       </div>
 
@@ -73,7 +84,7 @@ export function TechnicalTab({ stats }: TechnicalTabProps) {
                 <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
               </div>
               <div className="flex-1">
-                <div className="text-sm font-bold text-blue-400 mb-1">The Rooms — 49 Pages You Use Every Day</div>
+                <div className="text-sm font-bold text-blue-400 mb-1">The Rooms — {CODEBASE_STATS.pages} Pages You Use Every Day</div>
                 <p className="text-xs text-gray-400 mb-3">Each page is a room designed for a specific job. They all share the same building structure, but each is furnished for its purpose.</p>
                 <div className="flex flex-wrap gap-1.5">
                   {[
@@ -81,7 +92,7 @@ export function TechnicalTab({ stats }: TechnicalTabProps) {
                     { name: 'Analytics', color: '#8b5cf6' }, { name: 'Schedule', color: '#ec4899' }, { name: 'Funding', color: '#22c55e' },
                     { name: 'Tickets', color: '#ef4444' }, { name: 'Commissions', color: '#06b6d4' }, { name: 'Ramp-Up', color: '#f97316' },
                     { name: 'Inventory', color: '#a855f7' }, { name: 'Planset', color: '#14b8a6' }, { name: 'EDGE Portal', color: '#6366f1' },
-                    { name: 'Customer App', color: '#84cc16' }, { name: '+ 36 more', color: '#6b7280' },
+                    { name: 'Customer App', color: '#84cc16' }, { name: `+ ${Math.max(0, CODEBASE_STATS.pages - 13)} more`, color: '#6b7280' },
                   ].map(p => (
                     <span key={p.name} className="text-[10px] px-2 py-1 rounded-md font-medium" style={{ backgroundColor: `${p.color}15`, color: p.color, border: `1px solid ${p.color}30` }}>{p.name}</span>
                   ))}
@@ -97,7 +108,7 @@ export function TechnicalTab({ stats }: TechnicalTabProps) {
                 <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
               </div>
               <div className="flex-1">
-                <div className="text-sm font-bold text-green-400 mb-1">The Engine Room — 30 API Modules, 250+ Functions</div>
+                <div className="text-sm font-bold text-green-400 mb-1">The Engine Room — {CODEBASE_STATS.api_modules} API Modules, {CODEBASE_STATS.api_exports.toLocaleString()}+ Functions</div>
                 <p className="text-xs text-gray-400 mb-3">This is the brain. When you click &quot;Complete&quot; on a task, the engine decides what happens next: advance the stage, trigger funding, notify the crew, update the schedule — all automatically.</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="bg-green-500/5 rounded-lg p-3 border border-green-500/20">
@@ -126,11 +137,11 @@ export function TechnicalTab({ stats }: TechnicalTabProps) {
               </div>
               <div className="flex-1">
                 <div className="text-sm font-bold text-amber-400 mb-1">The Foundation — 70+ Database Tables</div>
-                <p className="text-xs text-gray-400 mb-3">The foundation holds everything. Every project, every task, every note, every dollar — stored in a PostgreSQL database with 76 migrations applied over time, like blueprints for the foundation.</p>
+                <p className="text-xs text-gray-400 mb-3">The foundation holds everything. Every project, every task, every note, every dollar — stored in a PostgreSQL database with {CODEBASE_STATS.max_migration_number} migrations applied over time, like blueprints for the foundation.</p>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                   {[
                     { n: stats.totalProjects.toLocaleString(), l: 'Active Projects' },
-                    { n: '14,705', l: 'Legacy Records' },
+                    { n: stats.legacyRecordsCount.toLocaleString(), l: 'Legacy Records' },
                     { n: stats.noteCount.toLocaleString(), l: 'Notes & Updates' },
                     { n: stats.ahjCount.toLocaleString(), l: 'Permit Authorities' },
                     { n: stats.equipmentCount.toLocaleString(), l: 'Equipment Items' },
@@ -181,7 +192,7 @@ export function TechnicalTab({ stats }: TechnicalTabProps) {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {[
             { step: 'Build', icon: '🔨', desc: 'New feature or fix is written. Every change touches specific files — nothing breaks something unrelated.', color: '#3b82f6' },
-            { step: 'Test', icon: '🧪', desc: '3,003 automated tests run. Every business rule, every calculation, every API endpoint verified in seconds.', color: '#1D9E75' },
+            { step: 'Test', icon: '🧪', desc: `${CODEBASE_STATS.test_count.toLocaleString()} automated tests run. Every business rule, every calculation, every API endpoint verified in seconds.`, color: '#1D9E75' },
             { step: 'Audit', icon: '🔍', desc: 'Two-round code audit. Check for security issues, performance problems, edge cases. Fix anything found.', color: '#f59e0b' },
             { step: 'Ship', icon: '🚀', desc: 'Code pushed to production. Vercel auto-deploys. Zero downtime. Error monitoring active. Users see changes instantly.', color: '#22c55e' },
           ].map((s, i) => (
@@ -207,7 +218,7 @@ export function TechnicalTab({ stats }: TechnicalTabProps) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
           {[
             { grade: 'A', label: 'Security', desc: '0 critical issues. HMAC webhooks. Rate limiting. CSP headers.', color: '#22c55e' },
-            { grade: 'A', label: 'Reliability', desc: '3,003 automated tests. 102 test files. 45 error boundaries.', color: '#22c55e' },
+            { grade: 'A', label: 'Reliability', desc: `${CODEBASE_STATS.test_count.toLocaleString()} automated tests. ${CODEBASE_STATS.test_files} test files. ${CODEBASE_STATS.error_boundaries} error boundaries.`, color: '#22c55e' },
             { grade: 'A', label: 'Data Integrity', desc: 'M1/M2/M3 validation. Audit trail. Milestone triggers.', color: '#22c55e' },
             { grade: 'B', label: 'Scale Readiness', desc: '11 new indexes. Postgres aggregation. Ready for 5K projects.', color: '#3b82f6' },
           ].map(s => (

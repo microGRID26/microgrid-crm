@@ -52,3 +52,9 @@ scripts/extract-subhub.sh
 # Local reference files (spreadsheets, scripts, snapshots — not part of the app)
 /reference/
 scripts/import-project-files.py
+.gitnexus
+
+# Auto-generated codebase stats for /infographic Technical tab.
+# Written by scripts/generate-codebase-stats.mjs on postinstall / prebuild / predev.
+# Never commit — it flaps on every build.
+/lib/infographic/codebase-stats.ts

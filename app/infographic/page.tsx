@@ -21,6 +21,7 @@ interface LiveStats {
   totalProjects: number; totalValue: number; pipeline: PipelineStage[]
   ticketCount: number; noteCount: number; userCount: number
   crewCount: number; ahjCount: number; equipmentCount: number
+  legacyRecordsCount: number
 }
 
 const STAGE_COLORS: Record<string, string> = {
@@ -47,6 +48,7 @@ const DEFAULTS: LiveStats = {
     { stage: 'complete', count: 3, value: 116201, label: 'Complete', color: '#22c55e' },
   ],
   ticketCount: 16, noteCount: 181944, userCount: 16, crewCount: 4, ahjCount: 1408, equipmentCount: 2312,
+  legacyRecordsCount: 15585,
 }
 
 export default function InfographicPage() {
@@ -73,6 +75,7 @@ export default function InfographicPage() {
         totalProjects: result.totalProjects, totalValue: result.totalValue, pipeline,
         ticketCount: result.openTickets, noteCount: result.totalNotes, userCount: result.activeUsers,
         crewCount: result.activeCrews, ahjCount: result.totalAHJs, equipmentCount: result.totalEquipment,
+        legacyRecordsCount: result.legacyRecordsCount,
       })
       setLoadedAt(new Date())
       setLoading(false)
