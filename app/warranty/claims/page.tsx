@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle, Clock, Plus, RefreshCw, Shield, XCircle } from 'lucide-react'
 
 import { Nav } from '@/components/Nav'
+import { db } from '@/lib/db'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { cn, fmt$ } from '@/lib/utils'
 
@@ -34,6 +35,12 @@ interface NewClaimForm {
   description: string
   work_required: string
   notes: string
+}
+
+interface EpcOption {
+  id: string
+  name: string
+  slug: string
 }
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -67,11 +74,15 @@ export default function WarrantyClaimsPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<ClaimStatus | 'all'>('all')
+  const [epcFilter, setEpcFilter] = useState<string>('all')
   const [showNewForm, setShowNewForm] = useState(false)
   const [form, setForm] = useState<NewClaimForm>(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [epcs, setEpcs] = useState<EpcOption[]>([])
+  const [deployClaim, setDeployClaim] = useState<WarrantyClaim | null>(null)
+  const [deployEpcId, setDeployEpcId] = useState<string>('')
 
   const loadClaims = useCallback(async () => {
     setLoading(true)
@@ -91,6 +102,27 @@ export default function WarrantyClaimsPage() {
   }, [statusFilter])
 
   useEffect(() => { void loadClaims() }, [loadClaims])
+
+  // Load EPC organizations once — used for the filter dropdown and the
+  // "Mark Deployed" replacement picker.
+  useEffect(() => {
+    async function loadEpcs() {
+      const supabase = db()
+      const { data } = await supabase
+        .from('organizations')
+        .select('id, name, slug')
+        .eq('org_type', 'epc')
+        .order('name')
+      if (data) setEpcs(data as EpcOption[])
+    }
+    void loadEpcs()
+  }, [])
+
+  // Client-side EPC filter: narrows the already-fetched list without another round-trip.
+  const visibleClaims = useMemo(() => {
+    if (epcFilter === 'all') return claims
+    return claims.filter((c) => c.original_epc?.id === epcFilter)
+  }, [claims, epcFilter])
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -135,14 +167,29 @@ export default function WarrantyClaimsPage() {
     }
   }
 
-  const statusCounts = claims.reduce<Record<string, number>>((acc, c) => {
+  // Status count chips reflect the EPC-filtered view so chip counts match
+  // the visible list. Status filter still works independently.
+  const statusCounts = visibleClaims.reduce<Record<string, number>>((acc, c) => {
     acc[c.status] = (acc[c.status] ?? 0) + 1
     return acc
   }, {})
 
-  const totalOpenDeductions = claims
+  const totalOpenDeductions = visibleClaims
     .filter((c) => c.status === 'invoiced' && c.claim_amount)
     .reduce((sum, c) => sum + (c.claim_amount ?? 0), 0)
+
+  function openDeployModal(claim: WarrantyClaim) {
+    setDeployClaim(claim)
+    // Default to the original EPC so single-EPC shops don't need to pick.
+    setDeployEpcId(claim.original_epc?.id ?? '')
+  }
+
+  async function confirmDeploy() {
+    if (!deployClaim || !deployEpcId) return
+    await updateClaim(deployClaim.id, { status: 'deployed', deployed_epc_id: deployEpcId })
+    setDeployClaim(null)
+    setDeployEpcId('')
+  }
 
   if (authLoading) {
     return (
@@ -184,13 +231,28 @@ export default function WarrantyClaimsPage() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setShowNewForm(true)}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            New Claim
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {epcs.length > 1 && (
+              <select
+                value={epcFilter}
+                onChange={(e) => setEpcFilter(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500"
+                aria-label="Filter by EPC"
+              >
+                <option value="all">All EPCs</option>
+                {epcs.map((epc) => (
+                  <option key={epc.id} value={epc.id}>{epc.name}</option>
+                ))}
+              </select>
+            )}
+            <button
+              onClick={() => setShowNewForm(true)}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              New Claim
+            </button>
+          </div>
         </div>
 
         {/* Summary strip */}
@@ -311,13 +373,15 @@ export default function WarrantyClaimsPage() {
           <div className="text-gray-500 text-sm py-10 text-center">Loading claims…</div>
         ) : loadError ? (
           <div className="text-red-400 text-sm py-10 text-center">{loadError}</div>
-        ) : claims.length === 0 ? (
+        ) : visibleClaims.length === 0 ? (
           <div className="text-gray-600 text-sm py-14 text-center">
-            {statusFilter === 'all' ? 'No warranty claims yet.' : `No ${statusFilter} claims.`}
+            {statusFilter === 'all' && epcFilter === 'all'
+              ? 'No warranty claims yet.'
+              : 'No claims match the current filters.'}
           </div>
         ) : (
           <div className="space-y-2">
-            {claims.map((claim) => {
+            {visibleClaims.map((claim) => {
               const cfg = STATUS_CONFIG[claim.status]
               const Icon = cfg.icon
               const isExpanded = expandedId === claim.id
@@ -391,10 +455,10 @@ export default function WarrantyClaimsPage() {
                         {claim.status === 'pending' && (
                           <button
                             disabled={isUpdating}
-                            onClick={() => void updateClaim(claim.id, { status: 'deployed' })}
+                            onClick={() => openDeployModal(claim)}
                             className="text-xs bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-600/30 px-3 py-1.5 rounded transition-colors disabled:opacity-50"
                           >
-                            Mark Deployed
+                            Mark Deployed…
                           </button>
                         )}
                         {claim.status === 'deployed' && (
@@ -442,6 +506,46 @@ export default function WarrantyClaimsPage() {
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {/* Deploy modal — pick replacement EPC */}
+        {deployClaim && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setDeployClaim(null)}>
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-5 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-base font-semibold text-white mb-1">Deploy Replacement EPC</h3>
+              <p className="text-xs text-gray-400 mb-4">
+                {deployClaim.project?.job_number ?? deployClaim.project_id} · Original: {deployClaim.original_epc?.name ?? 'Unknown'}
+              </p>
+              <label className="block text-xs text-gray-400 mb-1">Replacement EPC</label>
+              <select
+                value={deployEpcId}
+                onChange={(e) => setDeployEpcId(e.target.value)}
+                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 mb-4"
+              >
+                <option value="">— Select an EPC —</option>
+                {epcs.map((epc) => (
+                  <option key={epc.id} value={epc.id}>
+                    {epc.name}{epc.id === deployClaim.original_epc?.id ? ' (same as original)' : ''}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setDeployClaim(null)}
+                  className="bg-gray-700 hover:bg-gray-600 text-gray-300 px-4 py-2 rounded text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={!deployEpcId}
+                  onClick={() => void confirmDeploy()}
+                  className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                >
+                  Confirm Deploy
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </main>
