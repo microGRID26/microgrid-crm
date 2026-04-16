@@ -45,7 +45,7 @@ export interface CRMStats {
   serviceCalls: number
 }
 
-export type Module = 'ahj' | 'utility' | 'hoa' | 'financier' | 'equipment' | 'vendors' | 'users' | 'crews' | 'sla' | 'info' | 'releases' | 'feedback' | 'audit' | 'permissions' | 'notifications' | 'queue_config' | 'reasons' | 'doc_requirements' | 'edge_integration' | 'email_onboarding' | 'custom_fields' | 'calendar_sync' | 'feature_flags' | 'organizations' | 'commissions' | 'engineering_config' | 'invoice_rules' | 'pay_scales' | 'pay_distribution' | 'ticket_config' | 'customer_portal' | 'dealer_relationships'
+export type Module = 'ahj' | 'utility' | 'hoa' | 'financier' | 'equipment' | 'vendors' | 'users' | 'crews' | 'sla' | 'info' | 'releases' | 'feedback' | 'audit' | 'permissions' | 'notifications' | 'queue_config' | 'reasons' | 'doc_requirements' | 'edge_integration' | 'email_onboarding' | 'custom_fields' | 'calendar_sync' | 'feature_flags' | 'organizations' | 'commissions' | 'engineering_config' | 'invoice_rules' | 'pay_scales' | 'pay_distribution' | 'ticket_config' | 'customer_portal' | 'dealer_relationships' | 'partner_api'
 
 export const DEPARTMENTS = [
   'Inside Operations', 'Sales', 'Executive', 'Field Operations',
@@ -311,6 +311,10 @@ export const ADMIN_SIDEBAR_ITEMS: SidebarItem[] = [
   {
     id: 'ticket_config' as Module, label: 'Ticket Config', desc: 'Categories & resolution codes',
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>,
+  },
+  {
+    id: 'partner_api' as Module, label: 'Partner API', desc: 'Issue keys & revoke',
+    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>,
   },
 ]
 

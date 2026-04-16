@@ -25,6 +25,7 @@ import { PayScaleManager } from '@/components/admin/PayScaleManager'
 import { PayDistributionManager } from '@/components/admin/PayDistributionManager'
 import { TicketConfigManager } from '@/components/admin/TicketConfigManager'
 import { DealerRelationshipsManager } from '@/components/admin/DealerRelationshipsManager'
+import { PartnerApiManager } from '@/components/admin/PartnerApiManager'
 
 export default function AdminPage() {
   const { user: authUser, loading } = useCurrentUser()
@@ -149,6 +150,7 @@ export default function AdminPage() {
             {activeModule === 'pay_scales' && <PayScaleManager isSuperAdmin={isSuperAdmin} />}
             {activeModule === 'pay_distribution' && <PayDistributionManager isSuperAdmin={isSuperAdmin} />}
             {activeModule === 'ticket_config' && <TicketConfigManager />}
+            {activeModule === 'partner_api' && <PartnerApiManager />}
           </div>
         </main>
       </div>
