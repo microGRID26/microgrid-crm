@@ -7,6 +7,24 @@ import { rateLimit } from '@/lib/rate-limit'
 const ALLOWED_ROLES = new Set(['admin', 'super_admin', 'manager', 'finance'])
 const VALID_STATUSES = new Set(['pending', 'deployed', 'invoiced', 'recovered', 'voided'])
 
+// Workmanship-claim lifecycle state machine.
+// pending → deployed | voided
+// deployed → invoiced | voided
+// invoiced → recovered | voided
+// recovered + voided are terminal. Same-state is allowed (idempotent save).
+const VALID_TRANSITIONS: Record<string, ReadonlySet<string>> = {
+  pending: new Set(['pending', 'deployed', 'voided']),
+  deployed: new Set(['deployed', 'invoiced', 'voided']),
+  invoiced: new Set(['invoiced', 'recovered', 'voided']),
+  recovered: new Set(['recovered']),
+  voided: new Set(['voided']),
+}
+
+export function isValidTransition(from: string, to: string): boolean {
+  const allowed = VALID_TRANSITIONS[from]
+  return allowed ? allowed.has(to) : false
+}
+
 async function getSessionUser(request: NextRequest) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -74,10 +92,17 @@ export async function PATCH(
   const updates: Record<string, unknown> = {}
 
   if (body.status !== undefined) {
-    if (!VALID_STATUSES.has(body.status as string)) {
+    const next = body.status as string
+    if (!VALID_STATUSES.has(next)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
-    updates.status = body.status
+    if (!isValidTransition(claim.status, next)) {
+      return NextResponse.json(
+        { error: `Invalid state transition: ${claim.status} → ${next}` },
+        { status: 400 },
+      )
+    }
+    updates.status = next
   }
   if (body.deployed_epc_id !== undefined) {
     updates.deployed_epc_id = body.deployed_epc_id

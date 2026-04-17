@@ -136,8 +136,23 @@ export async function POST(request: NextRequest) {
 
     const db = supabase()
 
-    // Idempotency: check for duplicate by matching name + address
-    if (customerName && customerAddress) {
+    // Idempotency: prefer subhub_id (DB-unique when present) so typos in
+    // name or address don't bypass dedup. Fall back to (name, address) for
+    // legacy payloads that predate the subhub_id column (migration 119).
+    if (payload.subhub_id) {
+      const { data: existing } = await db.from('projects')
+        .select('id')
+        .eq('subhub_id', payload.subhub_id)
+        .limit(1)
+      if (existing && existing.length > 0) {
+        return NextResponse.json({
+          success: true,
+          project_id: existing[0].id,
+          message: `Project already exists for subhub_id=${payload.subhub_id}`,
+          duplicate: true,
+        }, { status: 200 })
+      }
+    } else if (customerName && customerAddress) {
       const { data: existing } = await db.from('projects')
         .select('id')
         .eq('name', customerName)
@@ -159,6 +174,7 @@ export async function POST(request: NextRequest) {
     // Map SubHub fields to MicroGRID project
     const project: Record<string, any> = {
       id: projectId,
+      subhub_id: payload.subhub_id ?? null,
       name: payload.name ?? (`${payload.first_name ?? ''} ${payload.last_name ?? ''}`.trim() || 'Unknown'),
       email: payload.email ?? null,
       phone: payload.phone ?? null,

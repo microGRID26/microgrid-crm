@@ -38,10 +38,11 @@ export async function GET(
 
   const { data: userRow } = await supabase
     .from('users')
-    .select('role')
+    .select('id, role')
     .eq('email', user.email)
     .single()
-  const role = (userRow as { role: string } | null)?.role
+  const userInfo = userRow as { id: string; role: string } | null
+  const role = userInfo?.role
   if (!role || !INTERNAL_ROLES.has(role)) {
     return NextResponse.json({ error: 'Internal users only' }, { status: 403 })
   }
@@ -70,6 +71,22 @@ export async function GET(
 
   try {
     const result = await loadProjectCostBasis(project as Project, { persist })
+
+    // Audit trail: when persist=1 writes catalog defaults for the first
+    // time, record who triggered it + when. `loadProjectCostBasis` only
+    // persists when no rows existed before, so we detect "first persist"
+    // as (persist requested) AND (result came back non-ephemeral with items).
+    if (persist && !result.isEphemeral && result.lineItems.length > 0) {
+      await supabase.from('audit_log').insert({
+        project_id: projectId,
+        field: 'cost_basis_auto_persist',
+        old_value: null,
+        new_value: String(result.lineItems.length),
+        changed_by: user.email,
+        changed_by_id: userInfo?.id ?? null,
+      })
+    }
+
     return NextResponse.json({
       project_id: projectId,
       project_name: (project as Project).name,
