@@ -110,6 +110,17 @@ describe('POST /api/webhooks/subhub — enabled check', () => {
     const json = await res.json()
     expect(json.error).toContain('disabled')
   })
+
+  it('returns 503 when enabled but SUBHUB_WEBHOOK_SECRET is unset (R2 fail-closed)', async () => {
+    process.env.SUBHUB_WEBHOOK_ENABLED = 'true'
+    delete process.env.SUBHUB_WEBHOOK_SECRET
+    const req = makeRequest({ name: 'Test', street: '123 Main St' }, {})
+    const { POST } = await import('@/app/api/webhooks/subhub/route')
+    const res = await POST(req as any)
+    expect(res.status).toBe(503)
+    const json = await res.json()
+    expect(json.error).toContain('not configured')
+  })
 })
 
 // ── Auth / Secret Verification ──────────────────────────────────────────────

@@ -100,6 +100,14 @@ export async function POST(request: NextRequest) {
   // Read body once for both signature verification and payload parsing
   const bodyText = await request.text()
 
+  // Guard against misconfiguration: if the webhook is enabled but no secret
+  // has been set, fail closed rather than accept unsigned traffic. Matches
+  // the subhub-vwc posture (R2 2026-04-17 audit).
+  if (WEBHOOK_ENABLED && !WEBHOOK_SECRET) {
+    console.error('[subhub] SUBHUB_WEBHOOK_ENABLED=true but SUBHUB_WEBHOOK_SECRET not set — rejecting')
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 })
+  }
+
   // Verify webhook secret if configured
   if (WEBHOOK_SECRET) {
     const authHeader = request.headers.get('authorization') ?? request.headers.get('x-webhook-secret') ?? ''

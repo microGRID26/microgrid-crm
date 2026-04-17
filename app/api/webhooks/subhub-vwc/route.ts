@@ -54,12 +54,13 @@ export async function POST(req: Request) {
   const eventType = data.event_type ?? data.event ?? data.survey_type ?? 'unknown'
 
   // Timestamp window: SubHub may or may not send one — when present, reject
-  // payloads older than 5 min to blunt captured-signature replay. When
-  // absent, rely on the dedup index below.
+  // payloads whose skew from now exceeds 5 min in EITHER direction (R2 fix —
+  // R1 only rejected past-dated, so attacker could set ts=+1h and slide
+  // through). Absent timestamp → fall back to the payload_hash dedup below.
   const ts = data.timestamp ?? data.event_timestamp ?? data.received_at
   if (typeof ts === 'string' || typeof ts === 'number') {
-    const age = Date.now() - new Date(ts as string | number).getTime()
-    if (Number.isFinite(age) && age > 5 * 60 * 1000) {
+    const skew = Date.now() - new Date(ts as string | number).getTime()
+    if (Number.isFinite(skew) && Math.abs(skew) > 5 * 60 * 1000) {
       return NextResponse.json({ error: 'Timestamp outside window' }, { status: 400 })
     }
   }

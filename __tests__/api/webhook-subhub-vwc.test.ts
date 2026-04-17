@@ -396,6 +396,19 @@ describe('POST /api/webhooks/subhub-vwc — replay protection', () => {
     expect(json.error).toContain('window')
   })
 
+  it('rejects payloads with future timestamp skew > 5 min (R2 symmetric window)', async () => {
+    process.env.SUBHUB_WEBHOOK_SECRET = 'test-secret'
+    const tenMinAhead = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+    const req = makeRequest({ event_type: 'survey_completed', timestamp: tenMinAhead }, AUTH)
+    const { POST } = await import('@/app/api/webhooks/subhub-vwc/route')
+    const res = await POST(req)
+
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.error).toContain('window')
+  })
+
   it('accepts payloads within the 5-min window', async () => {
     process.env.SUBHUB_WEBHOOK_SECRET = 'test-secret'
     const insertChain = mockChain({ data: null, error: null })
