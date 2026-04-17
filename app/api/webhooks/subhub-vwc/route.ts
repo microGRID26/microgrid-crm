@@ -19,8 +19,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Server not configured' }, { status: 503 })
   }
 
-  // Auth — require secret when configured, reject all requests when not configured
-  const webhookSecret = process.env.SUBHUB_WEBHOOK_SECRET
+  // Auth — require secret when configured, reject all requests when not configured.
+  // .trim() so stray whitespace in Vercel UI doesn't silently break comparison
+  // (2026-04-17 incident on MG EDGE_WEBHOOK_SECRET).
+  const webhookSecret = (process.env.SUBHUB_WEBHOOK_SECRET || '').trim()
   if (!webhookSecret) {
     console.error('[subhub-vwc] SUBHUB_WEBHOOK_SECRET not configured — rejecting request')
     return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 })

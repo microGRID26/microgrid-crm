@@ -16,17 +16,27 @@ import { db } from '@/lib/db'
 // env-var UI doesn't silently break HMAC. Production hit this 2026-04-17:
 // EDGE_WEBHOOK_SECRET had a leading space, 14 days of outbound sync
 // deliveries failed with "Failed to fetch" until the trim was added.
-const EDGE_WEBHOOK_URL = (process.env.NEXT_PUBLIC_EDGE_WEBHOOK_URL || '').trim()
-const EDGE_WEBHOOK_SECRET = (process.env.EDGE_WEBHOOK_SECRET || '').trim()
 
-// Accept both env-var shapes: base URL (`https://edge-portal-blush.vercel.app`)
-// or already-terminated full URL (`.../api/webhooks/nova`). Historical prod
-// value has the path appended, and the code used to append it again, which
-// produced `/api/webhooks/nova/api/webhooks/nova` and a 307 on Vercel.
 const EDGE_WEBHOOK_PATH = '/api/webhooks/nova'
-const EDGE_WEBHOOK_FULL_URL = EDGE_WEBHOOK_URL.endsWith(EDGE_WEBHOOK_PATH)
-  ? EDGE_WEBHOOK_URL
-  : `${EDGE_WEBHOOK_URL}${EDGE_WEBHOOK_PATH}`
+
+/**
+ * Build the full EDGE webhook fetch URL from a raw env var value.
+ * Exported for unit testing. Handles:
+ *   - whitespace (leading/trailing/newlines pasted in Vercel UI)
+ *   - trailing slash (`.../nova/` vs `.../nova`)
+ *   - both env-var shapes: base URL (`https://host`) or already-
+ *     terminated full URL (`.../api/webhooks/nova`).
+ * Returns '' if the input is empty after normalization.
+ */
+export function resolveEdgeWebhookUrl(raw: string | undefined | null): string {
+  const cleaned = (raw || '').trim().replace(/\/+$/, '')
+  if (!cleaned) return ''
+  return cleaned.endsWith(EDGE_WEBHOOK_PATH) ? cleaned : `${cleaned}${EDGE_WEBHOOK_PATH}`
+}
+
+const EDGE_WEBHOOK_URL = (process.env.NEXT_PUBLIC_EDGE_WEBHOOK_URL || '').trim().replace(/\/+$/, '')
+const EDGE_WEBHOOK_SECRET = (process.env.EDGE_WEBHOOK_SECRET || '').trim()
+const EDGE_WEBHOOK_FULL_URL = resolveEdgeWebhookUrl(process.env.NEXT_PUBLIC_EDGE_WEBHOOK_URL)
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

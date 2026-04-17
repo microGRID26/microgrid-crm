@@ -17,7 +17,10 @@ import { rateLimit } from '@/lib/rate-limit'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SECRET = process.env.SUPABASE_SECRET_KEY
-const WEBHOOK_SECRET = process.env.SUBHUB_WEBHOOK_SECRET
+// .trim() so stray whitespace pasted into Vercel UI doesn't silently break
+// HMAC/bearer comparison (2026-04-17 incident: MG EDGE_WEBHOOK_SECRET had a
+// leading space that broke MG↔EDGE for 14 days).
+const WEBHOOK_SECRET = (process.env.SUBHUB_WEBHOOK_SECRET || '').trim() || undefined
 const WEBHOOK_ENABLED = process.env.SUBHUB_WEBHOOK_ENABLED === 'true'
 const DRIVE_WEBHOOK_URL = process.env.NEXT_PUBLIC_DRIVE_WEBHOOK_URL ?? ''
 
