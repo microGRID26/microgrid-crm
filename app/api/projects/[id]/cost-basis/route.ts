@@ -76,8 +76,7 @@ export async function GET(
       ...result,
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    console.error('[GET /api/projects/[id]/cost-basis]', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error('[GET /api/projects/[id]/cost-basis]', err instanceof Error ? err.message : err)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

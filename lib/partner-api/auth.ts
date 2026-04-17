@@ -214,8 +214,18 @@ export async function lookupKeyByHash(
 }
 
 /** Check a Redis-backed revocation bit for instant kill-switch. Returns true
- *  if the key is revoked. Falls through to false (non-revoked) if Redis is
- *  unavailable — the DB `revoked_at` already gate-kept us past lookupKeyByHash. */
+ *  if the key is revoked.
+ *
+ *  Behavior split (R1 audit fix):
+ *  - Redis not configured (no env vars): return false — Redis was never
+ *    authoritative; the DB `revoked_at` gate in `lookupKeyByHash` is the
+ *    only intended check. Deploy-time choice, not a runtime failure.
+ *  - Redis configured but request fails (network error, non-ok response,
+ *    malformed body): return true (FAIL CLOSED). A revoked key must not
+ *    slip through during a Redis outage between admin revoke and next
+ *    DB revoke-sweep. Cost of false-positive block is low (clear error
+ *    to partner + retry after Redis recovers); cost of false-negative is
+ *    letting a revoked partner continue to authenticate. */
 export async function checkRevokedRedis(keyId: string): Promise<boolean> {
   const url = process.env.UPSTASH_REDIS_REST_URL
   const token = process.env.UPSTASH_REDIS_REST_TOKEN
@@ -225,11 +235,11 @@ export async function checkRevokedRedis(keyId: string): Promise<boolean> {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     })
-    if (!res.ok) return false
+    if (!res.ok) return true
     const body = (await res.json()) as { result: string | null }
     return body.result === '1'
   } catch {
-    return false
+    return true
   }
 }
 

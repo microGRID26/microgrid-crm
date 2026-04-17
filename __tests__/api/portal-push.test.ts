@@ -93,6 +93,79 @@ describe('POST /api/portal/push — auth', () => {
     expect(json.error).toBe('Unauthorized')
   })
 
+  it('returns 403 when session user has no role row (R1 audit gate)', async () => {
+    // Exercises the internal-role gate added in R1 security audit.
+    // A session WITHOUT a valid users row must not be able to push.
+    delete process.env.CRON_SECRET
+    delete process.env.ADMIN_API_SECRET
+
+    const { createServerClient } = await import('@supabase/ssr')
+    ;(createServerClient as any).mockReturnValueOnce({
+      auth: {
+        getUser: vi.fn(() => Promise.resolve({
+          data: { user: { id: 'u1', email: 'ghost@gomicrogridenergy.com' } },
+          error: null,
+        })),
+      },
+      from: vi.fn(() => mockChain({ data: null, error: null })),
+    })
+
+    const req = makeRequest({ projectId: 'PROJ-1', title: 'Test', body: 'Hello' })
+    const { POST } = await import('@/app/api/portal/push/route')
+    const res = await POST(req as any)
+
+    expect(res.status).toBe(403)
+    const json = await res.json()
+    expect(json.error).toBe('Forbidden')
+  })
+
+  it('returns 403 when session user is inactive (R1 audit gate)', async () => {
+    delete process.env.CRON_SECRET
+    delete process.env.ADMIN_API_SECRET
+
+    const { createServerClient } = await import('@supabase/ssr')
+    ;(createServerClient as any).mockReturnValueOnce({
+      auth: {
+        getUser: vi.fn(() => Promise.resolve({
+          data: { user: { id: 'u1', email: 'expired@gomicrogridenergy.com' } },
+          error: null,
+        })),
+      },
+      from: vi.fn(() => mockChain({ data: { role: 'user', active: false }, error: null })),
+    })
+
+    const req = makeRequest({ projectId: 'PROJ-1', title: 'Test', body: 'Hello' })
+    const { POST } = await import('@/app/api/portal/push/route')
+    const res = await POST(req as any)
+
+    expect(res.status).toBe(403)
+  })
+
+  it('accepts session user with valid role + active (R1 audit gate)', async () => {
+    delete process.env.CRON_SECRET
+    delete process.env.ADMIN_API_SECRET
+
+    const { createServerClient } = await import('@supabase/ssr')
+    ;(createServerClient as any).mockReturnValueOnce({
+      auth: {
+        getUser: vi.fn(() => Promise.resolve({
+          data: { user: { id: 'u1', email: 'manager@gomicrogridenergy.com' } },
+          error: null,
+        })),
+      },
+      from: vi.fn(() => mockChain({ data: { role: 'manager', active: true }, error: null })),
+    })
+
+    const accountsChain = mockChain({ data: [], error: null })
+    mockDb.from.mockReturnValue(accountsChain)
+
+    const req = makeRequest({ projectId: 'PROJ-1', title: 'Test', body: 'Hello' })
+    const { POST } = await import('@/app/api/portal/push/route')
+    const res = await POST(req as any)
+
+    expect(res.status).toBe(200)
+  })
+
   it('accepts request with valid CRON_SECRET bearer token', async () => {
     process.env.CRON_SECRET = 'my-secret'
 
@@ -287,7 +360,7 @@ describe('POST /api/portal/push — sending', () => {
 
     expect(res.status).toBe(500)
     const json = await res.json()
-    expect(json.error).toBe('Network timeout')
+    expect(json.error).toBe('Internal error')
   })
 
   it('queries customer_accounts with correct filters', async () => {

@@ -331,6 +331,7 @@ export function ResultsPanel({ existing, target, results }: ResultsPanelProps) {
           <a
             href="/batch"
             target="_blank"
+            rel="noopener noreferrer"
             className="text-xs text-purple-400 hover:text-purple-300 border border-purple-700 hover:border-purple-500 rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5 font-medium"
           >
             <FileDown className="w-3.5 h-3.5" />

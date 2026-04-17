@@ -69,8 +69,7 @@ export async function POST(request: NextRequest) {
     })
     return NextResponse.json(result, { status: 200 })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    console.error('[POST /api/invoices/trigger]', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error('[POST /api/invoices/trigger]', err instanceof Error ? err.message : err)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

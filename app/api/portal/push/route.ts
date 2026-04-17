@@ -35,8 +35,22 @@ export async function POST(request: NextRequest) {
       { cookies: { getAll() { return request.cookies.getAll() }, setAll() {} } }
     )
     const { data: { user } } = await supabaseAuth.auth.getUser()
-    if (!user) {
+    if (!user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    // R1 audit fix (High): require the caller to be an active internal CRM
+    // user before sending pushes to customer devices. Without this gate, any
+    // authenticated Supabase session (incl. deactivated employees whose
+    // is_active flag flipped but whose session is still warm) could spam
+    // push notifications to any projectId they can guess.
+    const { data: userRow } = await supabaseAuth
+      .from('users')
+      .select('role, active')
+      .eq('email', user.email)
+      .single()
+    const row = userRow as { role: string | null; active: boolean | null } | null
+    if (!row || row.active === false || !row.role) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
   }
 
@@ -100,7 +114,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ sent: messages.length, result })
   } catch (err) {
     console.error('[push] send failed:', err instanceof Error ? err.message : err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'send failed' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
 
