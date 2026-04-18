@@ -111,7 +111,7 @@ export function CRMInfo() {
                 { label: 'Database',   value: 'Supabase (PostgreSQL)' },
                 { label: 'Hosting',    value: 'Vercel Hobby' },
                 { label: 'Auth',       value: 'Google OAuth (@gomicrogridenergy.com + 1 more)' },
-                { label: 'Repo',       value: 'github.com/microGRID26/microgrid-crm' },
+                { label: 'Repo',       value: 'github.com/microGRID26/MicroGRID' },
                 { label: 'Phase',      value: 'Phase 3 — Admin Portal' },
               ].map(r => (
                 <div key={r.label} className="flex flex-col gap-0.5">
