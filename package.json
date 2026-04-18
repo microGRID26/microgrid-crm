@@ -18,7 +18,7 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0",
+    "@anthropic-ai/sdk": "^0.90.0",
     "@react-pdf/renderer": "^4.4.1",
     "@sentry/nextjs": "^10.46.0",
     "@supabase/auth-helpers-nextjs": "^0.15.0",
