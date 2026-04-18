@@ -12,6 +12,8 @@ export default defineConfig({
     css: false,
     alias: {
       '@': path.resolve(__dirname, '.'),
+      // 'server-only' is a build-time guard; stub it out in the test environment
+      'server-only': path.resolve(__dirname, '__tests__/__mocks__/server-only.ts'),
     },
   },
 })

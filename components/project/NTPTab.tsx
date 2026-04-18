@@ -10,7 +10,7 @@ import {
 } from '@/lib/api/ntp'
 import type { NTPRequest, NTPStatus } from '@/lib/api/ntp'
 import { db } from '@/lib/db'
-import { sendToEdge } from '@/lib/api/edge-sync'
+import { sendEdgeEvent } from '@/lib/api/edge-events-client'
 import { ClipboardCheck, CheckCircle, XCircle, AlertTriangle, Clock, Eye, Send, RotateCcw } from 'lucide-react'
 
 interface NTPTabProps {
@@ -147,7 +147,7 @@ export function NTPTab({ project }: NTPTabProps) {
           changed_by: currentUser.name,
           changed_by_id: currentUser.id,
         })
-        void sendToEdge('project.updated', project.id, {
+        sendEdgeEvent('project.updated', project.id, {
           event_detail: 'ntp.approved',
           ntp_date: today,
         })
@@ -176,12 +176,12 @@ export function NTPTab({ project }: NTPTabProps) {
           status: 'Revision Required',
           reason: reviewReason,
         })
-        void sendToEdge('project.updated', project.id, {
+        sendEdgeEvent('project.updated', project.id, {
           event_detail: 'ntp.rejected',
           rejection_reason: reviewReason,
         })
       } else if (reviewAction === 'revision_required') {
-        void sendToEdge('project.updated', project.id, {
+        sendEdgeEvent('project.updated', project.id, {
           event_detail: 'ntp.revision_required',
           revision_notes: reviewReason,
         })

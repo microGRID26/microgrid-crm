@@ -15,7 +15,7 @@ import type { NTPRequest, NTPStatus } from '@/lib/api/ntp'
 import type { Project } from '@/types/database'
 import { loadProjectById, insertAuditLog, loadOrgNames } from '@/lib/api'
 import { db } from '@/lib/db'
-import { sendToEdge } from '@/lib/api/edge-sync'
+import { sendEdgeEvent } from '@/lib/api/edge-events-client'
 import { ClipboardCheck, CheckCircle, XCircle, AlertTriangle, Clock, Search, Plus, ChevronDown, ChevronUp, X, Eye, Download } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -194,12 +194,12 @@ function ReviewModal({
     if (result) {
       // Fire EDGE webhook
       if (action === 'rejected') {
-        void sendToEdge('project.updated', request.project_id, {
+        sendEdgeEvent('project.updated', request.project_id, {
           event_detail: 'ntp.rejected',
           rejection_reason: reason,
         })
       } else if (action === 'revision_required') {
-        void sendToEdge('project.updated', request.project_id, {
+        sendEdgeEvent('project.updated', request.project_id, {
           event_detail: 'ntp.revision_required',
           revision_notes: reason,
         })
@@ -455,7 +455,7 @@ export default function NTPPage() {
       })
 
       // Fire EDGE webhook
-      void sendToEdge('project.updated', request.project_id, {
+      sendEdgeEvent('project.updated', request.project_id, {
         event_detail: 'ntp.approved',
         ntp_date: today,
       })

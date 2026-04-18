@@ -7,6 +7,11 @@
 // header on their end by computing the same HMAC over the raw request body and
 // comparing in constant time. If EDGE does not verify signatures, any party with
 // the webhook URL can send forged events.
+//
+// SERVER-ONLY — EDGE_WEBHOOK_SECRET is not a NEXT_PUBLIC_ var; it's undefined in
+// the browser. Client components must use lib/api/edge-events-client.ts instead,
+// which proxies through /api/edge-events where this module runs on the server.
+import 'server-only'
 
 import { db } from '@/lib/db'
 

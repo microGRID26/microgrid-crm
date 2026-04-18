@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { db } from '@/lib/db'
-import { isEdgeConfigured, isEdgeSecretConfigured, getEdgeWebhookUrl, syncProjectToEdge } from '@/lib/api/edge-sync'
+import { syncEdgeProject } from '@/lib/api/edge-events-client'
 import { Input } from '@/components/admin/shared'
 
 interface SyncLogEntry {
@@ -17,14 +17,26 @@ interface SyncLogEntry {
 }
 
 export function EdgeIntegrationManager() {
-  const [configured] = useState(isEdgeConfigured())
-  const [secretConfigured] = useState(isEdgeSecretConfigured())
-  const [webhookUrl] = useState(getEdgeWebhookUrl())
+  const [configured, setConfigured] = useState(false)
+  const [secretConfigured, setSecretConfigured] = useState(false)
+  const [webhookUrl, setWebhookUrl] = useState('(loading...)')
   const [recentLogs, setRecentLogs] = useState<SyncLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [syncProjectId, setSyncProjectId] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
+
+  // Load EDGE config from server (secret stays server-side)
+  useEffect(() => {
+    fetch('/api/edge-events')
+      .then(r => r.json())
+      .then(({ configured, secretConfigured, webhookUrl }) => {
+        setConfigured(configured)
+        setSecretConfigured(secretConfigured)
+        setWebhookUrl(webhookUrl)
+      })
+      .catch(() => setWebhookUrl('(error)'))
+  }, [])
 
   // Load recent sync logs
   useEffect(() => {
@@ -45,7 +57,7 @@ export function EdgeIntegrationManager() {
     if (!syncProjectId.trim()) return
     setSyncing(true)
     setSyncResult(null)
-    const ok = await syncProjectToEdge(syncProjectId.trim())
+    const ok = await syncEdgeProject(syncProjectId.trim())
     setSyncResult(ok ? 'Sync sent successfully' : 'Sync failed — check logs')
     setSyncing(false)
     // Reload logs
