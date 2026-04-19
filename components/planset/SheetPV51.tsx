@@ -86,7 +86,7 @@ export function SheetPV51({ data }: { data: PlansetData }) {
         'WARNING: SOLAR PHOTOVOLTAIC SYSTEM CONNECTED',
         `SOLAR SYSTEM: ${data.systemDcKw.toFixed(2)} kW DC / ${data.systemAcKw} kW AC`,
         `BATTERY STORAGE: ${data.totalStorageKwh} kWh`,
-        `PV BACKFEED BREAKER: (${data.inverterCount}) 100A, 240V`,
+        `PV BACKFEED BREAKER: (${data.inverterCount}) ${data.backfeedBreakerA}A, 240V`,
         'CAUTION: DO NOT EXCEED BUS RATING WHEN ADDING BREAKERS',
         'SEE NEC 705.12 FOR 120% BUS BAR RATING RULE',
       ],

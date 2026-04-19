@@ -190,6 +190,7 @@ export interface PlansetData {
   inverterModel: string
   inverterCount: number
   inverterAcPower: number
+  backfeedBreakerA: number  // per-inverter NEC 705.12 backfeed breaker, rounded up to nearest 5A
   maxPvPower: number
   mpptsPerInverter: number
   stringsPerMppt: number
@@ -434,6 +435,7 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
     inverterModel: overrides.inverterModel ?? d.inverterModel,
     inverterCount,
     inverterAcPower,
+    backfeedBreakerA: Math.ceil((inverterAcPower * 1000 / 240) * 1.25 / 5) * 5,
     maxPvPower: overrides.maxPvPower ?? d.maxPvPower,
     mpptsPerInverter: overrides.mpptsPerInverter ?? d.mpptsPerInverter,
     stringsPerMppt: overrides.stringsPerMppt ?? d.stringsPerMppt,

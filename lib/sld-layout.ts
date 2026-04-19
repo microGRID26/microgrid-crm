@@ -53,6 +53,8 @@ export interface SldConfig {
   batteryWire?: string        // default: '(2) #4/0 AWG'
   batteryConduit?: string     // default: '2" EMT'
   pcsCurrentSetting?: number  // default: 200
+  acRunLengthFt?: number      // trenching distance from inverter to MSP/utility (default: 50)
+  backfeedBreakerA?: number   // per-inverter backfeed breaker amps, NEC 705.12 (default: 100)
 }
 
 // Text width estimation: ~0.58 * fontSize * charCount for Arial (padded to prevent overflow)
@@ -459,7 +461,7 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
     elements.push({ type: 'text', x: invCenterX + 8, y: acDiscY + 38, text: config.acConduit ?? '1-1/4" EMT TYPE CONDUIT', fontSize: 5, fill: '#444', italic: true })
 
     // Backfeed breaker
-    elements.push({ type: 'breaker', x: invCenterX, y: busY - 5, label: '(N) 100A BACKFEED', amps: 'BREAKER' })
+    elements.push({ type: 'breaker', x: invCenterX, y: busY - 5, label: `(N) ${config.backfeedBreakerA ?? 100}A BACKFEED`, amps: 'BREAKER' })
     // Callout ⑥ — Rapid Shutdown / Backfeed Breaker
     elements.push({ type: 'callout', cx: invCenterX + 22, cy: busY - 5, number: 6 })
   }
@@ -599,7 +601,7 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
   elements.push({ type: 'text', x: umCx + 55, y: busY + 17, text: config.utility.toUpperCase(), fontSize: 5, fill: '#999' })
   // Utility conduit routing annotation
   elements.push({ type: 'text', x: umCx + 55, y: busY + 28, text: '2-1/2" PVC TYPE CONDUIT', fontSize: 4.5, fill: '#444', italic: true })
-  elements.push({ type: 'text', x: umCx + 55, y: busY + 36, text: 'ROUGHLY 11 FEET (DIRT)', fontSize: 4.5, fill: '#444', italic: true })
+  elements.push({ type: 'text', x: umCx + 55, y: busY + 36, text: `ROUGHLY ${config.acRunLengthFt ?? 50} FEET (DIRT)`, fontSize: 4.5, fill: '#444', italic: true })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 44, text: 'TRENCHING FROM UTILITY POLE', fontSize: 4.5, fill: '#444', italic: true })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 52, text: 'TO HOME WALL', fontSize: 4.5, fill: '#444', italic: true })
 
@@ -747,15 +749,24 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
     const branchLabel = `BRANCH CIRCUIT ${inv + 1}`
 
     elements.push({ type: 'text', x: stringBlockX, y: branchY, text: branchLabel, fontSize: 5, bold: true })
-    elements.push({ type: 'text', x: stringBlockX, y: branchY + 9, text: `${stringsForInv.length} STRINGS x ${stringsForInv[0]?.modules ?? 0} MODULES`, fontSize: 4.5, fill: '#444' })
 
-    // Compact module drawing (small rectangles in a row)
-    const numDraw = Math.min(stringsForInv[0]?.modules ?? 0, 10)
+    // String count annotation — uniform vs mixed sizes
+    const moduleCounts = stringsForInv.map(s => s.modules)
+    const totalModules = moduleCounts.reduce((a, b) => a + b, 0)
+    const uniform = moduleCounts.length > 0 && moduleCounts.every(m => m === moduleCounts[0])
+    const stringDesc = uniform
+      ? `${stringsForInv.length} STRINGS x ${moduleCounts[0]} MODULES (${totalModules} TOTAL)`
+      : `${stringsForInv.length} STRINGS, ${totalModules} MODULES (${moduleCounts.join('+')})`
+    elements.push({ type: 'text', x: stringBlockX, y: branchY + 9, text: stringDesc, fontSize: 4.5, fill: '#444' })
+
+    // Compact module drawing (small rectangles) — base on largest string in this branch
+    const maxModules = moduleCounts.length > 0 ? Math.max(...moduleCounts) : 0
+    const numDraw = Math.min(maxModules, 10)
     for (let m = 0; m < numDraw; m++) {
       elements.push({ type: 'rect', x: stringBlockX + m * 8, y: branchY + 14, w: 7, h: 12, strokeWidth: 0.5 })
     }
-    if ((stringsForInv[0]?.modules ?? 0) > 10) {
-      elements.push({ type: 'text', x: stringBlockX + numDraw * 8 + 4, y: branchY + 22, text: `...${stringsForInv[0]?.modules}`, fontSize: 4, fill: '#666' })
+    if (maxModules > 10) {
+      elements.push({ type: 'text', x: stringBlockX + numDraw * 8 + 4, y: branchY + 22, text: `...${maxModules}`, fontSize: 4, fill: '#666' })
     }
 
     // String voltage/current
@@ -942,7 +953,7 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
   elements.push({ type: 'text', x: mspX + mspW / 2, y: mspY + 66, text: '(EXTERIOR MOUNTED)', fontSize: 4, anchor: 'middle', fill: '#999' })
 
   // Backfeed breaker inside MSP
-  elements.push({ type: 'breaker', x: mspX + mspW / 2, y: mspY + mspH - 30, label: '(N) 100A', amps: 'BACKFEED' })
+  elements.push({ type: 'breaker', x: mspX + mspW / 2, y: mspY + mspH - 30, label: `(N) ${config.backfeedBreakerA ?? 100}A`, amps: 'BACKFEED' })
   elements.push({ type: 'callout', cx: mspX + mspW / 2, cy: mspY - 12, number: 6 })
 
   // Main breaker below MSP
@@ -1033,7 +1044,7 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
   // Trenching detail (below utility chain)
   const trenchY = utilY + 50
   elements.push({ type: 'text', x: sdX, y: trenchY, text: '2-1/2" PVC TYPE CONDUIT', fontSize: 4, fill: '#444', italic: true })
-  elements.push({ type: 'text', x: sdX, y: trenchY + 8, text: 'ROUGHLY 11 FEET (DIRT/ROCK)', fontSize: 4, fill: '#444', italic: true })
+  elements.push({ type: 'text', x: sdX, y: trenchY + 8, text: `ROUGHLY ${config.acRunLengthFt ?? 50} FEET (DIRT/ROCK)`, fontSize: 4, fill: '#444', italic: true })
   elements.push({ type: 'text', x: sdX, y: trenchY + 16, text: 'TRENCHING FROM UTILITY POLE', fontSize: 4, fill: '#444', italic: true })
   elements.push({ type: 'text', x: sdX, y: trenchY + 24, text: 'TO HOME WALL', fontSize: 4, fill: '#444', italic: true })
 

@@ -76,6 +76,8 @@ export function SheetPV5({ data }: { data: PlansetData }) {
     batteryWire: data.batteryWire,
     batteryConduit: data.batteryConduit,
     pcsCurrentSetting: data.pcsCurrentSetting,
+    acRunLengthFt: data.acRunLengthFt,
+    backfeedBreakerA: data.backfeedBreakerA,
   }
 
   const layout = calculateSldLayout(config)
