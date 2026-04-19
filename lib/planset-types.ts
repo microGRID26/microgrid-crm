@@ -410,7 +410,9 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
     projectId: project.id,
     owner: project.name,
     address: project.address ?? '',
-    city: project.city ?? '',
+    // CRM city values sometimes include trailing state and/or zip ("Cypress, TX 77433" or "Cypress TX")
+    // Strip them so downstream `${city}, ${state} ${zip}` templates don't render duplicates.
+    city: (project.city ?? '').replace(/[,\s]+[A-Z]{2}(\s+\d{5}(-\d{4})?)?\s*$/i, '').trim(),
     state: 'TX',
     zip: project.zip ?? '',
     utility: project.utility ?? '',

@@ -62,7 +62,7 @@ export function SheetPV2({ data }: { data: PlansetData }) {
                 <tbody>
                   {([
                     ['PROJECT ADDRESS', data.address],
-                    ['', `${data.city.replace(/,?\s*[A-Z]{2}$/i, '').trim()}, ${data.state} ${data.zip}`],
+                    ['', `${data.city.replace(/[,\s]+[A-Z]{2}(\s+\d{5}(-\d{4})?)?\s*$/i, '').trim()}, ${data.state} ${data.zip}`.trim()],
                     ['OWNER', data.owner],
                     ['SYSTEM SIZE (DC)', `${data.systemDcKw.toFixed(2)} kWdc`],
                     ['SYSTEM SIZE (AC)', `${data.systemAcKw.toFixed(2)} kWac`],
