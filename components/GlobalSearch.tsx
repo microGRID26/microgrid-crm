@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { db } from '@/lib/db'
-import { escapeIlike, INACTIVE_DISPOSITION_FILTER } from '@/lib/utils'
+import { escapeIlike } from '@/lib/utils'
 import { Search, X } from 'lucide-react'
 
 export function GlobalSearch() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<{ id: string; name: string; city: string | null; stage: string }[]>([])
+  const [results, setResults] = useState<{ id: string; name: string; city: string | null; stage: string; disposition: string | null }[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -16,12 +16,14 @@ export function GlobalSearch() {
     let stale = false
     const timer = setTimeout(async () => {
       const escaped = escapeIlike(query)
+      // Search all projects regardless of disposition — Heidi needs to find Cancelled
+      // rows too (2026-04-19 Beggs incident). Disposition is surfaced in the result
+      // row so inactive rows are visually distinct.
       const { data } = await db().from('projects')
-        .select('id, name, city, stage')
+        .select('id, name, city, stage, disposition')
         .or(`name.ilike.%${escaped}%,id.ilike.%${escaped}%,city.ilike.%${escaped}%`)
-        .not('disposition', 'in', INACTIVE_DISPOSITION_FILTER)
         .limit(8)
-      if (!stale && data) setResults(data as { id: string; name: string; city: string | null; stage: string }[])
+      if (!stale && data) setResults(data as { id: string; name: string; city: string | null; stage: string; disposition: string | null }[])
     }, 200)
     return () => { stale = true; clearTimeout(timer) }
   }, [query])
@@ -71,16 +73,24 @@ export function GlobalSearch() {
       </div>
       {results.length > 0 && (
         <div className="absolute top-full left-0 mt-1 w-72 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[9999] max-h-64 overflow-y-auto">
-          {results.map(p => (
-            <a key={p.id} href={`/pipeline?open=${p.id}`}
-              className="flex items-center justify-between px-3 py-2 hover:bg-gray-700 transition-colors" onClick={() => setOpen(false)}>
-              <div>
-                <div className="text-xs font-medium text-white">{p.name}</div>
-                <div className="text-[10px] text-gray-400">{p.id} · {p.city ?? '—'}</div>
-              </div>
-              <span className="text-[9px] text-gray-500 capitalize">{p.stage}</span>
-            </a>
-          ))}
+          {results.map(p => {
+            const inactive = p.disposition === 'Cancelled' || p.disposition === 'In Service' || p.disposition === 'Loyalty' || p.disposition === 'Legal' || p.disposition === 'On Hold' || p.disposition === 'Test'
+            return (
+              <a key={p.id} href={`/pipeline?open=${p.id}`}
+                className="flex items-center justify-between px-3 py-2 hover:bg-gray-700 transition-colors" onClick={() => setOpen(false)}>
+                <div className="min-w-0">
+                  <div className={`text-xs font-medium truncate ${inactive ? 'text-gray-400' : 'text-white'}`}>{p.name}</div>
+                  <div className="text-[10px] text-gray-400 truncate">{p.id} · {p.city ?? '—'}</div>
+                </div>
+                <div className="flex flex-col items-end gap-0.5 flex-shrink-0 ml-2">
+                  {inactive && p.disposition && (
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded ${p.disposition === 'Cancelled' ? 'bg-red-900/40 text-red-300' : 'bg-gray-700 text-gray-300'}`}>{p.disposition}</span>
+                  )}
+                  <span className="text-[9px] text-gray-500 capitalize">{p.stage}</span>
+                </div>
+              </a>
+            )
+          })}
         </div>
       )}
     </div>
