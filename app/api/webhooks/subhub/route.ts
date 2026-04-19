@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import { TASKS } from '@/lib/tasks'
 import { syncProjectToEdge } from '@/lib/api/edge-sync'
+import { DEFAULT_ORG_ID } from '@/lib/hooks/useOrg'
 
 import { rateLimit } from '@/lib/rate-limit'
 
@@ -185,6 +186,7 @@ export async function POST(request: NextRequest) {
     // Map SubHub fields to MicroGRID project
     const project: Record<string, any> = {
       id: projectId,
+      org_id: DEFAULT_ORG_ID,
       subhub_id: payload.subhub_id ?? null,
       name: payload.name ?? (`${payload.first_name ?? ''} ${payload.last_name ?? ''}`.trim() || 'Unknown'),
       email: payload.email ?? null,

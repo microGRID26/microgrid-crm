@@ -8,10 +8,16 @@ export default function LoginPage() {
 
   async function signInWithGoogle() {
     setLoading(true)
+    // Preserve deep-link target: proxy.ts sets ?redirect=<pathname> when it bounces
+    // an unauthed request to /login. Pass it through to the callback as ?next so
+    // the user lands on the original page instead of /command.
+    const redirect = new URLSearchParams(location.search).get('redirect')
+    const callback = new URL(`${location.origin}/auth/callback`)
+    if (redirect) callback.searchParams.set('next', redirect)
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${location.origin}/auth/callback`,
+        redirectTo: callback.toString(),
       },
     })
   }

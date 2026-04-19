@@ -37,5 +37,15 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/command`)
+  // Honor ?next for deep-link return. Reject anything that could escape the
+  // origin (open-redirect protection): must start with "/", must not start
+  // with "//" or "/\", no backslashes, no scheme.
+  const next = searchParams.get('next')
+  const safe =
+    next &&
+    next.startsWith('/') &&
+    !next.startsWith('//') &&
+    !next.startsWith('/\\') &&
+    !next.includes('\\')
+  return NextResponse.redirect(`${origin}${safe ? next : '/command'}`)
 }

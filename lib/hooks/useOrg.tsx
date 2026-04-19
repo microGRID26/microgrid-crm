@@ -37,7 +37,10 @@ const OrgContext = createContext<OrgContextValue>({
 })
 
 // ── Default org ID (MicroGRID Energy) ────────────────────────────────────────
-const DEFAULT_ORG_ID = 'a0000000-0000-0000-0000-000000000001'
+// Exported so project-insert paths (SubHub webhook, NewProjectModal) can
+// stamp new rows with the correct tenant. Orphan org_id rows are invisible
+// in the CRM — see 2026-04-19 incident where 639 rows went missing.
+export const DEFAULT_ORG_ID = 'a0000000-0000-0000-0000-000000000001'
 const STORAGE_KEY = 'mg_org_id'
 
 // ── Provider ─────────────────────────────────────────────────────────────────

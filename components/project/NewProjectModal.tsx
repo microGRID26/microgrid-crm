@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { db } from '@/lib/db'
 import { escapeIlike } from '@/lib/utils'
 import { handleApiError } from '@/lib/errors'
+import { DEFAULT_ORG_ID } from '@/lib/hooks/useOrg'
 
 interface Props {
   onClose: () => void
@@ -183,6 +184,7 @@ export function NewProjectModal({ onClose, onCreated, existingIds, pms }: Props)
 
     const project = {
       id,
+      org_id: DEFAULT_ORG_ID,
       name: form.name.trim(),
       address: form.address.trim(),
       city: form.city.trim() || null,
