@@ -351,6 +351,15 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
   const batteryCapacity = overrides.batteryCapacity ?? d.batteryCapacity
   const panelVoc = overrides.panelVoc ?? d.panelVoc
   const mspBusRating = String(project.msp_bus_rating ?? '200').replace(/\s*A$/i, '').trim()
+  const mainBreakerNum = String(project.main_breaker ?? mspBusRating).replace(/\s*A$/i, '').trim()
+
+  // NEC 240.6(A) standard OCPD sizes — breakers above 30A skip values like 45/55/65/75/85/95
+  const NEC_STD_BREAKERS = [15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 90, 100, 110, 125, 150, 175, 200, 225, 250, 300, 350, 400]
+  const clampToNecBreaker = (amps: number): number => {
+    if (!Number.isFinite(amps) || amps <= 0) return 15
+    for (const sz of NEC_STD_BREAKERS) { if (sz >= amps) return sz }
+    return NEC_STD_BREAKERS[NEC_STD_BREAKERS.length - 1]
+  }
 
   const systemDcKw = (panelCount * panelWattage) / 1000
   const systemAcKw = inverterCount * inverterAcPower
@@ -411,9 +420,13 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
     projectId: project.id,
     owner: project.name,
     address: project.address ?? '',
-    // CRM city values sometimes include trailing state and/or zip ("Cypress, TX 77433" or "Cypress TX")
+    // CRM city values sometimes include trailing state and/or zip ("Cypress, TX 77433", "Cypress TX", "CYPRESS, TEXAS")
     // Strip them so downstream `${city}, ${state} ${zip}` templates don't render duplicates.
-    city: (project.city ?? '').replace(/[,\s]+[A-Z]{2}\s*\d{5}(-\d{4})?\s*$/i, '').replace(/[,\s]+[A-Z]{2}\s*$/i, '').trim(),
+    city: (project.city ?? '')
+      .replace(/[,\s]+(TX|TEXAS)\s*\d{5}(-\d{4})?\s*$/i, '')
+      .replace(/[,\s]+(TX|TEXAS)\s*$/i, '')
+      .replace(/[,\s]+$/, '')
+      .trim(),
     state: 'TX',
     zip: project.zip ?? '',
     utility: project.utility ?? '',
@@ -430,7 +443,7 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
     ahj: project.ahj ?? '',
     voltage: project.voltage ?? '120/240V',
     mspBusRating: mspBusRating,
-    mainBreaker: project.main_breaker ?? `${mspBusRating}A`,
+    mainBreaker: `${mainBreakerNum}A`,
 
     panelModel: overrides.panelModel ?? d.panelModel,
     panelWattage,
@@ -447,7 +460,7 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
     inverterModel: overrides.inverterModel ?? d.inverterModel,
     inverterCount,
     inverterAcPower,
-    backfeedBreakerA: Math.ceil((inverterAcPower * 1000 / 240) * 1.25 / 5) * 5,
+    backfeedBreakerA: clampToNecBreaker((inverterAcPower * 1000 / 240) * 1.25),
     maxPvPower: overrides.maxPvPower ?? d.maxPvPower,
     mpptsPerInverter: overrides.mpptsPerInverter ?? d.mpptsPerInverter,
     stringsPerMppt: overrides.stringsPerMppt ?? d.stringsPerMppt,

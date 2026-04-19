@@ -7,21 +7,21 @@ import { TitleBlockHtml } from './TitleBlockHtml'
  * Up to 4 uploaded photos with equipment callout labels.
  */
 
-const EQUIPMENT_LABELS: string[][] = [
-  // Exterior Wall 1
-  ['(N) PV LOAD CENTER', '(N) PV DISCONNECT\nVISIBLE LOCKABLE\nLABELED DISCONNECT', '(E) ONCOR METER\nESID NUMBER'],
-  // Exterior Wall 2
-  ['(N) SERVICE DISCONNECT\nVISIBLE LOCKABLE\nLABELED DISCONNECT\nWITHIN 10 FEET FROM\nTHE ONCOR METER', '(N) IMO RAPID\nSHUTDOWN DEVICE'],
-  // Interior Wall
-  ['(E) MAIN SERVICE PANEL', '(E) SUB PANEL'],
-  // Equipment Detail
-  ['(N) MAX HYBRID 5 INVERTER', '(N) BATTERY COMBINER', '(N) DURACELL BATTERIES'],
-]
-
 const PHOTO_TITLES = ['EXTERIOR ELECTRICAL WALL', 'EXTERIOR ELECTRICAL WALL', 'INTERIOR ELECTRICAL WALL', 'EQUIPMENT DETAIL']
 
 export function SheetPV31({ data, equipmentPhotos }: { data: PlansetData; equipmentPhotos: (string | null)[] }) {
   const hasAnyPhoto = equipmentPhotos.some(p => p !== null)
+  const utilityLabel = data.utility?.toUpperCase() || 'UTILITY'
+  const EQUIPMENT_LABELS: string[][] = [
+    // Exterior Wall 1
+    ['(N) PV LOAD CENTER', '(N) PV DISCONNECT\nVISIBLE LOCKABLE\nLABELED DISCONNECT', `(E) ${utilityLabel} METER\nESID NUMBER`],
+    // Exterior Wall 2
+    [`(N) SERVICE DISCONNECT\nVISIBLE LOCKABLE\nLABELED DISCONNECT\nWITHIN 10 FEET FROM\nTHE ${utilityLabel} METER`, '(N) IMO RAPID\nSHUTDOWN DEVICE'],
+    // Interior Wall
+    ['(E) MAIN SERVICE PANEL', '(E) SUB PANEL'],
+    // Equipment Detail
+    ['(N) MAX HYBRID 5 INVERTER', '(N) BATTERY COMBINER', '(N) DURACELL BATTERIES'],
+  ]
 
   return (
     <div className="sheet" style={{

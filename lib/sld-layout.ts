@@ -560,7 +560,7 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
 
   // Wire to RGM
   elements.push({ type: 'line', x1: gdX + 100, y1: busY, x2: gdX + 125, y2: busY, strokeWidth: 1.5 })
-  elements.push({ type: 'text', x: gdX + 105, y: busY + 12, text: '(3) #20 AWG CU THWN-2', fontSize: 4, fill: '#444', italic: true })
+  elements.push({ type: 'text', x: gdX + 105, y: busY + 12, text: '(3) 250 kcmil CU THWN-2', fontSize: 4, fill: '#444', italic: true })
 
   // Revenue Grade Meter
   const rgmX = gdX + 125
@@ -572,7 +572,7 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
 
   // Wire to utility meter
   elements.push({ type: 'line', x1: rgmX + 70, y1: busY, x2: rgmX + 95, y2: busY, strokeWidth: 1.5 })
-  elements.push({ type: 'text', x: rgmX + 72, y: busY + 12, text: '(3) #20 AWG CU THWN-2', fontSize: 4, fill: '#444', italic: true })
+  elements.push({ type: 'text', x: rgmX + 72, y: busY + 12, text: '(3) 250 kcmil CU THWN-2', fontSize: 4, fill: '#444', italic: true })
 
   // Utility meter circle
   const umCx = rgmX + 120
@@ -988,7 +988,7 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
   const utilY = mspY + mspH / 2
   elements.push({ type: 'line', x1: mspX + mspW, y1: utilY, x2: mspX + mspW + 25, y2: utilY, strokeWidth: 1.5 })
   // Wire spec MSP → Service Disconnect
-  elements.push({ type: 'text', x: mspX + mspW + 3, y: utilY - 8, text: '(3) #20 AWG CU THWN-2', fontSize: 3, fill: '#444', italic: true })
+  elements.push({ type: 'text', x: mspX + mspW + 3, y: utilY - 8, text: '(3) 250 kcmil CU THWN-2', fontSize: 3, fill: '#444', italic: true })
 
   // Service Disconnect
   const sdX = mspX + mspW + 25

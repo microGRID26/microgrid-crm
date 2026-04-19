@@ -29,7 +29,7 @@ export function UtilityBatteryLetter({ data }: { data: PlansetData }) {
       </p>
 
       <p style={{ marginBottom: '16pt' }}>
-        TRISMART SOLAR IS INSTALLING A{' '}
+        MICROGRID ENERGY IS INSTALLING A{' '}
         <strong>({data.batteryCount}) {data.batteryModel.toUpperCase()}{' '}
         ({data.batteryCapacity}.000kWh)</strong>{' '}
         BATTERY FOR{' '}

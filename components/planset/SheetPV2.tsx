@@ -184,14 +184,14 @@ export function SheetPV2({ data }: { data: PlansetData }) {
               <div style={{ background: '#111', color: 'white', padding: '4px 6px', fontSize: '8pt', fontWeight: 'bold', textAlign: 'center' }}>ELECTRICAL INFORMATION</div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '7pt' }}>
                 <tbody>
-                  {([
+                  {(([
                     ['VOLTAGE', data.voltage],
                     ['MSP BUS RATING', `${data.mspBusRating}A`],
                     ['MAIN BREAKER', data.mainBreaker],
-                    ['METER #', data.meter],
-                    ['ESID', data.esid],
-                    ['INTERCONNECTION TYPE', 'UTILITY INTERCONNECTION'],
-                  ] as [string, string][]).map(([label, value], i) => (
+                    data.meter ? ['METER #', data.meter] : null,
+                    data.esid ? ['ESID', data.esid] : null,
+                    ['INTERCONNECTION TYPE', 'LOAD-SIDE BACKFEED, NEC 705.12(B)(2)'],
+                  ] as ([string, string] | null)[]).filter((r): r is [string, string] => r !== null)).map(([label, value], i) => (
                     <tr key={i} style={{ background: i % 2 === 0 ? '#f9f9f9' : 'white' }}>
                       <td style={{ fontWeight: 'bold', color: '#999', padding: '3px 4px', width: '45%' }}>{label}</td>
                       <td style={{ padding: '3px 4px', color: '#111' }}>{value}</td>
