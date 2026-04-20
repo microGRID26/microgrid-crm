@@ -23,16 +23,21 @@ export function CreateInvoiceModal({
   orgId,
   userId,
   userName,
+  prefilledProject,
 }: {
   onClose: () => void
   onCreated: () => void
   orgId: string
   userId: string
   userName: string
+  /** When provided, the project field is pre-filled and locked (no clear/X).
+   *  Used by the per-project InvoicesTab so the invoice is automatically
+   *  scoped to the project the user is already inside. */
+  prefilledProject?: { id: string; name: string }
 }) {
   const [projectSearch, setProjectSearch] = useState('')
   const [searchResults, setSearchResults] = useState<{ id: string; name: string; stage: string }[]>([])
-  const [selectedProject, setSelectedProject] = useState<{ id: string; name: string } | null>(null)
+  const [selectedProject, setSelectedProject] = useState<{ id: string; name: string } | null>(prefilledProject ?? null)
   const [toOrg, setToOrg] = useState('')
   const [availableOrgs, setAvailableOrgs] = useState<{ id: string; name: string }[]>([])
   const [dueDate, setDueDate] = useState('')
@@ -162,13 +167,17 @@ export function CreateInvoiceModal({
           <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
         <div className="px-5 py-4 space-y-4">
-          {/* Project search (optional) */}
+          {/* Project search (optional, or locked when prefilledProject is set) */}
           <div>
-            <label className="text-xs text-gray-400 block mb-1">Project (optional)</label>
+            <label className="text-xs text-gray-400 block mb-1">
+              Project {prefilledProject ? '(locked to this project)' : '(optional)'}
+            </label>
             {selectedProject ? (
               <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2">
                 <span className="text-white text-sm">{selectedProject.id} — {selectedProject.name}</span>
-                <button onClick={() => { setSelectedProject(null); setProjectSearch('') }} className="text-gray-400 hover:text-white ml-auto"><X className="w-4 h-4" /></button>
+                {!prefilledProject && (
+                  <button onClick={() => { setSelectedProject(null); setProjectSearch('') }} className="text-gray-400 hover:text-white ml-auto" aria-label="Clear selected project"><X className="w-4 h-4" /></button>
+                )}
               </div>
             ) : (
               <div className="relative">

@@ -8,7 +8,7 @@
 // invoicing state without leaving the project panel.
 
 import { useCallback, useEffect, useState } from 'react'
-import { FileText, AlertCircle } from 'lucide-react'
+import { FileText, AlertCircle, Plus } from 'lucide-react'
 
 import {
   loadProjectInvoices,
@@ -19,6 +19,9 @@ import {
 } from '@/lib/api/invoices'
 import type { Invoice, InvoiceStatus } from '@/lib/api/invoices'
 import type { Project } from '@/types/database'
+import { useCurrentUser } from '@/lib/useCurrentUser'
+import { useOrg } from '@/lib/hooks'
+import { CreateInvoiceModal } from '@/components/invoices'
 
 interface InvoicesTabProps {
   project: Project
@@ -74,6 +77,10 @@ export function InvoicesTab({ project }: InvoicesTabProps) {
   const [orgMap, setOrgMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const { user: currentUser } = useCurrentUser()
+  const { orgId } = useOrg()
+  const canCreate = !!currentUser && (currentUser.isAdmin || currentUser.isFinance)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -112,47 +119,77 @@ export function InvoicesTab({ project }: InvoicesTabProps) {
 
   const { milestone, chain, other } = partitionInvoices(invoices)
 
+  const createButton = canCreate && orgId ? (
+    <button
+      onClick={() => setShowCreateModal(true)}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-600 hover:bg-green-700 text-white rounded-md"
+    >
+      <Plus size={12} /> Create Invoice
+    </button>
+  ) : null
+
+  const modal = showCreateModal && orgId && currentUser ? (
+    <CreateInvoiceModal
+      onClose={() => setShowCreateModal(false)}
+      onCreated={() => { void load() }}
+      orgId={orgId}
+      userId={currentUser.id}
+      userName={currentUser.name}
+      prefilledProject={{ id: project.id, name: project.name }}
+    />
+  ) : null
+
   if (invoices.length === 0) {
     return (
-      <div className="p-8 text-center text-sm text-gray-400">
-        <FileText size={24} className="mx-auto mb-2 text-gray-600" />
-        <div className="mb-1 text-gray-300">No invoices generated yet for this project.</div>
-        <div className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
-          Milestone invoices (<span className="font-mono">INV-</span>) fire automatically at NTP, Install, and PTO.
-          Chain invoices (<span className="font-mono">CHN-</span>) generate on demand via the chain orchestrator
-          (DSE Corp → NewCo → EPC → EDGE, plus Rush and MG Sales).
+      <>
+        <div className="p-8 text-center text-sm text-gray-400">
+          <FileText size={24} className="mx-auto mb-2 text-gray-600" />
+          <div className="mb-1 text-gray-300">No invoices generated yet for this project.</div>
+          <div className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed mb-4">
+            Milestone invoices (<span className="font-mono">INV-</span>) fire automatically at NTP, Install, and PTO.
+            Chain invoices (<span className="font-mono">CHN-</span>) generate on demand via the chain orchestrator
+            (DSE Corp → NewCo → EPC → EDGE, plus Rush and MG Sales).
+          </div>
+          {createButton}
         </div>
-      </div>
+        {modal}
+      </>
     )
   }
 
   return (
-    <div className="p-5 space-y-6">
-      {milestone.length > 0 && (
-        <InvoiceGroup
-          title="Milestone Invoices"
-          subtitle="Customer-facing — automatic on NTP / Install / PTO"
-          invoices={milestone}
-          orgMap={orgMap}
-        />
-      )}
-      {chain.length > 0 && (
-        <InvoiceGroup
-          title="Chain Invoices"
-          subtitle="Tax-substantiation chain — DSE Corp → NewCo → EPC → EDGE (plus Rush + MG Sales)"
-          invoices={chain}
-          orgMap={orgMap}
-        />
-      )}
-      {other.length > 0 && (
-        <InvoiceGroup
-          title="Other"
-          subtitle="Manually created or non-standard invoices"
-          invoices={other}
-          orgMap={orgMap}
-        />
-      )}
-    </div>
+    <>
+      <div className="p-5 space-y-6">
+        {createButton && (
+          <div className="flex justify-end">{createButton}</div>
+        )}
+        {milestone.length > 0 && (
+          <InvoiceGroup
+            title="Milestone Invoices"
+            subtitle="Customer-facing — automatic on NTP / Install / PTO"
+            invoices={milestone}
+            orgMap={orgMap}
+          />
+        )}
+        {chain.length > 0 && (
+          <InvoiceGroup
+            title="Chain Invoices"
+            subtitle="Tax-substantiation chain — DSE Corp → NewCo → EPC → EDGE (plus Rush + MG Sales)"
+            invoices={chain}
+            orgMap={orgMap}
+          />
+        )}
+        {other.length > 0 && (
+          <InvoiceGroup
+            title="Other"
+            subtitle="Manually created or non-standard invoices"
+            invoices={other}
+            orgMap={orgMap}
+          />
+        )}
+      </div>
+      {modal}
+    </>
   )
 }
 
