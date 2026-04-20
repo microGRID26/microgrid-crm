@@ -109,25 +109,49 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 })
   }
 
-  // Verify webhook secret if configured
+  // Verify webhook secret if configured.
+  //
+  // Two HMAC header formats are accepted for backward compatibility:
+  //   1. `X-MicroGRID-Signature: sha256=<hex>`  — SPARK's SparkSign → MG
+  //       webhook sender (see SPARK src/lib/microgrid-webhook.ts). Matches
+  //       the GitHub/Stripe convention of an algorithm prefix on the value.
+  //   2. `x-webhook-signature: <hex>`           — legacy header name used by
+  //       earlier senders and the EDGE ↔ MG webhook path.
+  //
+  // Either header → HMAC-SHA256(bodyText, SUBHUB_WEBHOOK_SECRET). If neither
+  // HMAC header is present, fall back to a bearer-token comparison for
+  // back-compat during HMAC rollout — older senders (manual curl tests,
+  // legacy integrations) still authenticate by presenting the raw secret.
   if (WEBHOOK_SECRET) {
-    const authHeader = request.headers.get('authorization') ?? request.headers.get('x-webhook-secret') ?? ''
-    const candidate = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
+    const microgridHeader = request.headers.get('x-microgrid-signature') ?? ''
+    const legacyHeader = request.headers.get('x-webhook-signature') ?? ''
+    // Strip the `sha256=` prefix if present so both formats reduce to a
+    // bare hex digest we can compare byte-for-byte.
+    const microgridHex = microgridHeader.startsWith('sha256=')
+      ? microgridHeader.slice('sha256='.length)
+      : microgridHeader
+    const hmacCandidate = microgridHex || legacyHeader
 
-    // Try HMAC body signature first (preferred), fall back to bearer token comparison
-    const hmacSignature = request.headers.get('x-webhook-signature') ?? ''
     let secretMatch = false
 
-    if (hmacSignature) {
-      // HMAC-SHA256 body verification (same pattern as EDGE webhook)
+    if (hmacCandidate) {
       try {
         const expected = crypto.createHmac('sha256', WEBHOOK_SECRET).update(bodyText).digest('hex')
-        secretMatch = crypto.timingSafeEqual(Buffer.from(hmacSignature), Buffer.from(expected))
+        const got = Buffer.from(hmacCandidate)
+        const exp = Buffer.from(expected)
+        // timingSafeEqual requires equal length — early-return false on
+        // length mismatch so malformed headers can't crash the route.
+        secretMatch = got.length === exp.length && crypto.timingSafeEqual(got, exp)
       } catch { secretMatch = false }
     } else {
-      // Fallback: timing-safe bearer token comparison (backwards compatible)
+      // Bearer / raw-secret fallback. Timing-safe comparison so an attacker
+      // can't discover the secret one byte at a time.
+      const authHeader = request.headers.get('authorization') ?? request.headers.get('x-webhook-secret') ?? ''
+      const candidate = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
       try {
-        secretMatch = crypto.timingSafeEqual(Buffer.from(candidate), Buffer.from(WEBHOOK_SECRET))
+        const a = Buffer.from(candidate)
+        const b = Buffer.from(WEBHOOK_SECRET)
+        secretMatch = a.length === b.length && crypto.timingSafeEqual(a, b)
       } catch { secretMatch = false }
     }
 

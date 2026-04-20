@@ -436,3 +436,111 @@ describe('POST /api/webhooks/subhub — error handling', () => {
     expect(json.error).toBe('Internal server error')
   })
 })
+
+// ── HMAC header compatibility (greg_actions #131) ──────────────────────────
+//
+// SPARK signs outbound SparkSign → MG webhooks with
+// `X-MicroGRID-Signature: sha256=<hex>`. Older senders used
+// `x-webhook-signature: <hex>` (no prefix). Both must authenticate, plus
+// the legacy bearer-token path for any caller that hasn't been upgraded.
+
+describe('POST /api/webhooks/subhub — HMAC header compatibility', () => {
+  // Match the file-level helper makeRequest but with a real body so the
+  // HMAC over the body text is deterministic.
+  function signedRequest(body: object, headerName: string, withPrefix: boolean) {
+    const bodyText = JSON.stringify(body)
+    const { createHmac } = require('node:crypto') as typeof import('node:crypto')
+    const hex = createHmac('sha256', 'webhook-secret-123').update(bodyText).digest('hex')
+    const value = withPrefix ? `sha256=${hex}` : hex
+    return new Request('https://localhost/api/webhooks/subhub', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', [headerName]: value },
+      body: bodyText,
+    })
+  }
+
+  function dbForProjectCreate() {
+    let callCount = 0
+    mockDb.from.mockImplementation(() => {
+      callCount++
+      if (callCount === 1) return mockChain({ data: [], error: null })  // dup check
+      if (callCount === 2) return mockChain({ data: [{ id: 'PROJ-30100' }], error: null })  // next id
+      return mockChain({ data: null, error: null })
+    })
+  }
+
+  it('accepts X-MicroGRID-Signature with sha256= prefix (SPARK format)', async () => {
+    dbForProjectCreate()
+    const req = signedRequest({ name: 'SparkSign Customer', street: '1 SparkSign Way' }, 'X-MicroGRID-Signature', true)
+    const { POST } = await import('@/app/api/webhooks/subhub/route')
+    const res = await POST(req as any)
+    expect(res.status).not.toBe(401)
+  })
+
+  it('accepts X-MicroGRID-Signature without sha256= prefix (tolerant parsing)', async () => {
+    dbForProjectCreate()
+    const req = signedRequest({ name: 'SparkSign Customer', street: '1 SparkSign Way' }, 'X-MicroGRID-Signature', false)
+    const { POST } = await import('@/app/api/webhooks/subhub/route')
+    const res = await POST(req as any)
+    expect(res.status).not.toBe(401)
+  })
+
+  it('still accepts legacy x-webhook-signature header (no prefix)', async () => {
+    dbForProjectCreate()
+    const req = signedRequest({ name: 'Legacy Customer', street: '1 Legacy Ln' }, 'x-webhook-signature', false)
+    const { POST } = await import('@/app/api/webhooks/subhub/route')
+    const res = await POST(req as any)
+    expect(res.status).not.toBe(401)
+  })
+
+  it('rejects X-MicroGRID-Signature with wrong HMAC', async () => {
+    const bodyText = JSON.stringify({ name: 'Spoof', street: '1 Spoof St' })
+    const req = new Request('https://localhost/api/webhooks/subhub', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-MicroGRID-Signature': `sha256=${'0'.repeat(64)}` },
+      body: bodyText,
+    })
+    const { POST } = await import('@/app/api/webhooks/subhub/route')
+    const res = await POST(req as any)
+    expect(res.status).toBe(401)
+  })
+
+  it('rejects X-MicroGRID-Signature whose HMAC is a different length (malformed) without crashing', async () => {
+    const bodyText = JSON.stringify({ name: 'Malformed', street: '1 Malformed St' })
+    const req = new Request('https://localhost/api/webhooks/subhub', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-MicroGRID-Signature': 'sha256=deadbeef' },
+      body: bodyText,
+    })
+    const { POST } = await import('@/app/api/webhooks/subhub/route')
+    const res = await POST(req as any)
+    expect(res.status).toBe(401)
+  })
+
+  it('rejects X-MicroGRID-Signature computed against a body that was tampered after signing', async () => {
+    const signedBody = { name: 'Honest Customer', street: '1 Honest Ln', contract_amount: 10000 }
+    const { createHmac } = require('node:crypto') as typeof import('node:crypto')
+    const hex = createHmac('sha256', 'webhook-secret-123').update(JSON.stringify(signedBody)).digest('hex')
+    // Attacker flips the contract amount after the HMAC was computed.
+    const tamperedBody = { ...signedBody, contract_amount: 99999999 }
+    const req = new Request('https://localhost/api/webhooks/subhub', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-MicroGRID-Signature': `sha256=${hex}` },
+      body: JSON.stringify(tamperedBody),
+    })
+    const { POST } = await import('@/app/api/webhooks/subhub/route')
+    const res = await POST(req as any)
+    expect(res.status).toBe(401)
+  })
+
+  it('bearer-token path still works when no HMAC header is present (rollout compat)', async () => {
+    dbForProjectCreate()
+    const req = makeRequest(
+      { name: 'Bearer Customer', street: '1 Bearer Ln' },
+      { Authorization: 'Bearer webhook-secret-123' },
+    )
+    const { POST } = await import('@/app/api/webhooks/subhub/route')
+    const res = await POST(req as any)
+    expect(res.status).not.toBe(401)
+  })
+})
