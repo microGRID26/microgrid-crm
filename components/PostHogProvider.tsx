@@ -38,6 +38,11 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       },
       loaded: (ph) => {
         if (process.env.NODE_ENV === 'development') ph.debug(false)
+        // Fire the first pageview once the script is truly loaded. On hard
+        // page load the PageviewTracker effect may run before __loaded is
+        // true and no-op; this closes that gap without double-capturing
+        // on subsequent soft navigations (pathname won't change).
+        ph.capture('$pageview')
       },
     })
   }, [])
