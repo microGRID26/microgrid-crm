@@ -339,8 +339,10 @@ function handlePrintAll(data: PlansetData) {
     return
   }
 
-  // Extract only the .sheet elements (skip CRM chrome wrappers)
-  const sheetElements = sheetsContainer.querySelectorAll('.sheet')
+  // Extract .sheet + .utility-letter (UtilityBatteryLetter uses its own class; skip CRM chrome)
+  const sheetElements = sheetsContainer.querySelectorAll('.sheet, .utility-letter')
+  console.log('[planset print] extracted', sheetElements.length, 'sheets:',
+    Array.from(sheetElements).map(el => el.className.split(' ')[0]))
   let sheetsHtml = ''
   sheetElements.forEach(el => {
     sheetsHtml += el.outerHTML

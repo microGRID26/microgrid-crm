@@ -93,8 +93,12 @@ export async function updateProject(projectId: string, updates: Record<string, a
 /** Load a single project by ID — returns all columns for project detail panel */
 export async function loadProjectById(projectId: string): Promise<Project | null> {
   const supabase = createClient()
+  // Normalize bare-digit inputs like "30219" → "PROJ-30219" so URL deep-links accept
+  // either form (some upstream nav trims the prefix). Canonical DB key is "PROJ-<n>".
+  const trimmed = projectId.trim()
+  const normalized = /^\d+$/.test(trimmed) ? `PROJ-${trimmed}` : trimmed
   // select('*') intentional: single-record fetch for detail view uses all 50+ Project columns
-  const { data, error } = await supabase.from('projects').select('*').eq('id', projectId).single()
+  const { data, error } = await supabase.from('projects').select('*').eq('id', normalized).single()
   if (error) console.error('project load by id failed:', error)
   return (data as Project | null) ?? null
 }
