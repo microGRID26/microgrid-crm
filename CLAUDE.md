@@ -182,6 +182,11 @@ Email domain whitelist: `@gomicrogridenergy.com`, `@energydevelopmentgroup.com`,
 ### Security Headers
 `next.config.ts`: X-Frame-Options DENY, nosniff, HSTS, XSS protection, Content-Security-Policy. Webhook secrets use timing-safe comparison. Role cookie HMAC-signed to prevent forgery.
 
+### Grant parity — `public.auth_*` helper family (CRITICAL)
+Every function in `public` whose name starts with `auth_` MUST have `GRANT EXECUTE` to all three of `anon`, `authenticated`, and `public`. 155+ RLS policies across ~70 tables reference these helpers across role boundaries — a single missing grant on one helper silently denies reads CRM-wide. That happened on 2026-04-24 (`auth_is_internal_writer` lost its anon grant via commit `4519127`; cost-basis + files tabs broke with "Failed to load" / empty state; fixed in migration 151).
+
+Enforcement: `scripts/check-auth-grant-parity.py` calls the `atlas_check_auth_grants()` RPC (migration 156) and asserts parity. Wired to `.git/hooks/pre-commit` — fires whenever a commit touches `supabase/migrations/`. When writing a migration that touches an auth_* helper, always include explicit `GRANT EXECUTE ON FUNCTION public.auth_<name>(...) TO anon, authenticated, public;` — don't rely on preserved grants through `CREATE OR REPLACE`.
+
 ## Supabase Configuration
 - `pgrst.db_max_rows` = 50000
 - All project queries use `.limit(2000)`, task_state `.limit(50000)`
