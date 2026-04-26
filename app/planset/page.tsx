@@ -10,9 +10,10 @@ import { buildPlansetData, DURACELL_DEFAULTS } from '@/lib/planset-types'
 import { autoDistributeStrings } from '@/lib/planset-calcs'
 import { SheetPV1, SheetPV2, SheetPV3, SheetPV31, SheetPV4, SheetPV41, SheetPV5, SheetPV51, SheetPV6, SheetPV7, SheetPV71, SheetPV8, UtilityBatteryLetter } from '@/components/planset'
 import type { PlansetData, PlansetOverrides, PlansetString, PlansetRoofFace } from '@/lib/planset-types'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Maximize2, X } from 'lucide-react'
 import { ProjectSelector } from './components/ProjectSelector'
 import { OverridesPanel } from './components/OverridesPanel'
+import { ZoomToolbar } from './components/ZoomToolbar'
 
 // ── PRINT CSS ───────────────────────────────────────────────────────────────
 
@@ -582,7 +583,10 @@ function PlanSetPageInner() {
   }
 
   // Screen-mode scale for 11x17 sheets to fit in a browser window
-  const screenScale = 0.55
+  const [screenScale, setScreenScale] = useState(0.55)
+  const [fullscreenSheetId, setFullscreenSheetId] = useState<string | null>(null)
+  const ZOOM_MIN = 0.25
+  const ZOOM_MAX = 2.0
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -632,6 +636,12 @@ function PlanSetPageInner() {
                   className="px-4 py-2 text-sm rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
                   Back to Redesign
                 </a>
+                <ZoomToolbar
+                  scale={screenScale}
+                  onScaleChange={setScreenScale}
+                  min={ZOOM_MIN}
+                  max={ZOOM_MAX}
+                />
                 <button
                   onClick={() => handlePrintAll(data)}
                   className="px-5 py-2 text-sm font-medium rounded-md bg-green-600 hover:bg-green-500 text-white transition-colors">
@@ -669,8 +679,8 @@ function PlanSetPageInner() {
             />
 
             {/* Sheets — rendered at print size, scaled down for screen */}
-            <div id="planset-sheets" className="space-y-8">
-              {[
+            {(() => {
+              const sheetList = [
                 ...(enhanced ? [{ id: 'UTIL', label: 'Utility Battery Letter', component: <UtilityBatteryLetter data={data} />, portrait: true }] : []),
                 { id: 'PV-1', label: 'Cover Page & General Notes', component: <SheetPV1 data={data} aerialPhotoUrl={images.aerialPhotoUrl} housePhotoUrl={images.housePhotoUrl} enhanced={enhanced} /> },
                 { id: 'PV-2', label: 'Project Data', component: <SheetPV2 data={data} /> },
@@ -686,34 +696,83 @@ function PlanSetPageInner() {
                 { id: 'PV-7', label: 'Warning Labels', component: <SheetPV7 data={data} /> },
                 { id: 'PV-7.1', label: 'Equipment Placards', component: <SheetPV71 data={data} /> },
                 { id: 'PV-8', label: 'Conductor Schedule & BOM', component: <SheetPV8 data={data} /> },
-              ].map(sheet => {
-                const isPortrait = 'portrait' in sheet && sheet.portrait
-                const sheetW = isPortrait ? 8.5 : 16.5
-                const sheetH = isPortrait ? 11 : 10.5
-                return (
-                  <div key={sheet.id}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-bold text-green-400 bg-gray-800 px-2 py-1 rounded">{sheet.id}</span>
-                      <span className="text-sm text-gray-400">{sheet.label}</span>
-                    </div>
-                    <div className="border border-gray-700 rounded-lg overflow-hidden" style={{
-                      width: `${sheetW * 96 * screenScale}px`,
-                      height: `${sheetH * 96 * screenScale}px`,
-                    }}>
-                      <div style={{
-                        transform: `scale(${screenScale})`,
-                        transformOrigin: 'top left',
-                        width: `${sheetW}in`,
-                        height: `${sheetH}in`,
-                        background: 'white',
-                      }}>
-                        {sheet.component}
-                      </div>
-                    </div>
+              ]
+
+              const fullscreenSheet = fullscreenSheetId ? sheetList.find(s => s.id === fullscreenSheetId) : null
+
+              return (
+                <>
+                  <div id="planset-sheets" className="space-y-8">
+                    {sheetList.map(sheet => {
+                      const isPortrait = 'portrait' in sheet && sheet.portrait
+                      const sheetW = isPortrait ? 8.5 : 16.5
+                      const sheetH = isPortrait ? 11 : 10.5
+                      return (
+                        <div key={sheet.id}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-bold text-green-400 bg-gray-800 px-2 py-1 rounded">{sheet.id}</span>
+                            <span className="text-sm text-gray-400">{sheet.label}</span>
+                          </div>
+                          <div className="border border-gray-700 rounded-lg overflow-hidden relative" style={{
+                            width: `${sheetW * 96 * screenScale}px`,
+                            height: `${sheetH * 96 * screenScale}px`,
+                          }}>
+                            <button
+                              onClick={() => setFullscreenSheetId(sheet.id)}
+                              aria-label={`Fullscreen ${sheet.id}`}
+                              className="absolute top-2 right-2 z-10 bg-gray-800/90 hover:bg-gray-700 text-white p-1.5 rounded shadow"
+                            >
+                              <Maximize2 size={14} />
+                            </button>
+                            <div style={{
+                              transform: `scale(${screenScale})`,
+                              transformOrigin: 'top left',
+                              width: `${sheetW}in`,
+                              height: `${sheetH}in`,
+                              background: 'white',
+                            }}>
+                              {sheet.component}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                )
-              })}
-            </div>
+
+                  {fullscreenSheet && (() => {
+                    const isPortrait = 'portrait' in fullscreenSheet && fullscreenSheet.portrait
+                    const sheetW = isPortrait ? 8.5 : 16.5
+                    const sheetH = isPortrait ? 11 : 10.5
+                    return (
+                      <div className="fixed inset-0 z-50 bg-black/95 flex flex-col p-4">
+                        <div className="flex items-center justify-between text-white mb-2 flex-shrink-0">
+                          <span className="text-sm font-medium">{fullscreenSheet.id} — {fullscreenSheet.label}</span>
+                          <button
+                            onClick={() => setFullscreenSheetId(null)}
+                            aria-label="Close fullscreen"
+                            className="text-gray-300 hover:text-white"
+                          >
+                            <X size={20} />
+                          </button>
+                        </div>
+                        <div className="flex-1 flex items-center justify-center overflow-auto">
+                          <div style={{
+                            width: `${sheetW}in`,
+                            height: `${sheetH}in`,
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                            background: 'white',
+                            flexShrink: 0,
+                          }}>
+                            {fullscreenSheet.component}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </>
+              )
+            })()}
 
             <div className="mt-8 mb-4 text-center text-xs text-gray-600">
               Generated by MicroGRID &mdash; {data.drawnDate} &mdash; For PE Review Only
