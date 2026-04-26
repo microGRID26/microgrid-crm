@@ -11,7 +11,7 @@ export const MICROGRID_CONTRACTOR = {
   name: 'MicroGRID Energy',
   address: '600 Northpark Central Dr, Suite 140',
   city: 'Houston, TX 77073',
-  phone: '(888) 485-5551',
+  phone: '(832) 280-7764',
   email: 'engineering@microgridenergy.com',
   license: '32259',
 }

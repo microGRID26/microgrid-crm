@@ -40,7 +40,7 @@ function makeConfig(overrides: Partial<SldConfig> = {}): SldConfig {
     totalStorageKwh: 80,
     contractor: 'MicroGRID Energy',
     contractorAddress: '600 Northpark Central Dr, Suite 140',
-    contractorPhone: '(888) 485-5551',
+    contractorPhone: '(832) 280-7764',
     contractorLicense: '32259',
     contractorEmail: 'engineering@microgridenergy.com',
     ...overrides,
