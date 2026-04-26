@@ -49,3 +49,41 @@ describe('PlansetData topology discriminator', () => {
     expect(data.hasCantexBar).toBe(false)
   })
 })
+
+describe('PlansetRoofFace polygon + setbacks', () => {
+  it('roof faces default to empty polygon and all setbacks false (walkable) when not provided', () => {
+    const data = buildPlansetData(makeProject(), {
+      strings: [{ id: 1, mppt: 1, modules: 12, roofFace: 1, vocCold: 0, vmpNominal: 0, current: 0 }],
+    })
+    expect(data.roofFaces.length).toBe(1)
+    const f = data.roofFaces[0]
+    expect(f.polygon).toEqual([])
+    expect(f.setbacks).toEqual({ ridge: false, eave: false, rake: false, pathClear: 'walkable' })
+  })
+
+  it('roof face polygon + setbacks override is preserved end-to-end', () => {
+    const polygon: Array<[number, number]> = [[0, 0], [1, 0], [1, 1], [0, 1]]
+    const data = buildPlansetData(makeProject(), {
+      roofFaces: [{
+        id: 1, tilt: 25, azimuth: 180, modules: 12,
+        polygon,
+        setbacks: { ridge: true, eave: false, rake: false, pathClear: 'partial' },
+      }],
+    })
+    expect(data.roofFaces[0].polygon).toEqual(polygon)
+    expect(data.roofFaces[0].setbacks.ridge).toBe(true)
+    expect(data.roofFaces[0].setbacks.pathClear).toBe('partial')
+  })
+
+  it('pathClear accepts walkable | partial | blocked', () => {
+    for (const p of ['walkable', 'partial', 'blocked'] as const) {
+      const data = buildPlansetData(makeProject(), {
+        roofFaces: [{
+          id: 1, tilt: 0, azimuth: 0, modules: 0,
+          polygon: [], setbacks: { ridge: false, eave: false, rake: false, pathClear: p },
+        }],
+      })
+      expect(data.roofFaces[0].setbacks.pathClear).toBe(p)
+    }
+  })
+})

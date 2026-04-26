@@ -139,6 +139,15 @@ export interface PlansetRoofFace {
   tilt: number       // degrees (0 + azimuth 0 = unknown — derived faces use this sentinel)
   azimuth: number    // degrees (0 + tilt 0 = unknown — derived faces use this sentinel)
   modules: number    // panels on this face
+  // NEW (Phase 3) — polygon coords in roof-plan unit space (normalized 0–1, top-left origin)
+  polygon: Array<[number, number]>
+  // NEW (Phase 3) — fire-setback applicability + walking-path classification
+  setbacks: {
+    ridge: boolean
+    eave: boolean
+    rake: boolean
+    pathClear: 'walkable' | 'partial' | 'blocked'
+  }
 }
 
 // ── Racking Detail ─────────────────────────────────────────────────────────
@@ -410,6 +419,8 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
     }
     return Array.from(faceMap.entries()).map(([id, modules]) => ({
       id, tilt: 0, azimuth: 0, modules,
+      polygon: [],
+      setbacks: { ridge: false, eave: false, rake: false, pathClear: 'walkable' as const },
     }))
   })()
 
