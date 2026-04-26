@@ -319,6 +319,8 @@ body { background: white; }
 @media print {
   .sheet { break-after: page; break-inside: avoid; }
   .sheet:last-child { break-after: auto; }
+  /* Tailwind utility used by SheetCutSheet's screen-only print warning */
+  .print\\:hidden { display: none !important; }
 }
 `
 
