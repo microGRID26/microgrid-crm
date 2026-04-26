@@ -29,7 +29,10 @@ export function evalId(suffix?: string): string {
 }
 
 export function evalProjectId(): string {
-  return `PROJ-EVAL-${randomUUID().slice(0, 8)}`
+  // 16 hex chars (~1.8e19 collision space) — bumped from 8 hex per R1 finding
+  // on Phase 4 write_side_parity coverage. 8-hex was 256M space which is fine
+  // in practice but free to harden.
+  return `PROJ-EVAL-${randomUUID().slice(0, 8)}-${randomUUID().slice(0, 8)}`
 }
 
 export function isEvalRow(value: string | null | undefined): boolean {
