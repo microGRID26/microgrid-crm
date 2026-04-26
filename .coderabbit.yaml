@@ -1,0 +1,41 @@
+language: en
+early_access: false
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  path_filters:
+    - "!node_modules/**"
+    - "!.next/**"
+    - "!dist/**"
+    - "!build/**"
+    - "!*.lock"
+    - "!package-lock.json"
+    - "!pnpm-lock.yaml"
+    - "!yarn.lock"
+    - "!evals/**/*.eval.ts"
+  path_instructions:
+    - path: "supabase/migrations/**"
+      instructions: |
+        Multi-tenant CRM. RLS scrutiny is the priority:
+        - Every new table needs RLS enabled and explicit policies for SELECT / INSERT / UPDATE / DELETE.
+        - Policies must scope by org_id (the tenant column on every business table).
+        - Flag `qual: true` or `with_check: true` on any policy as a possible permissive-OR leak when a scoped policy already exists on the same table+command — Postgres ORs them and the broad one wins.
+        - Flag SECURITY DEFINER functions that don't validate the caller's org / role.
+    - path: "app/api/**/route.ts"
+      instructions: |
+        Server-side API routes. Every handler must check auth (Supabase session) and tenant scope (org_id) before reading/writing.
+        Flag handlers that bypass RLS via service-role without explicit org_id filter.
+    - path: "app/api/webhooks/**"
+      instructions: |
+        Inbound webhooks. Verify HMAC signature before any side effect.
+        Flag webhook routes that trust the request body without signature verification.
+    - path: "lib/supabase/**"
+      instructions: |
+        Supabase client wrappers. Service-role usage is high-risk.
+        Flag service-role client usage outside of `app/api/**`, `evals/**`, or explicit admin scripts.
+chat:
+  auto_reply: true
