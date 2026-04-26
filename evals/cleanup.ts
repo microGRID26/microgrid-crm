@@ -4,6 +4,8 @@ import { EVAL_ORG_SLUGS } from './helpers/fixtures'
 interface CleanupArgs {
   orgAId: string
   orgBId: string
+  /** Optional — if present, scrub partner_idempotency_keys rows for this key. */
+  partnerApiKeyId?: string
 }
 
 const EVAL_ORG_NAMES = ['Evals Org A', 'Evals Org B']
@@ -76,6 +78,17 @@ export async function cleanupEvalRows(args: CleanupArgs): Promise<void> {
   // Projects
   const { error: projErr } = await svc.from('projects').delete().in('org_id', orgIds)
   if (projErr) throw new Error(`cleanup projects failed: ${projErr.message}`)
+
+  // Partner idempotency rows scoped to our eval partner key only.
+  if (args.partnerApiKeyId) {
+    const { error: idempErr } = await svc
+      .from('partner_idempotency_keys')
+      .delete()
+      .eq('api_key_id', args.partnerApiKeyId)
+    if (idempErr) {
+      throw new Error(`cleanup partner_idempotency_keys failed: ${idempErr.message}`)
+    }
+  }
 }
 
 async function projectIdsForOrgs(orgIds: string[]): Promise<string[]> {

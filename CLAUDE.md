@@ -44,6 +44,7 @@ npm run build      # Production build (Next.js)
 npm run lint       # ESLint (Next.js + TypeScript presets)
 npm test           # Run all tests (Vitest, single run)
 npm run test:watch # Run tests in watch mode
+npm run eval       # Behavioral evals against real Supabase (~10s; see evals/README.md)
 ```
 
 Auto-deploys to Vercel on push to `main`.
@@ -73,7 +74,16 @@ A standalone Expo React Native app lives in the `/mobile` directory with its own
 
 ## Testing
 
-**Vitest** + React Testing Library with jsdom. **3,259 tests across 118 files** (verified 2026-04-15, Session 51). Supabase globally mocked in `vitest.setup.ts`. Tests focus on business logic, not rendering. When adding features, add corresponding tests. API route tests in `__tests__/api/`.
+Three test types:
+
+1. **Vitest unit (`__tests__/`, `npm test`)** — RTL + jsdom, Supabase globally mocked. ~3,500 tests. Catches code-shape regressions.
+2. **Playwright e2e (`e2e/`, `npm run test:e2e`)** — browser-driven against real Supabase. Catches UI flow breakage.
+3. **Behavioral evals (`evals/`, `npm run eval`)** — real Supabase JWTs, real RLS, ~10s. Catches behavioral regressions (RLS drift, default changes, idempotency contract). Run after every deploy. See [`evals/README.md`](./evals/README.md).
+
+When adding features, add corresponding tests in the right tier:
+- Pure logic / type shape → Vitest
+- New page or critical user flow → Playwright spec
+- New RLS surface, new write path on a multi-tenant table, or new dedupe-style invariant → eval scenario
 
 Test categories: `__tests__/lib/` (API, utils), `__tests__/logic/` (SLA, funding, filters), `__tests__/pages/` (page logic), `__tests__/auth/` (OAuth, proxy), `__tests__/hooks/` (custom hooks), `__tests__/components/` (UI components).
 

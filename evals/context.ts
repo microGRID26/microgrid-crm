@@ -3,6 +3,8 @@ export interface EvalContext {
   orgBId: string
   userAId: string
   userBId: string
+  partnerOrgId: string
+  partnerApiKeyId: string
 }
 
 let _context: EvalContext | null = null

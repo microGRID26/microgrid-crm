@@ -30,6 +30,9 @@ import {
   EVAL_ORG_A_SLUG,
   EVAL_ORG_B_NAME,
   EVAL_ORG_B_SLUG,
+  EVAL_PARTNER_KEY_NAME,
+  EVAL_PARTNER_ORG_NAME,
+  EVAL_PARTNER_ORG_SLUG,
   EVAL_PASSWORD,
   EVAL_USER_A_EMAIL,
   EVAL_USER_A_NAME,
@@ -39,7 +42,11 @@ import {
 import { setEvalContext } from './context'
 import { cleanupEvalRows } from './cleanup'
 
-async function ensureOrg(slug: string, name: string): Promise<string> {
+async function ensureOrg(
+  slug: string,
+  name: string,
+  orgType: 'epc' | 'engineering' = 'epc',
+): Promise<string> {
   const svc = serviceClient()
   const { data: existing, error: selErr } = await svc
     .from('organizations')
@@ -51,10 +58,49 @@ async function ensureOrg(slug: string, name: string): Promise<string> {
 
   const { data: inserted, error: insErr } = await svc
     .from('organizations')
-    .insert({ slug, name, org_type: 'epc' })
+    .insert({ slug, name, org_type: orgType })
     .select('id')
     .single()
   if (insErr || !inserted) throw new Error(`ensureOrg insert(${slug}) failed: ${insErr?.message}`)
+  return inserted.id
+}
+
+/**
+ * Idempotently provision a partner_api_keys row for the partner eval org.
+ * The plaintext key is never used (the eval doesn't make HTTP requests);
+ * we only need a row whose id we can reference from partner_idempotency_keys.
+ */
+async function ensurePartnerApiKey(orgId: string, name: string): Promise<string> {
+  const svc = serviceClient()
+  const { data: existing, error: selErr } = await svc
+    .from('partner_api_keys')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('name', name)
+    .maybeSingle()
+  if (selErr) throw new Error(`ensurePartnerApiKey select failed: ${selErr.message}`)
+  if (existing?.id) return existing.id
+
+  // No HTTP request will be sent against this key; the hash + prefix are
+  // populated only to satisfy NOT NULL constraints. The plaintext is never
+  // returned — there's no way to authenticate as this key over HTTP.
+  const fakeHash = 'eval-' + 'x'.repeat(59) // 64 chars to mimic sha256 length
+  const { data: inserted, error: insErr } = await svc
+    .from('partner_api_keys')
+    .insert({
+      org_id: orgId,
+      name,
+      key_hash: fakeHash,
+      key_prefix: 'eval_no_http',
+      scopes: [],
+      rate_limit_tier: 'standard',
+      customer_pii_scope: false,
+    })
+    .select('id')
+    .single()
+  if (insErr || !inserted) {
+    throw new Error(`ensurePartnerApiKey insert failed: ${insErr?.message}`)
+  }
   return inserted.id
 }
 
@@ -90,12 +136,14 @@ async function ensurePublicUser(id: string, email: string, name: string): Promis
     .maybeSingle()
   if (selErr) throw new Error(`ensurePublicUser select(${email}) failed: ${selErr.message}`)
   if (existing?.id) return
-  // role: 'eval' is deliberately outside the allow-list of the
-  // `organizations_grant_staff_on_new_epc` trigger (super_admin/admin/finance/manager/user/sales).
-  // Setting role='user' would auto-add eval users to every new EPC org Greg creates from then on.
+  // role: 'user' is required for `auth_is_internal_writer()` RLS (work_orders
+  // INSERT, etc.). The downside: the `organizations_grant_staff_on_new_epc`
+  // trigger will auto-add this user to every new EPC org Greg creates.
+  // Defenses (in order): purgeEvalUserForeignMemberships scrubs them on every
+  // run; assertEvalUserMembershipsScoped refuses to run if any leak.
   const { error: insErr } = await svc
     .from('users')
-    .insert({ id, email, name, active: true, is_active: true, role: 'eval' })
+    .insert({ id, email, name, active: true, is_active: true, role: 'user' })
   if (insErr) throw new Error(`ensurePublicUser insert(${email}) failed: ${insErr.message}`)
 }
 
@@ -151,6 +199,41 @@ async function purgeForeignMemberships(orgIds: string[], evalUserIds: string[]):
 }
 
 /**
+ * Drop any membership rows where one of our eval users is attached to an org
+ * OUTSIDE the eval orgs. The `organizations_grant_staff_on_new_epc` trigger
+ * will silently bulk-add eval users (role='user') to every new EPC org Greg
+ * creates. Run this every setup to auto-heal the leak. Slug-guarded.
+ */
+async function purgeEvalUserForeignMemberships(args: {
+  userAId: string
+  userBId: string
+  orgAId: string
+  orgBId: string
+}): Promise<void> {
+  const svc = serviceClient()
+  // Defensive: confirm both eval orgs still resolve to canonical slugs.
+  const { data: orgs, error: verifyErr } = await svc
+    .from('organizations')
+    .select('id, slug')
+    .in('id', [args.orgAId, args.orgBId])
+  if (verifyErr) throw new Error(`purgeEvalUserForeignMemberships verify failed: ${verifyErr.message}`)
+  const seenSlugs = new Set((orgs ?? []).map(o => o.slug as string))
+  if (!seenSlugs.has('evals-org-a') || !seenSlugs.has('evals-org-b')) {
+    throw new Error(
+      `purgeEvalUserForeignMemberships refuses to operate: eval org slug mismatch (${[...seenSlugs].join(',')})`,
+    )
+  }
+  const { error: delErr } = await svc
+    .from('org_memberships')
+    .delete()
+    .in('user_id', [args.userAId, args.userBId])
+    .not('org_id', 'in', `(${[args.orgAId, args.orgBId].join(',')})`)
+  if (delErr) {
+    throw new Error(`purgeEvalUserForeignMemberships delete failed: ${delErr.message}`)
+  }
+}
+
+/**
  * Runtime guard: assert that each eval user has memberships ONLY in their
  * assigned eval org. If a future MicroGRID trigger silently adds eval-user-a
  * to a real prod org, we want the eval suite to fail-loud BEFORE running tests
@@ -203,6 +286,13 @@ beforeAll(async () => {
   try {
     const orgAId = await ensureOrg(EVAL_ORG_A_SLUG, EVAL_ORG_A_NAME)
     const orgBId = await ensureOrg(EVAL_ORG_B_SLUG, EVAL_ORG_B_NAME)
+    // org_type='engineering' (NOT 'epc') so the bulk-add-staff trigger doesn't fire.
+    const partnerOrgId = await ensureOrg(
+      EVAL_PARTNER_ORG_SLUG,
+      EVAL_PARTNER_ORG_NAME,
+      'engineering',
+    )
+    const partnerApiKeyId = await ensurePartnerApiKey(partnerOrgId, EVAL_PARTNER_KEY_NAME)
 
     const userAId = await ensureAuthUser(EVAL_USER_A_EMAIL, EVAL_PASSWORD)
     const userBId = await ensureAuthUser(EVAL_USER_B_EMAIL, EVAL_PASSWORD)
@@ -215,15 +305,18 @@ beforeAll(async () => {
     await ensureMembership(userAId, orgAId)
     await ensureMembership(userBId, orgBId)
 
+    // Auto-heal the trigger leak: drop any eval-user memberships in non-eval orgs.
+    await purgeEvalUserForeignMemberships({ userAId, userBId, orgAId, orgBId })
+
     // Defense in depth: refuse to run tests if eval-user memberships have
     // leaked beyond the eval orgs. Catches the case where a future trigger
     // bulk-adds eval users to real prod orgs.
     await assertEvalUserMembershipsScoped({ userAId, userBId, orgAId, orgBId })
 
-    setEvalContext({ orgAId, orgBId, userAId, userBId })
+    setEvalContext({ orgAId, orgBId, userAId, userBId, partnerOrgId, partnerApiKeyId })
 
     // Clean up anything leftover from a previous failed run before tests start.
-    await cleanupEvalRows({ orgAId, orgBId })
+    await cleanupEvalRows({ orgAId, orgBId, partnerApiKeyId })
   } catch (err) {
     throw scrubSecrets(err)
   }
@@ -235,7 +328,11 @@ afterAll(async () => {
   // the operator to clean up by hand than to leave junk behind.
   try {
     const ctx = (await import('./context')).getEvalContext()
-    await cleanupEvalRows({ orgAId: ctx.orgAId, orgBId: ctx.orgBId })
+    await cleanupEvalRows({
+      orgAId: ctx.orgAId,
+      orgBId: ctx.orgBId,
+      partnerApiKeyId: ctx.partnerApiKeyId,
+    })
   } catch (err) {
     throw scrubSecrets(err)
   }

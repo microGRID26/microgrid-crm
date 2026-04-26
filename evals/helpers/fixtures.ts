@@ -6,6 +6,12 @@ export const EVAL_ORG_A_SLUG = 'evals-org-a'
 export const EVAL_ORG_B_SLUG = 'evals-org-b'
 export const EVAL_ORG_A_NAME = 'Evals Org A'
 export const EVAL_ORG_B_NAME = 'Evals Org B'
+// Partner-flavor org. Created with org_type='engineering' (NOT 'partner' — that
+// value isn't in the organizations_org_type_check enum) so the EPC bulk-add-staff
+// trigger doesn't fire on it. Used by partner_idempotency eval.
+export const EVAL_PARTNER_ORG_SLUG = 'evals-partner-x'
+export const EVAL_PARTNER_ORG_NAME = 'Evals Partner X'
+export const EVAL_PARTNER_KEY_NAME = 'evals-partner-key'
 
 export const EVAL_USER_A_EMAIL = 'eval-user-a@gomicrogridenergy.com'
 export const EVAL_USER_B_EMAIL = 'eval-user-b@gomicrogridenergy.com'
