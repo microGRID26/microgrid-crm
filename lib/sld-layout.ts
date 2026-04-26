@@ -55,10 +55,10 @@ export interface SldConfig {
   pcsCurrentSetting?: number  // default: 200
   acRunLengthFt?: number      // trenching distance from inverter to MSP/utility (default: 50)
   backfeedBreakerA?: number   // per-inverter backfeed breaker amps, NEC 705.12 (default: 100)
-  // Topology discriminators (Task 2.4)
-  systemTopology?: 'string-mppt' | 'micro-inverter'  // defaults to 'string-mppt' if absent
-  rapidShutdownModel?: string                         // defaults to 'RSD-D-20' if absent
-  hasCantexBar?: boolean                              // defaults to true if absent
+  // Topology discriminators (Task 2.4) — required; PlansetData provides all three
+  systemTopology: 'string-mppt' | 'micro-inverter'
+  rapidShutdownModel: string                         // e.g. 'RSD-D-20'
+  hasCantexBar: boolean
 }
 
 // Text width estimation: ~0.58 * fontSize * charCount for Arial (padded to prevent overflow)
@@ -470,7 +470,7 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
     elements.push({ type: 'line', x1: invCenterX, y1: acDiscY + 10, x2: invCenterX, y2: busY, strokeWidth: 1.5 })
     elements.push({ type: 'text', x: invCenterX + 8, y: acDiscY + 22, text: config.acToPanelWire ?? '(2) #4 AWG CU THWN-2', fontSize: 5, fill: '#444', italic: true })
     elements.push({ type: 'text', x: invCenterX + 8, y: acDiscY + 30, text: '(1) #8 AWG CU EGC', fontSize: 5, fill: '#444', italic: true })
-    elements.push({ type: 'text', x: invCenterX + 8, y: acDiscY + 38, text: config.acConduit ?? '1-1/4" EMT TYPE CONDUIT', fontSize: 5, fill: '#444', italic: true })
+    elements.push({ type: 'text', x: invCenterX + 8, y: acDiscY + 38, text: `${config.acConduit ?? '1-1/4" EMT'} TYPE CONDUIT`, fontSize: 5, fill: '#444', italic: true })
 
     // Backfeed breaker
     elements.push({ type: 'breaker', x: invCenterX, y: busY - 5, label: `(N) ${config.backfeedBreakerA ?? 100}A BACKFEED`, amps: 'BREAKER' })
@@ -566,7 +566,7 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
   // Expansion fittings annotation
   elements.push({ type: 'text', x: gdX + 50, y: busY + 28, text: '(N) EXPANSION FITTINGS', fontSize: 4, anchor: 'middle', fill: '#333', bold: true })
   elements.push({ type: 'text', x: gdX + 50, y: busY + 36, text: 'REQUIRED ON BOTH ENDS', fontSize: 4, anchor: 'middle', fill: '#666' })
-  elements.push({ type: 'text', x: gdX + 50, y: busY + 44, text: `OF THE ${config.acConduit ?? '1-1/4" EMT TYPE CONDUIT'} PIPE`, fontSize: 4, anchor: 'middle', fill: '#666' })
+  elements.push({ type: 'text', x: gdX + 50, y: busY + 44, text: `OF THE ${config.acConduit ?? '1-1/4" EMT'} PIPE`, fontSize: 4, anchor: 'middle', fill: '#666' })
   // Callout ⑦ — Service Disconnect
   elements.push({ type: 'callout', cx: gdX + 50, cy: busY - 30, number: 7 })
 
@@ -612,7 +612,7 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
   elements.push({ type: 'text', x: umCx + 55, y: busY + 5, text: 'GRID', fontSize: 6, fill: '#666' })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 17, text: config.utility.toUpperCase(), fontSize: 5, fill: '#999' })
   // Utility conduit routing annotation
-  elements.push({ type: 'text', x: umCx + 55, y: busY + 28, text: config.acConduit ?? '1-1/4" EMT TYPE CONDUIT', fontSize: 4.5, fill: '#444', italic: true })
+  elements.push({ type: 'text', x: umCx + 55, y: busY + 28, text: `${config.acConduit ?? '1-1/4" EMT'} TYPE CONDUIT`, fontSize: 4.5, fill: '#444', italic: true })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 36, text: `ROUGHLY ${config.acRunLengthFt ?? 50} FEET (DIRT)`, fontSize: 4.5, fill: '#444', italic: true })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 44, text: 'TRENCHING FROM UTILITY POLE', fontSize: 4.5, fill: '#444', italic: true })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 52, text: 'TO HOME WALL', fontSize: 4.5, fill: '#444', italic: true })
@@ -788,8 +788,11 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
       elements.push({ type: 'text', x: stringBlockX + 120, y: branchY + 26, text: `Imp: ${s0.imp}A`, fontSize: 4.5, fill: '#444' })
     }
 
-    // RSD label — uses configured rapidShutdownModel, defaults to RSD-D-20
-    elements.push({ type: 'text', x: stringBlockX, y: branchY + 34, text: `(N) ${config.rapidShutdownModel ?? 'RSD-D-20'} MODULE-LEVEL RAPID SHUTDOWN`, fontSize: 3.5, fill: '#666' })
+    // RSD label — per-string, per William feedback (one callout per string)
+    stringsForInv.forEach((s, si) => {
+      const rsdY = branchY + 34 + si * 10
+      elements.push({ type: 'text', x: stringBlockX, y: rsdY, text: `(N) ${config.rapidShutdownModel ?? 'RSD-D-20'} ROOFTOP MODULE LEVEL RAPID SHUTDOWN DEVICE — STRING ${s.id}`, fontSize: 3.5, fill: '#666' })
+    })
 
     // Wire to right →
     elements.push({ type: 'line', x1: stringBlockX + 180, y1: branchY + 20, x2: 230, y2: branchY + 20, strokeWidth: 1 })
@@ -881,7 +884,7 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
     // Cantex high-current distribution bar on battery DC bus (Task 2.4)
     if (config.hasCantexBar !== false) {
       const cantexX = battX
-      const cantexY = battStackBottom + 6
+      const cantexY = battStackBottom + 26  // moved below battery model labels (+8, +16)
       elements.push({ type: 'rect', x: cantexX, y: cantexY, w: 80, h: 18 })
       elements.push({ type: 'text', x: cantexX + 40, y: cantexY + 12, text: '(N) CANTEX HIGH-CURRENT BAR', fontSize: 3.5, anchor: 'middle', bold: true })
     }
@@ -941,7 +944,7 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
     // Wire from AC disc → MSP
     elements.push({ type: 'line', x1: acDiscX + 15, y1: acOutY, x2: 830, y2: acOutY, strokeWidth: 1.5 })
     elements.push({ type: 'text', x: acDiscX + 25, y: acOutY - 8, text: config.acToPanelWire ?? '(2) #4 AWG CU THWN-2', fontSize: 4, fill: '#444', italic: true })
-    elements.push({ type: 'text', x: acDiscX + 25, y: acOutY + 12, text: config.acConduit ?? '1-1/4" EMT', fontSize: 4, fill: '#444', italic: true })
+    elements.push({ type: 'text', x: acDiscX + 25, y: acOutY + 12, text: `${config.acConduit ?? '1-1/4" EMT'} TYPE CONDUIT`, fontSize: 4, fill: '#444', italic: true })
 
     // Monitoring gateway (below DPC)
     const gwX = dpcX + 20, gwY = dpcY + dpcH + 8
@@ -1020,7 +1023,7 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
 
   // Expansion fittings
   elements.push({ type: 'text', x: sdX + 45, y: utilY + 28, text: '(N) EXPANSION FITTINGS', fontSize: 3.5, anchor: 'middle', fill: '#333', bold: true })
-  elements.push({ type: 'text', x: sdX + 45, y: utilY + 35, text: `BOTH ENDS OF ${config.acConduit ?? '1-1/4" EMT TYPE CONDUIT'}`, fontSize: 3, anchor: 'middle', fill: '#666' })
+  elements.push({ type: 'text', x: sdX + 45, y: utilY + 35, text: `BOTH ENDS OF ${config.acConduit ?? '1-1/4" EMT'}`, fontSize: 3, anchor: 'middle', fill: '#666' })
 
   // Wire to RGM
   elements.push({ type: 'line', x1: sdX + 90, y1: utilY, x2: sdX + 110, y2: utilY, strokeWidth: 1.5 })
@@ -1034,7 +1037,7 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
 
   // Wire to meter
   elements.push({ type: 'line', x1: rgmX + 55, y1: utilY, x2: rgmX + 75, y2: utilY, strokeWidth: 1.5 })
-  elements.push({ type: 'text', x: rgmX + 58, y: utilY + 12, text: config.acConduit ?? '1-1/4" EMT', fontSize: 3.5, fill: '#444', italic: true })
+  elements.push({ type: 'text', x: rgmX + 58, y: utilY + 12, text: `${config.acConduit ?? '1-1/4" EMT'} TYPE CONDUIT`, fontSize: 3.5, fill: '#444', italic: true })
 
   // Utility meter
   const umCx = rgmX + 100
@@ -1063,7 +1066,7 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
 
   // Trenching detail (below utility chain)
   const trenchY = utilY + 50
-  elements.push({ type: 'text', x: sdX, y: trenchY, text: config.acConduit ?? '1-1/4" EMT TYPE CONDUIT', fontSize: 4, fill: '#444', italic: true })
+  elements.push({ type: 'text', x: sdX, y: trenchY, text: `${config.acConduit ?? '1-1/4" EMT'} TYPE CONDUIT`, fontSize: 4, fill: '#444', italic: true })
   elements.push({ type: 'text', x: sdX, y: trenchY + 8, text: `ROUGHLY ${config.acRunLengthFt ?? 50} FEET (DIRT/ROCK)`, fontSize: 4, fill: '#444', italic: true })
   elements.push({ type: 'text', x: sdX, y: trenchY + 16, text: 'TRENCHING FROM UTILITY POLE', fontSize: 4, fill: '#444', italic: true })
   elements.push({ type: 'text', x: sdX, y: trenchY + 24, text: 'TO HOME WALL', fontSize: 4, fill: '#444', italic: true })

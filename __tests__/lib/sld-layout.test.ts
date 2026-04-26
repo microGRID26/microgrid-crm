@@ -43,6 +43,9 @@ function makeConfig(overrides: Partial<SldConfig> = {}): SldConfig {
     contractorPhone: '(832) 280-7764',
     contractorLicense: '32259',
     contractorEmail: 'engineering@microgridenergy.com',
+    systemTopology: 'string-mppt',
+    rapidShutdownModel: 'RSD-D-20',
+    hasCantexBar: true,
     ...overrides,
   }
 }
@@ -219,7 +222,11 @@ describe('calculateSldLayout', () => {
 // ── SLD topology gating (Task 2.4) ─────────────────────────────────────────
 
 describe('SLD topology gating', () => {
-  it('does NOT render DPCRGM, DTU, CT (micro-inverter CTs), or Ethernet on string-mppt topology', () => {
+  it('regression guard — renderer never emits Hambrick legacy tokens', () => {
+    // The MG SLD renderer is currently string-mppt-only. This test guards
+    // against future regressions that accidentally introduce DPCRGM/DTU/
+    // PLC/Ethernet labels into the string-mppt path.
+    // See lib/planset-topology.ts for the topology discriminator.
     const config = makeConfig()
     config.systemTopology = 'string-mppt'
     const layout = calculateSldLayout(config)
@@ -230,6 +237,19 @@ describe('SLD topology gating', () => {
     expect(texts.some(t => /ethernet switch/i.test(t))).toBe(false)
     // PLC (micro-inverter artifact)
     expect(texts.some(t => /\bPLC\b/.test(t))).toBe(false)
+  })
+
+  it('regression guard — micro-inverter topology also produces no DPCRGM/DTU/Ethernet today (renderer stub)', () => {
+    // Today: no Hambrick rendering branch exists. Both topologies render
+    // the same SLD. When a Hambrick branch is added, this test should
+    // be updated to assert that DPCRGM appears.
+    const config = makeConfig()
+    config.systemTopology = 'micro-inverter'
+    const layout = calculateSldLayout(config)
+    const texts = layout.elements.filter(e => e.type === 'text').map(e => (e as { text: string }).text)
+    expect(texts.some(t => t.includes('DPCRGM'))).toBe(false)
+    expect(texts.some(t => t.includes('DTU'))).toBe(false)
+    expect(texts.some(t => /ethernet switch/i.test(t))).toBe(false)
   })
 
   it('string-mppt topology produces a valid layout with elements', () => {
@@ -283,5 +303,16 @@ describe('SLD topology gating', () => {
     const layout = calculateSldLayout(config)
     const texts = layout.elements.filter(e => e.type === 'text').map(e => (e as { text: string }).text)
     expect(texts.some(t => /cantex/i.test(t))).toBe(true)
+  })
+
+  it('RSD label renders per-string in spatial layout (2-inverter, 3-string config)', () => {
+    // The default makeConfig() has 2 inverters (spatial path) with 3 strings total
+    // (2 strings on inv 0, 1 string on inv 1). Each string must get its own RSD label.
+    const config = makeConfig()
+    const layout = calculateSldLayout(config)
+    const texts = layout.elements.filter(e => e.type === 'text').map(e => (e as { text: string }).text)
+    const rsdTexts = texts.filter(t => t.includes('RSD-D-20'))
+    // 3 strings total → at least 3 RSD labels
+    expect(rsdTexts.length).toBeGreaterThanOrEqual(3)
   })
 })

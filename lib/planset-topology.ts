@@ -4,12 +4,16 @@
 export type SystemTopology = 'string-mppt' | 'micro-inverter'
 
 /**
- * Components that ONLY appear on micro-inverter-era projects (Hambrick-style).
- * Gating is symmetric: a string-mppt project should never render these.
+ * Forward-proofing for future Hambrick-style legacy SLD rendering.
  *
- * Per William Carter's feedback (2026-04-26): new Duracell projects don't
- * use DPCRGM, DTU, CTs, Ethernet switches, or PLCs. Strings route directly
- * to inverter MPPT inputs.
+ * The current MG SLD renderer is string-mppt-only and never emits
+ * DPCRGM / DTU / CT / Ethernet / PLC tokens. If a future SheetPVx
+ * adds a Hambrick-style legacy SLD branch, gate its rendering on
+ * `shouldRenderMicroInverterComponent(data.systemTopology)`.
+ *
+ * Until then, the `systemTopology` field on PlansetData is a data-shape
+ * carrier only — useful for future migration tooling and persisted
+ * planset records.
  */
 export const MICROINVERTER_COMPONENTS = [
   'DPCRGM',
