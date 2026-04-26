@@ -175,11 +175,11 @@ export function OverridesPanel({ data, strings, onStringsChange, overrides, onOv
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Existing System (Optional)</h3>
             <div className="grid grid-cols-5 gap-3">
               {[
-                { label: 'Panel Model', key: 'existingPanelModel' as const, val: overrides.existingPanelModel ?? data.existingPanelModel ?? '' },
-                { label: 'Panel Count', key: 'existingPanelCount' as const, val: String(overrides.existingPanelCount ?? data.existingPanelCount ?? '') },
-                { label: 'Panel Wattage', key: 'existingPanelWattage' as const, val: String(overrides.existingPanelWattage ?? data.existingPanelWattage ?? '') },
-                { label: 'Inverter Model', key: 'existingInverterModel' as const, val: overrides.existingInverterModel ?? data.existingInverterModel ?? '' },
-                { label: 'Inverter Count', key: 'existingInverterCount' as const, val: String(overrides.existingInverterCount ?? data.existingInverterCount ?? '') },
+                { label: 'Panel Model', key: 'existingPanelModel' as const, val: 'existingPanelModel' in overrides ? String(overrides.existingPanelModel ?? '') : String(data.existingPanelModel ?? '') },
+                { label: 'Panel Count', key: 'existingPanelCount' as const, val: 'existingPanelCount' in overrides ? String(overrides.existingPanelCount ?? '') : String(data.existingPanelCount ?? '') },
+                { label: 'Panel Wattage', key: 'existingPanelWattage' as const, val: 'existingPanelWattage' in overrides ? String(overrides.existingPanelWattage ?? '') : String(data.existingPanelWattage ?? '') },
+                { label: 'Inverter Model', key: 'existingInverterModel' as const, val: 'existingInverterModel' in overrides ? String(overrides.existingInverterModel ?? '') : String(data.existingInverterModel ?? '') },
+                { label: 'Inverter Count', key: 'existingInverterCount' as const, val: 'existingInverterCount' in overrides ? String(overrides.existingInverterCount ?? '') : String(data.existingInverterCount ?? '') },
               ].map(f => (
                 <div key={f.key}>
                   <label className="text-xs text-gray-500 block mb-1">{f.label}</label>
@@ -187,11 +187,14 @@ export function OverridesPanel({ data, strings, onStringsChange, overrides, onOv
                     value={f.val}
                     onChange={e => {
                       const v = e.target.value
-                      if (['existingPanelCount', 'existingPanelWattage', 'existingInverterCount'].includes(f.key)) {
-                        onOverridesChange({ ...overrides, [f.key]: parseInt(v) || undefined })
+                      const numericKey = ['existingPanelCount', 'existingPanelWattage', 'existingInverterCount'].includes(f.key)
+                      const next = { ...overrides } as Record<string, unknown>
+                      if (numericKey) {
+                        next[f.key] = v === '' ? undefined : (parseInt(v) || undefined)
                       } else {
-                        onOverridesChange({ ...overrides, [f.key]: v || undefined })
+                        next[f.key] = v === '' ? undefined : v
                       }
+                      onOverridesChange(next as PlansetOverrides)
                     }}
                     className="w-full px-2 py-1.5 bg-gray-900 border border-gray-600 rounded text-sm text-white focus:ring-1 focus:ring-green-500 focus:outline-none"
                   />
