@@ -327,15 +327,15 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
       elements.push({ type: 'text', x: labelX, y: sy + moduleH / 2 - 2, text: `${s.vocCold.toFixed(1)}V`, fontSize: 5, fill: '#444' })
       elements.push({ type: 'text', x: labelX, y: sy + moduleH / 2 + 6, text: `${s.imp}A`, fontSize: 5, fill: '#444' })
 
-      // RSD label — uses configured rapidShutdownModel, defaults to RSD-D-20
-      elements.push({ type: 'text', x: stringsBaseX, y: sy + moduleH + 10, text: `(N) ${config.rapidShutdownModel ?? 'RSD-D-20'} ROOFTOP MODULE LEVEL RAPID SHUTDOWN DEVICE`, fontSize: 4.5, fill: '#444' })
+      // RSD label — per-string, matches spatial layout's per-string semantics
+      elements.push({ type: 'text', x: stringsBaseX, y: sy + moduleH + 10, text: `(N) ${config.rapidShutdownModel ?? 'RSD-D-20'} ROOFTOP MODULE LEVEL RAPID SHUTDOWN DEVICE — STRING ${s.id}`, fontSize: 4.5, fill: '#444' })
     })
 
     // Roof array wiring label (RUSH style: bold header + detail lines)
     const afterStringsY = stringsTopY + stringsForInv.length * stringRowH + 5
     elements.push({ type: 'text', x: stringsBaseX, y: afterStringsY, text: 'ROOF ARRAY WIRING', fontSize: 5.5, bold: true })
     elements.push({ type: 'text', x: stringsBaseX + 10, y: afterStringsY + 9, text: `${config.dcStringWire ?? '#10 AWG CU PV WIRE'}, PV TRUNK CABLE`, fontSize: 4.5, fill: '#444' })
-    elements.push({ type: 'text', x: stringsBaseX + 10, y: afterStringsY + 17, text: `INSTALLED IN ${config.dcConduit ?? '3/4" EMT TYPE CONDUIT'}`, fontSize: 4.5, fill: '#444' })
+    elements.push({ type: 'text', x: stringsBaseX + 10, y: afterStringsY + 17, text: `INSTALLED IN ${config.dcConduit ?? '3/4" EMT'} TYPE CONDUIT`, fontSize: 4.5, fill: '#444' })
 
     // Junction box — centered under string arrays
     const jbW = 65, jbBoxH = 24
