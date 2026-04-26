@@ -1,0 +1,3 @@
+# Generated artifacts contain customer addresses + project IDs — never commit.
+*.csv
+apply.sql
