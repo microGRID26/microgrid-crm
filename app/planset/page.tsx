@@ -8,7 +8,7 @@ import { handleApiError } from '@/lib/errors'
 import { loadProjectById } from '@/lib/api'
 import { buildPlansetData, DURACELL_DEFAULTS } from '@/lib/planset-types'
 import { autoDistributeStrings } from '@/lib/planset-calcs'
-import { SheetPV1, SheetPV2, SheetPV2A, SheetPV3, SheetPV31, SheetPV4, SheetPV41, SheetPV5, SheetPV6, SheetPV7, SheetPV71, SheetPV8, UtilityBatteryLetter } from '@/components/planset'
+import { SheetPV1, SheetPV2, SheetPV2A, SheetPV3, SheetPV31, SheetPV4, SheetPV41, SheetPV5, SheetPV6, SheetPV7, SheetPV71, SheetPV8, SheetCutSheets, CUT_SHEETS, UtilityBatteryLetter } from '@/components/planset'
 import type { PlansetData, PlansetOverrides, PlansetString, PlansetRoofFace } from '@/lib/planset-types'
 import { Loader2, Maximize2, X } from 'lucide-react'
 import { ProjectSelector } from './components/ProjectSelector'
@@ -445,7 +445,7 @@ function PlanSetPageInner() {
       setStrings(finalStrings)
 
       const plansetData = buildPlansetData(project, { ...overrides, strings: finalStrings, roofFaces: roofFaces.length > 0 ? roofFaces : undefined, sitePlanImageUrl: images.sitePlanImageUrl ?? undefined })
-      plansetData.sheetTotal = enhanced ? 13 : 10  // 10 base; enhanced adds UTIL + PV-3.1 + PV-4.1
+      plansetData.sheetTotal = (enhanced ? 13 : 10) + CUT_SHEETS.length  // base + cut sheets; enhanced adds UTIL + PV-3.1 + PV-4.1
       setRoofFaces(plansetData.roofFaces)
       setData(plansetData)
       setProjectId(id)
@@ -472,7 +472,7 @@ function PlanSetPageInner() {
       const project = await loadProjectById(projectId)
       if (!project) return
       const plansetData = buildPlansetData(project, { ...overrides, strings, roofFaces: roofFaces.length > 0 ? roofFaces : undefined, sitePlanImageUrl: images.sitePlanImageUrl ?? undefined })
-      plansetData.sheetTotal = enhanced ? 13 : 10  // 10 base; enhanced adds UTIL + PV-3.1 + PV-4.1
+      plansetData.sheetTotal = (enhanced ? 13 : 10) + CUT_SHEETS.length  // base + cut sheets; enhanced adds UTIL + PV-3.1 + PV-4.1
       setData(plansetData)
     } finally {
       setLoading(false)
@@ -707,6 +707,7 @@ function PlanSetPageInner() {
                 { id: 'PV-7', label: 'Warning Labels', component: <SheetPV7 data={data} /> },
                 { id: 'PV-7.1', label: 'Equipment Placards', component: <SheetPV71 data={data} /> },
                 { id: 'PV-8', label: 'Conductor Schedule & BOM', component: <SheetPV8 data={data} /> },
+                { id: 'CUT-SHEETS', label: 'Cut Sheets', component: <SheetCutSheets data={data} /> },
               ]
 
               const fullscreenSheet = fullscreenSheetId ? sheetList.find(s => s.id === fullscreenSheetId) : null

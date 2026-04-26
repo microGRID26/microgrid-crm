@@ -1,5 +1,6 @@
 import type { PlansetData } from '@/lib/planset-types'
 import { TitleBlockHtml } from './TitleBlockHtml'
+import { CUT_SHEETS } from './SheetCutSheets'
 
 interface SheetPV1Props {
   data: PlansetData
@@ -71,6 +72,7 @@ export function SheetPV1({ data, aerialPhotoUrl, housePhotoUrl, enhanced = false
     ['PV-7', 'WARNING LABELS'],
     ['PV-7.1', 'EQUIPMENT PLACARDS'],
     ['PV-8', 'CONDUCTOR SCHEDULE & BOM'],
+    ...CUT_SHEETS.map(cs => [cs.sheetId, cs.title.toUpperCase()] as [string, string]),
   ]
 
   // Scope of work — matching RUSH format
