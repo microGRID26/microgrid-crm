@@ -278,6 +278,7 @@ Always-do patterns. Breaking these will be caught in audit.
 - **`lib/api/` API wrappers** for cross-page queries: `loadLiveStats()`, `loadAHJs()`, `loadProjectsForMap()`, `loadOrgNames()`, `loadTodaySchedule()`, `loadScheduleForCrewWeek()`.
 - **Atlas IS the customer feedback admin UI** — query `customer_feedback` directly via Supabase MCP when Greg asks to "look at the feedback." No CRM `/feedback` page by design (see `feedback_atlas_collects_app_feedback.md` memory).
 - **Run integrity checks BEFORE recommending destructive cleanup**, never as the first step of execution. Session 29 near-miss almost cost ~$7M in contract corrections (see `feedback_drift_check_before_destructive.md` memory).
+- **`projects.esid` writes must be string-typed at the source.** A 2026 ingest path coerced 17–22 digit ESI IDs into Python floats (`'1004437200001234567' → 1.04437E+18`), corrupting 358 rows into permanent sci-notation strings. Migration 180 added a CHECK constraint that rejects sci-notation (`E[+-]\d+` tail). Any new ingest path must force string handling: `pandas.read_csv(..., dtype={'esid': str})`, `openpyxl` cell value cast to str, JSON parsers `asString` at the API boundary. The constraint will fail loudly if you miss it — the error message names the constraint so you know what to fix.
 
 ## Migrations Log
 
@@ -285,6 +286,7 @@ Running list of applied Supabase migrations (recent first):
 
 | # | Purpose |
 |---|---|
+| **180** | `projects_esid_no_scinotation` CHECK constraint — rejects sci-notation strings on `projects.esid` (e.g. `'1.04437E+16'`) so a future ingest bug fails loudly instead of silently corrupting data. Pre-flight DO-block re-asserts zero matches before ADD CONSTRAINT (race-safe). Closes the loop on the 358-row repair sweep (greg_action #134). |
 | **119** | B→A: `projects.subhub_id` column + unique partial index. Closes SubHub webhook idempotency gap where a typo in `name` or `address` created duplicate projects. `/api/webhooks/subhub` now prefers `subhub_id` for dedup; DB unique index is the ultimate backstop. |
 | **118** | B→A: drop 5 broad SELECT policies on `storage.objects` for public buckets (`customer-feedback`, `Project-documents`, `rep-files`, `ticket-attachments`, `wo-photos`). Public buckets serve via direct URL — they don't need a SELECT policy, and having one enables LIST operations that let clients enumerate every file. Zero TS callers use `.list()` on these buckets (pre-check grep). |
 | **117** | B→A: `auth_is_internal_writer()` helper (modeled on `auth_is_admin()`) + DO-block replacement of 89 `rls_policy_always_true` policies across ~35 tables. Swaps `USING(true)` / `WITH CHECK(true)` for `auth_is_internal_writer()`. Strictly tighter than today (today = any authenticated session; after = active + role-assigned users row only). Service_role bypasses RLS so cron/backfill paths are unaffected. |
