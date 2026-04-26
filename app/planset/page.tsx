@@ -550,6 +550,23 @@ function PlanSetPageInner() {
     return () => { cancelled = true; controller.abort() }
   }, [projectId])
 
+  // Screen-mode scale for 11x17 sheets to fit in a browser window
+  // NOTE: these must live ABOVE the early-return for non-managers to avoid Rules of Hooks violation
+  const [screenScale, setScreenScale] = useState(0.55)
+  const [fullscreenSheetId, setFullscreenSheetId] = useState<string | null>(null)
+  const ZOOM_MIN = 0.25
+  const ZOOM_MAX = 2.0
+
+  // Escape key + backdrop-click close for fullscreen modal
+  useEffect(() => {
+    if (!fullscreenSheetId) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreenSheetId(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [fullscreenSheetId])
+
   const clearProject = () => {
     setProjectId('')
     setData(null)
@@ -581,12 +598,6 @@ function PlanSetPageInner() {
       </>
     )
   }
-
-  // Screen-mode scale for 11x17 sheets to fit in a browser window
-  const [screenScale, setScreenScale] = useState(0.55)
-  const [fullscreenSheetId, setFullscreenSheetId] = useState<string | null>(null)
-  const ZOOM_MIN = 0.25
-  const ZOOM_MAX = 2.0
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -712,18 +723,18 @@ function PlanSetPageInner() {
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-xs font-bold text-green-400 bg-gray-800 px-2 py-1 rounded">{sheet.id}</span>
                             <span className="text-sm text-gray-400">{sheet.label}</span>
+                            <button
+                              onClick={() => setFullscreenSheetId(sheet.id)}
+                              aria-label={`Fullscreen ${sheet.id}`}
+                              className="ml-auto bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white p-1 rounded"
+                            >
+                              <Maximize2 size={14} />
+                            </button>
                           </div>
                           <div className="border border-gray-700 rounded-lg overflow-hidden relative" style={{
                             width: `${sheetW * 96 * screenScale}px`,
                             height: `${sheetH * 96 * screenScale}px`,
                           }}>
-                            <button
-                              onClick={() => setFullscreenSheetId(sheet.id)}
-                              aria-label={`Fullscreen ${sheet.id}`}
-                              className="absolute top-2 right-2 z-10 bg-gray-800/90 hover:bg-gray-700 text-white p-1.5 rounded shadow"
-                            >
-                              <Maximize2 size={14} />
-                            </button>
                             <div style={{
                               transform: `scale(${screenScale})`,
                               transformOrigin: 'top left',
@@ -744,7 +755,11 @@ function PlanSetPageInner() {
                     const sheetW = isPortrait ? 8.5 : 16.5
                     const sheetH = isPortrait ? 11 : 10.5
                     return (
-                      <div className="fixed inset-0 z-50 bg-black/95 flex flex-col p-4">
+                      <div
+                        data-testid="fullscreen-modal"
+                        className="fixed inset-0 z-50 bg-black/95 flex flex-col p-4"
+                        onClick={(e) => { if (e.target === e.currentTarget) setFullscreenSheetId(null) }}
+                      >
                         <div className="flex items-center justify-between text-white mb-2 flex-shrink-0">
                           <span className="text-sm font-medium">{fullscreenSheet.id} — {fullscreenSheet.label}</span>
                           <button

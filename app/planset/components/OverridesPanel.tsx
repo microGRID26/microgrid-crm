@@ -126,10 +126,10 @@ export function OverridesPanel({ data, strings, onStringsChange, overrides, onOv
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Building Info</h3>
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: 'Roof Type', key: 'roofType' as const, val: overrides.roofType ?? data.roofType },
-                { label: 'Rafter Size', key: 'rafterSize' as const, val: overrides.rafterSize ?? data.rafterSize },
-                { label: 'Stories', key: 'stories' as const, val: String(overrides.stories ?? data.stories) },
-                { label: 'Wind Speed (MPH)', key: 'windSpeed' as const, val: String(overrides.windSpeed ?? data.windSpeed) },
+                { label: 'Roof Type', key: 'roofType' as const, val: 'roofType' in overrides ? String(overrides.roofType ?? '') : String(data.roofType ?? '') },
+                { label: 'Rafter Size', key: 'rafterSize' as const, val: 'rafterSize' in overrides ? String(overrides.rafterSize ?? '') : String(data.rafterSize ?? '') },
+                { label: 'Stories', key: 'stories' as const, val: 'stories' in overrides ? String(overrides.stories ?? '') : String(data.stories ?? '') },
+                { label: 'Wind Speed (MPH)', key: 'windSpeed' as const, val: 'windSpeed' in overrides ? String(overrides.windSpeed ?? '') : String(data.windSpeed ?? '') },
               ].map(f => (
                 <div key={f.key}>
                   <label className="text-xs text-gray-500 block mb-1">{f.label}</label>
@@ -138,9 +138,16 @@ export function OverridesPanel({ data, strings, onStringsChange, overrides, onOv
                     onChange={e => {
                       const v = e.target.value
                       if (f.key === 'stories' || f.key === 'windSpeed') {
-                        onOverridesChange({ ...overrides, [f.key]: parseInt(v) || 0 })
+                        if (v === '') {
+                          const next = { ...overrides } as Record<string, unknown>
+                          next[f.key] = undefined
+                          onOverridesChange(next as PlansetOverrides)
+                        } else {
+                          const n = parseInt(v)
+                          onOverridesChange({ ...overrides, [f.key]: Number.isNaN(n) ? undefined : n })
+                        }
                       } else {
-                        onOverridesChange({ ...overrides, [f.key]: v })
+                        onOverridesChange({ ...overrides, [f.key]: v === '' ? undefined : v })
                       }
                     }}
                     className="w-full px-2 py-1.5 bg-gray-900 border border-gray-600 rounded text-sm text-white focus:ring-1 focus:ring-green-500 focus:outline-none"
@@ -155,14 +162,24 @@ export function OverridesPanel({ data, strings, onStringsChange, overrides, onOv
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Wire Run Lengths</h3>
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: 'DC Run (ft)', key: 'dcRunLengthFt' as const, val: String(overrides.dcRunLengthFt ?? data.dcRunLengthFt) },
-                { label: 'AC Run (ft)', key: 'acRunLengthFt' as const, val: String(overrides.acRunLengthFt ?? data.acRunLengthFt) },
+                { label: 'DC Run (ft)', key: 'dcRunLengthFt' as const, val: 'dcRunLengthFt' in overrides ? String(overrides.dcRunLengthFt ?? '') : String(data.dcRunLengthFt ?? '') },
+                { label: 'AC Run (ft)', key: 'acRunLengthFt' as const, val: 'acRunLengthFt' in overrides ? String(overrides.acRunLengthFt ?? '') : String(data.acRunLengthFt ?? '') },
               ].map(f => (
                 <div key={f.key}>
                   <label className="text-xs text-gray-500 block mb-1">{f.label}</label>
                   <input
                     value={f.val}
-                    onChange={e => onOverridesChange({ ...overrides, [f.key]: parseInt(e.target.value) || 0 })}
+                    onChange={e => {
+                      const v = e.target.value
+                      if (v === '') {
+                        const next = { ...overrides } as Record<string, unknown>
+                        next[f.key] = undefined
+                        onOverridesChange(next as PlansetOverrides)
+                      } else {
+                        const n = parseInt(v)
+                        onOverridesChange({ ...overrides, [f.key]: Number.isNaN(n) ? undefined : n })
+                      }
+                    }}
                     className="w-full px-2 py-1.5 bg-gray-900 border border-gray-600 rounded text-sm text-white focus:ring-1 focus:ring-green-500 focus:outline-none"
                   />
                 </div>
@@ -190,7 +207,12 @@ export function OverridesPanel({ data, strings, onStringsChange, overrides, onOv
                       const numericKey = ['existingPanelCount', 'existingPanelWattage', 'existingInverterCount'].includes(f.key)
                       const next = { ...overrides } as Record<string, unknown>
                       if (numericKey) {
-                        next[f.key] = v === '' ? undefined : (parseInt(v) || undefined)
+                        if (v === '') {
+                          next[f.key] = undefined
+                        } else {
+                          const n = parseInt(v)
+                          next[f.key] = Number.isNaN(n) ? undefined : n
+                        }
                       } else {
                         next[f.key] = v === '' ? undefined : v
                       }
