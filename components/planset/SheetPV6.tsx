@@ -265,18 +265,23 @@ export function SheetPV6({ data }: { data: PlansetData }) {
           </thead>
           <tbody>
             {/*
-              Battery + inverter ampacity rows derive from data.batteryWire /
-              data.acWireToPanel via NEC_AMPACITY_75C lookup so this table
-              matches PV-8 conductor schedule and PV-4 detail labels.
-              DC string + EGC are static defaults (#10 AWG free air, #6 AWG EGC).
+              All ampacity rows derive from data.* fields via ampacityFor()
+              lookup so this table matches PV-8 conductor schedule + PV-4
+              labels even when a designer overrides wire sizes. DC string row
+              was hardcoded #10 / 40 / 30 — drifted from PV-8 (which uses 35
+              for #10 @ 75°C per NEC 310.16); now data-driven from
+              data.dcHomerunWire. EGC is static (#6 AWG, EGC sizing tracks
+              largest OCPD per NEC 250.122 — addressed in EGC table above).
             */}
             {((): [string, number, number, number, number][] => {
+              const stringAmp = ampacityFor(data.dcHomerunWire)
               const battAmp = ampacityFor(data.batteryWire)
               const acAmp = ampacityFor(data.acWireToPanel)
+              const stringSize = data.dcHomerunWire.match(/#?\d+(?:\/0)?\s*AWG/i)?.[0] ?? '#10 AWG'
               const battSize = data.batteryWire.match(/#?\d+(?:\/0)?\s*AWG/i)?.[0] ?? '#4 AWG'
               const acSize = data.acWireToPanel.match(/#?\d+(?:\/0)?\s*AWG/i)?.[0] ?? '#1 AWG'
               return [
-                ['#10 AWG CU (DC STRING)', 40, 0.70, 37, 30],
+                [`${stringSize} CU (DC STRING)`, stringAmp.c90 || 40, 0.70, 37, stringAmp.c75 || 35],
                 [`${battSize} CU (BATTERY)`, battAmp.c90 || 95, 0.70, 37, battAmp.c75 || 85],
                 [`${acSize} CU (INVERTER AC)`, acAmp.c90 || 145, 0.70, 37, acAmp.c75 || 130],
                 ['#6 AWG CU (EGC)', 75, 1.0, 37, 65],
