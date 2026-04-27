@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useId } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
@@ -27,6 +27,12 @@ interface RealtimeOptions {
 export function useRealtimeSubscription(table: TableName, options: RealtimeOptions) {
   const { onChange, debounceMs = 300, event = '*', filter, enabled = true } = options
 
+  // Per-instance id so two consumers on the same page (e.g. two useSupabaseQuery('task_state')
+  // hooks in app/command/page.tsx) don't collide on a shared channel name. Supabase's
+  // client.channel(name) returns the already-subscribed instance for a duplicate name, and
+  // the subsequent .on('postgres_changes', ...) throws.
+  const instanceId = useId()
+
   // Stable ref for the callback so we don't re-subscribe when it changes
   const onChangeRef = useRef(onChange)
   useEffect(() => { onChangeRef.current = onChange }, [onChange])
@@ -45,8 +51,9 @@ export function useRealtimeSubscription(table: TableName, options: RealtimeOptio
     if (!enabled) return
 
     const supabase = createClient()
-    // Stable channel name based on table + event + filter to avoid duplicate subscriptions
-    const channelName = `realtime::${table}::${event}::${filter ?? 'all'}`
+    // Channel name is unique per hook instance (instanceId suffix) so duplicate subscriptions
+    // on the same table/event/filter from different components don't collide.
+    const channelName = `realtime::${table}::${event}::${filter ?? 'all'}::${instanceId}`
 
     // Clean up any existing channel before creating a new one
     if (channelRef.current) {
@@ -87,7 +94,7 @@ export function useRealtimeSubscription(table: TableName, options: RealtimeOptio
       supabase.removeChannel(channel)
       channelRef.current = null
     }
-  }, [table, event, filter, debounceMs, enabled])
+  }, [table, event, filter, debounceMs, enabled, instanceId])
 
   // Exposed for callers that need to manually tear down the subscription before unmount,
   // e.g., when switching contexts within a long-lived component. Normal cleanup is automatic via useEffect.

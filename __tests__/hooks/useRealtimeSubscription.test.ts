@@ -30,7 +30,7 @@ describe('useRealtimeSubscription', () => {
       })
     )
 
-    expect(channelFn).toHaveBeenCalledWith('realtime::projects::*::all')
+    expect(channelFn).toHaveBeenCalledWith(expect.stringMatching(/^realtime::projects::\*::all::/))
     expect(onFn).toHaveBeenCalledWith(
       'postgres_changes',
       expect.objectContaining({ event: '*', schema: 'public', table: 'projects' }),
@@ -167,14 +167,47 @@ describe('useRealtimeSubscription', () => {
     )
 
     const firstChannelName = channelFn.mock.calls[0][0]
-    expect(firstChannelName).toBe('realtime::task_state::UPDATE::project_id=eq.PROJ-001')
+    expect(firstChannelName).toMatch(/^realtime::task_state::UPDATE::project_id=eq\.PROJ-001::/)
 
-    // Re-render with same props should produce the same channel name
+    // Re-render with same props should produce the same channel name (useId is stable per instance)
     rerender()
 
-    // Channel name is deterministic
     if (channelFn.mock.calls.length > 1) {
       expect(channelFn.mock.calls[1][0]).toBe(firstChannelName)
     }
+  })
+
+  it('produces unique channel names across hook instances (no collision)', async () => {
+    // Regression: Jen Harper 2026-04-27 — two useSupabaseQuery('task_state') hooks on the
+    // same page (app/command/page.tsx:54+61) collided on the shared channel name and the
+    // second .on('postgres_changes', ...) threw "cannot add postgres_changes callbacks ...
+    // after subscribe()".
+    const subscribeFn = vi.fn().mockReturnThis()
+    const onFn = vi.fn().mockReturnThis()
+    const channelFn = vi.fn((..._args: any[]) => ({ on: onFn, subscribe: subscribeFn }))
+    const removeChannelFn = vi.fn()
+
+    vi.doMock('@/lib/supabase/client', () => ({
+      createClient: () => ({
+        channel: channelFn,
+        removeChannel: removeChannelFn,
+      }),
+    }))
+
+    const { useRealtimeSubscription } = await import('@/lib/hooks/useRealtimeSubscription')
+
+    renderHook(() =>
+      useRealtimeSubscription('task_state', { onChange: () => {}, enabled: true })
+    )
+    renderHook(() =>
+      useRealtimeSubscription('task_state', { onChange: () => {}, enabled: true })
+    )
+
+    expect(channelFn).toHaveBeenCalledTimes(2)
+    const firstName = channelFn.mock.calls[0]?.[0]
+    const secondName = channelFn.mock.calls[1]?.[0]
+    expect(firstName).not.toBe(secondName)
+    expect(firstName).toMatch(/^realtime::task_state::\*::all::/)
+    expect(secondName).toMatch(/^realtime::task_state::\*::all::/)
   })
 })
