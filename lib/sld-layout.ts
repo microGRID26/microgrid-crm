@@ -50,6 +50,9 @@ export interface SldConfig {
   acInverterWire?: string     // default: '#6 AWG CU THWN-2'
   acToPanelWire?: string      // default: '(2) #4 AWG CU THWN-2'
   acConduit?: string          // default: '1-1/4" EMT TYPE CONDUIT'
+  // Service-entrance conduit (utility pole → service disconnect → meter).
+  // Carries 3× 250 kcmil; defaults to 2" EMT (1-1/4" can't fit per Ch 9 Table 4).
+  serviceEntranceConduit?: string
   batteryWire?: string        // default: '(2) #4/0 AWG'
   batteryConduit?: string     // default: '2" EMT'
   pcsCurrentSetting?: number  // default: 200
@@ -576,7 +579,7 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
   // Expansion fittings annotation
   elements.push({ type: 'text', x: gdX + 50, y: busY + 28, text: '(N) EXPANSION FITTINGS', fontSize: 4, anchor: 'middle', fill: '#333', bold: true })
   elements.push({ type: 'text', x: gdX + 50, y: busY + 36, text: 'REQUIRED ON BOTH ENDS', fontSize: 4, anchor: 'middle', fill: '#666' })
-  elements.push({ type: 'text', x: gdX + 50, y: busY + 44, text: `OF THE ${config.acConduit ?? '1-1/4" EMT'} PIPE`, fontSize: 4, anchor: 'middle', fill: '#666' })
+  elements.push({ type: 'text', x: gdX + 50, y: busY + 44, text: `OF THE ${config.serviceEntranceConduit ?? '2" EMT'} PIPE`, fontSize: 4, anchor: 'middle', fill: '#666' })
   // Callout ⑦ — Service Disconnect
   elements.push({ type: 'callout', cx: gdX + 50, cy: busY - 30, number: 7 })
 
@@ -627,10 +630,11 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
   elements.push({ type: 'text', x: umCx + 55, y: busY - 5, text: 'TO UTILITY', fontSize: 6, fill: '#666' })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 5, text: 'GRID', fontSize: 6, fill: '#666' })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 17, text: config.utility.toUpperCase(), fontSize: 5, fill: '#999' })
-  // Utility conduit routing — 250 kcmil service entrance always 2" EMT per
-  // Chapter 9 Table 4 (1-1/4" EMT can't fit 3× 250 kcmil). acConduit is for
-  // the inverter→MSP run, not the underground service feed.
-  elements.push({ type: 'text', x: umCx + 55, y: busY + 28, text: '2" EMT TYPE CONDUIT', fontSize: 4.5, fill: '#444', italic: true })
+  // Utility conduit routing — 250 kcmil service entrance from
+  // config.serviceEntranceConduit (default 2" EMT). 1-1/4" EMT can't fit 3×
+  // 250 kcmil per Ch 9 Table 4. acConduit is for the inverter→MSP run, not
+  // the underground service feed.
+  elements.push({ type: 'text', x: umCx + 55, y: busY + 28, text: `${config.serviceEntranceConduit ?? '2" EMT'} TYPE CONDUIT`, fontSize: 4.5, fill: '#444', italic: true })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 36, text: `ROUGHLY ${config.acRunLengthFt ?? 50} FEET (DIRT)`, fontSize: 4.5, fill: '#444', italic: true })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 44, text: 'TRENCHING FROM UTILITY POLE', fontSize: 4.5, fill: '#444', italic: true })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 52, text: 'TO HOME WALL', fontSize: 4.5, fill: '#444', italic: true })
@@ -1047,7 +1051,7 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
 
   // Expansion fittings
   elements.push({ type: 'text', x: sdX + 45, y: utilY + 28, text: '(N) EXPANSION FITTINGS', fontSize: 3.5, anchor: 'middle', fill: '#333', bold: true })
-  elements.push({ type: 'text', x: sdX + 45, y: utilY + 35, text: `BOTH ENDS OF ${config.acConduit ?? '1-1/4" EMT'}`, fontSize: 3, anchor: 'middle', fill: '#666' })
+  elements.push({ type: 'text', x: sdX + 45, y: utilY + 35, text: `BOTH ENDS OF ${config.serviceEntranceConduit ?? '2" EMT'}`, fontSize: 3, anchor: 'middle', fill: '#666' })
 
   // Wire from Service Disc → (RGM →) Utility Meter
   // RGM gated by config.hasRgm. Meter position (umCx) kept fixed.
@@ -1060,11 +1064,11 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
     elements.push({ type: 'text', x: rgmX + 27, y: utilY + 8, text: 'PC-PRO-RGM', fontSize: 3, anchor: 'middle', fill: '#666' })
     elements.push({ type: 'callout', cx: rgmX + 27, cy: utilY - 22, number: 8 })
     elements.push({ type: 'line', x1: rgmX + 55, y1: utilY, x2: umCx - 18, y2: utilY, strokeWidth: 1.5 })
-    elements.push({ type: 'text', x: rgmX + 58, y: utilY + 12, text: `${config.acConduit ?? '1-1/4" EMT'} TYPE CONDUIT`, fontSize: 3.5, fill: '#444', italic: true })
+    elements.push({ type: 'text', x: rgmX + 58, y: utilY + 12, text: `${config.serviceEntranceConduit ?? '2" EMT'} TYPE CONDUIT`, fontSize: 3.5, fill: '#444', italic: true })
   } else {
     elements.push({ type: 'line', x1: sdX + 90, y1: utilY, x2: umCx - 18, y2: utilY, strokeWidth: 1.5 })
     const labelX = (sdX + 90 + umCx - 18) / 2 - 35
-    elements.push({ type: 'text', x: labelX, y: utilY + 12, text: `${config.acConduit ?? '1-1/4" EMT'} TYPE CONDUIT`, fontSize: 3.5, fill: '#444', italic: true })
+    elements.push({ type: 'text', x: labelX, y: utilY + 12, text: `${config.serviceEntranceConduit ?? '2" EMT'} TYPE CONDUIT`, fontSize: 3.5, fill: '#444', italic: true })
   }
   elements.push({ type: 'circle', cx: umCx, cy: utilY, r: 18, strokeWidth: 1.5 })
   elements.push({ type: 'text', x: umCx, y: utilY - 2, text: 'M', fontSize: 7, anchor: 'middle', bold: true })
@@ -1089,10 +1093,10 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
   elements.push({ type: 'text', x: ctX, y: mspY + 82, text: 'CT', fontSize: 4, anchor: 'middle', bold: true })
   elements.push({ type: 'text', x: ctX + 15, y: mspY + 80, text: 'CONSUMPTION CT.', fontSize: 3.5, fill: '#444' })
 
-  // Trenching detail (below utility chain) — 250 kcmil service entrance is
-  // always 2" EMT (see comment at SLD trenching annotation above).
+  // Trenching detail (below utility chain) — 250 kcmil service entrance from
+  // config.serviceEntranceConduit (default 2" EMT).
   const trenchY = utilY + 50
-  elements.push({ type: 'text', x: sdX, y: trenchY, text: '2" EMT TYPE CONDUIT', fontSize: 4, fill: '#444', italic: true })
+  elements.push({ type: 'text', x: sdX, y: trenchY, text: `${config.serviceEntranceConduit ?? '2" EMT'} TYPE CONDUIT`, fontSize: 4, fill: '#444', italic: true })
   elements.push({ type: 'text', x: sdX, y: trenchY + 8, text: `ROUGHLY ${config.acRunLengthFt ?? 50} FEET (DIRT/ROCK)`, fontSize: 4, fill: '#444', italic: true })
   elements.push({ type: 'text', x: sdX, y: trenchY + 16, text: 'TRENCHING FROM UTILITY POLE', fontSize: 4, fill: '#444', italic: true })
   elements.push({ type: 'text', x: sdX, y: trenchY + 24, text: 'TO HOME WALL', fontSize: 4, fill: '#444', italic: true })

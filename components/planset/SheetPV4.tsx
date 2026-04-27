@@ -105,8 +105,11 @@ export function SheetPV4({ data }: { data: PlansetData }) {
             {/* Conduit from service disc to meter */}
             <line x1="480" y1="305" x2="555" y2="235" stroke="#333" strokeWidth="1" />
 
-            {/* Trenching annotation */}
-            <text x="500" y="310" fontSize="5" fill="#444">{data.acConduit} TYPE CONDUIT</text>
+            {/* Trenching annotation. Labels the service-entrance run (250 kcmil
+                feeder, utility pole → service disconnect → meter) — uses
+                serviceEntranceConduit, not acConduit. acConduit is the
+                inverter→MSP run on the wall above and is a different size. */}
+            <text x="500" y="310" fontSize="5" fill="#444">{data.serviceEntranceConduit} TYPE CONDUIT</text>
             <text x="500" y="320" fontSize="5" fill="#444">ROUGHLY {data.acRunLengthFt} FEET</text>
             <text x="500" y="330" fontSize="5" fill="#444">(DIRT/ROCK) TRENCHING</text>
             <text x="500" y="340" fontSize="5" fill="#444">FROM UTILITY POLE TO</text>
@@ -123,7 +126,7 @@ export function SheetPV4({ data }: { data: PlansetData }) {
 
             {/* Expansion fittings callout */}
             <text x="430" y="360" textAnchor="middle" fontSize="5.5" fill="#333" fontWeight="bold">(N) EXPANSION FITTINGS</text>
-            <text x="430" y="370" textAnchor="middle" fontSize="5" fill="#666">REQUIRED ON BOTH ENDS OF THE {data.acConduit} PIPE</text>
+            <text x="430" y="370" textAnchor="middle" fontSize="5" fill="#666">REQUIRED ON BOTH ENDS OF THE {data.serviceEntranceConduit} PIPE</text>
 
             {/* Within 10 feet label */}
             <text x="430" y="385" textAnchor="middle" fontSize="5" fill="#666">WITHIN 10 FEET FROM THE {data.utility?.toUpperCase() || 'UTILITY'} METER</text>

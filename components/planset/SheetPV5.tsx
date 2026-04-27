@@ -76,6 +76,7 @@ export function SheetPV5({ data }: { data: PlansetData }) {
     acInverterWire: data.acWireInverter,
     acToPanelWire: data.acWireToPanel,
     acConduit: data.acConduit,
+    serviceEntranceConduit: data.serviceEntranceConduit,
     batteryWire: data.batteryWire,
     batteryConduit: data.batteryConduit,
     pcsCurrentSetting: data.pcsCurrentSetting,

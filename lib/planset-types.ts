@@ -150,6 +150,11 @@ export const DURACELL_DEFAULTS = {
   // #1 AWG sized for 78.1A continuous (62.5A × 1.25) per inverter — #6 AWG fails 75°C/0.91 derate.
   acWireToPanel: '#1 AWG CU THWN-2',
   acConduit: '1-1/4" EMT',
+  // Service-entrance conduit (utility pole → service disconnect → meter). Carries
+  // the 250 kcmil bonded copper feeder; 1-1/4" EMT can't fit 3× 250 kcmil per
+  // NEC Ch 9 Table 4, so this is a separate field from acConduit (which sizes
+  // the inverter→panel run).
+  serviceEntranceConduit: '2" EMT',
   dcRunLengthFt: 100,
   acRunLengthFt: 50,
   batteryMaxCurrentA: 62.5, // Duracell Max Hybrid inverter battery port max continuous current
@@ -306,6 +311,10 @@ export interface PlansetData {
   acWireInverter: string
   acWireToPanel: string
   acConduit: string
+  // 250 kcmil service entrance, utility pole → service disconnect → meter.
+  // Separate from acConduit (inverter→panel) because Ch 9 Table 4 forbids
+  // 250 kcmil ×3 in 1-1/4" EMT.
+  serviceEntranceConduit: string
   dcRunLengthFt: number
   acRunLengthFt: number
   batteryMaxCurrentA: number
@@ -395,6 +404,7 @@ export interface PlansetOverrides {
   acWireInverter?: string
   acWireToPanel?: string
   acConduit?: string
+  serviceEntranceConduit?: string
   dcRunLengthFt?: number
   acRunLengthFt?: number
   batteryMaxCurrentA?: number
@@ -620,6 +630,7 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
     acWireInverter: overrides.acWireInverter ?? d.acWireInverter,
     acWireToPanel: overrides.acWireToPanel ?? d.acWireToPanel,
     acConduit: overrides.acConduit ?? d.acConduit,
+    serviceEntranceConduit: overrides.serviceEntranceConduit ?? d.serviceEntranceConduit,
     batteryWire: overrides.batteryWire ?? d.batteryWire,
     batteryConduit: overrides.batteryConduit ?? d.batteryConduit,
     dcHomerunWire: overrides.dcHomerunWire ?? d.dcHomerunWire,

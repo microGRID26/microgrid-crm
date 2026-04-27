@@ -6,7 +6,10 @@ export function SheetPV8({ data }: { data: PlansetData }) {
   const stringCount = data.strings.length
   const panelImp = data.panelImp
   const fla125 = panelImp * 1.25
-  const stringOcpd = Math.ceil(fla125 / 5) * 5
+  // PV string fuse OCPD per NEC 690.9(B): ≥ 156% × Isc (= 125% conductor sizing
+  // × 125% continuous-duty allowance). Was Imp × 1.25 = 15.8A → 20A — undersized
+  // and inconsistent with PV-6 wire chart which already uses the 156% rule.
+  const stringOcpd = Math.ceil((data.panelIsc * 1.56) / 5) * 5
   const ambientTemp = 37
   const tempFactor = 0.91
   const conduitFillFactor = 0.70
@@ -42,10 +45,12 @@ export function SheetPV8({ data }: { data: PlansetData }) {
   const inv75CMax = acAmp.c75 || 130
   const invUsable = Math.min(invCorrected, inv75CMax)
 
-  // Service-entrance conductor sized for full service rating (200A) per NEC 230.42
-  // and 215.2(B). Three current-carrying conductors → no conduit-fill derate per NEC 310.15(C)(1).
-  const genFla = 200
-  const genFla125 = 250
+  // Service-entrance conductor sized for full service rating per NEC 230.42 and
+  // 215.2(B). Three current-carrying conductors → no conduit-fill derate per
+  // NEC 310.15(C)(1). genFla derives from data.mainBreaker so a non-200A
+  // service (e.g. 100A or 150A) flows through correctly.
+  const genFla = parseInt(data.mainBreaker) || 200
+  const genFla125 = Math.ceil(genFla * 1.25)
   const gen250kcmilAmpacity = 255 // 250 kcmil CU THWN-2 @ 75°C
   const genUsable = gen250kcmilAmpacity // service entrance not subject to 4+CCC fill derate
 
@@ -88,9 +93,12 @@ export function SheetPV8({ data }: { data: PlansetData }) {
     ])
   }
 
+  // Inverter→MSP OCPD = backfeed breaker amps. Was hardcoded '100' — drifted
+  // from PV-6 OCPD table, PV-7.1 placard, and PV-4 box label, all of which
+  // derive from data.backfeedBreakerA (80A for current Duracell defaults).
   condRows.push([
     '③ INV', `INVERTER → MSP (${data.inverterCount}x ${data.inverterModel.split(' ').slice(0, 3).join(' ')})`,
-    invFla.toFixed(1), invFla125.toFixed(1), '100',
+    invFla.toFixed(1), invFla125.toFixed(1), String(data.backfeedBreakerA),
     '3', invWireSize, '1', '#6 AWG', 'THWN-2', data.acConduit,
     String(invC90Ampacity), String(ambientTemp), String(tempFactor), String(invCorrected),
     String(inv75CMax), String(invUsable),
@@ -100,8 +108,8 @@ export function SheetPV8({ data }: { data: PlansetData }) {
   if (data.inverterCount > 0) {
     condRows.push([
       '⑦ GEN', 'SERVICE DISCONNECT → UTILITY METER',
-      String(genFla), String(genFla125), '200',
-      '3', '250 kcmil', '1', '#6 AWG', 'THWN-2', '2" EMT',
+      String(genFla), String(genFla125), String(genFla),
+      '3', '250 kcmil', '1', '#6 AWG', 'THWN-2', data.serviceEntranceConduit,
       String(gen250kcmilAmpacity), String(ambientTemp), '1.00', String(gen250kcmilAmpacity),
       String(gen250kcmilAmpacity), String(genUsable),
     ])

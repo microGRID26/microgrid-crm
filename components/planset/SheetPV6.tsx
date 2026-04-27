@@ -101,10 +101,7 @@ export function SheetPV6({ data }: { data: PlansetData }) {
             ] : []),
             { tag: 7, from: 'FROM SERVICE DISCONNECT TO UTILITY METER', specs: [
               `(3) 250 kcmil CU THWN-2`,
-              // 250 kcmil conductors don't fit in 1-1/4" EMT per Chapter 9 Table 4.
-              // Service entrance always 2" EMT regardless of acConduit (which sizes
-              // the inverter→MSP run). Matches PV-8 conductor schedule row ⑦.
-              `2" EMT TYPE CONDUIT`,
+              `${data.serviceEntranceConduit} TYPE CONDUIT`,
               `ROUGHLY ${data.acRunLengthFt} FEET (DIRT) TRENCHING`,
               `FROM UTILITY POLE TO HOME WALL`,
             ]},

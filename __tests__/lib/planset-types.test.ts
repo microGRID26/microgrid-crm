@@ -195,3 +195,24 @@ describe('120% rule compliance (NEC 705.12(B)(2)(b)(2))', () => {
     expect(data.maxAllowableBackfeedA).toBe(0)
   })
 })
+
+describe('serviceEntranceConduit field (PV-4 / PV-5 / PV-6 / PV-8 source-of-truth)', () => {
+  // The trenching annotation on PV-4 was using data.acConduit (1-1/4" EMT for
+  // the inverter→panel run). Same physical run on PV-5/PV-6/PV-8 was hardcoded
+  // 2" EMT. Field unifies them so a non-default conduit propagates everywhere.
+  it('defaults to 2" EMT (3× 250 kcmil exceeds 1-1/4" EMT per NEC Ch 9 Table 4)', () => {
+    const data = buildPlansetData(makeProject())
+    expect(data.serviceEntranceConduit).toBe('2" EMT')
+  })
+
+  it('is independent of acConduit so the inverter→panel run can change without the service feed changing', () => {
+    const data = buildPlansetData(makeProject(), { acConduit: '1" EMT' })
+    expect(data.acConduit).toBe('1" EMT')
+    expect(data.serviceEntranceConduit).toBe('2" EMT')
+  })
+
+  it('overrides flow through buildPlansetData (e.g. AHJ requires 3" EMT)', () => {
+    const data = buildPlansetData(makeProject(), { serviceEntranceConduit: '3" EMT' })
+    expect(data.serviceEntranceConduit).toBe('3" EMT')
+  })
+})
