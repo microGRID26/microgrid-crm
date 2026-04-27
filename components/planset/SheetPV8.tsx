@@ -1,4 +1,5 @@
 import type { PlansetData } from '@/lib/planset-types'
+import { ampacityFor } from '@/lib/planset-types'
 import { TitleBlockHtml } from './TitleBlockHtml'
 
 export function SheetPV8({ data }: { data: PlansetData }) {
@@ -15,19 +16,25 @@ export function SheetPV8({ data }: { data: PlansetData }) {
   const string75CMax = 30
   const stringUsable = Math.min(stringCorrected, string75CMax)
 
-  // Battery FLA from inverter battery port max continuous current spec
+  // Battery FLA from inverter battery port max continuous current spec.
+  // Wire size + ampacity derive from data.batteryWire so this row matches PV-6
+  // ampacity table and SLD label (single source-of-truth fix from William Carter audit).
   const battFla = data.batteryMaxCurrentA
   const battFla125 = parseFloat((battFla * 1.25).toFixed(1))
-  const batt4Ampacity = 95
-  const battCorrected = parseFloat((batt4Ampacity * conduitFillFactor * tempFactor).toFixed(1))
-  const batt75CMax = 85
+  const battAmp = ampacityFor(data.batteryWire)
+  const battWireSize = data.batteryWire.match(/#?\d+(?:\/0)?\s*AWG/i)?.[0] ?? '#4 AWG'
+  const battC90Ampacity = battAmp.c90 || 95
+  const battCorrected = parseFloat((battC90Ampacity * conduitFillFactor * tempFactor).toFixed(1))
+  const batt75CMax = battAmp.c75 || 85
   const battUsable = Math.min(battCorrected, batt75CMax)
 
   const invFla = parseFloat((data.inverterAcPower * 1000 / 240).toFixed(1))
   const invFla125 = parseFloat((invFla * 1.25).toFixed(1))
-  const inv1Ampacity = 145
-  const invCorrected = parseFloat((inv1Ampacity * conduitFillFactor * tempFactor).toFixed(1))
-  const inv75CMax = 130
+  const acAmp = ampacityFor(data.acWireToPanel)
+  const invWireSize = data.acWireToPanel.match(/#?\d+(?:\/0)?\s*AWG/i)?.[0] ?? '#1 AWG'
+  const invC90Ampacity = acAmp.c90 || 145
+  const invCorrected = parseFloat((invC90Ampacity * conduitFillFactor * tempFactor).toFixed(1))
+  const inv75CMax = acAmp.c75 || 130
   const invUsable = Math.min(invCorrected, inv75CMax)
 
   // Service-entrance conductor sized for full service rating (200A) per NEC 230.42
@@ -62,8 +69,8 @@ export function SheetPV8({ data }: { data: PlansetData }) {
     condRows.push([
       '⑤ BATT', `BATTERY → COMBINER (${data.batteryCount}x ${data.batteryModel})`,
       battFla.toFixed(1), battFla125.toFixed(1), '80',
-      '3', '#4 AWG', '1', '#6 AWG', 'THWN-2', '3/4" EMT',
-      String(batt4Ampacity), String(ambientTemp), String(tempFactor), String(battCorrected),
+      '3', battWireSize, '1', '#6 AWG', 'THWN-2', data.batteryConduit,
+      String(battC90Ampacity), String(ambientTemp), String(tempFactor), String(battCorrected),
       String(batt75CMax), String(battUsable),
     ])
   }
@@ -71,8 +78,8 @@ export function SheetPV8({ data }: { data: PlansetData }) {
   condRows.push([
     '③ INV', `INVERTER → MSP (${data.inverterCount}x ${data.inverterModel.split(' ').slice(0, 3).join(' ')})`,
     invFla.toFixed(1), invFla125.toFixed(1), '100',
-    '3', '#1 AWG', '1', '#6 AWG', 'THWN-2', '1-1/4" EMT',
-    String(inv1Ampacity), String(ambientTemp), String(tempFactor), String(invCorrected),
+    '3', invWireSize, '1', '#6 AWG', 'THWN-2', data.acConduit,
+    String(invC90Ampacity), String(ambientTemp), String(tempFactor), String(invCorrected),
     String(inv75CMax), String(invUsable),
   ])
 

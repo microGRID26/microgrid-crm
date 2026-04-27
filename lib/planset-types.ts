@@ -5,6 +5,57 @@
 
 import type { Project } from '@/types/database'
 
+// ── NEC Ampacity Tables (Table 310.16, THWN-2 copper) ──────────────────────
+// Single source-of-truth so PV-6 ampacity table + PV-8 conductor schedule render
+// matching values for the same wire. Fixes the #4-vs-#4/0 (battery) and
+// #6-vs-#1-vs-#3 (inverter→MSP) cross-sheet contradictions in the William
+// Carter audit.
+
+export const NEC_AMPACITY_75C: Record<string, { c90: number; c75: number }> = {
+  '#14 AWG': { c90: 25, c75: 20 },
+  '#12 AWG': { c90: 30, c75: 25 },
+  '#10 AWG': { c90: 40, c75: 35 },
+  '#8 AWG':  { c90: 55, c75: 50 },
+  '#6 AWG':  { c90: 75, c75: 65 },
+  '#4 AWG':  { c90: 95, c75: 85 },
+  '#3 AWG':  { c90: 110, c75: 100 },
+  '#2 AWG':  { c90: 130, c75: 115 },
+  '#1 AWG':  { c90: 145, c75: 130 },
+  '1/0 AWG': { c90: 170, c75: 150 },
+  '2/0 AWG': { c90: 195, c75: 175 },
+  '3/0 AWG': { c90: 225, c75: 200 },
+  '4/0 AWG': { c90: 260, c75: 230 },
+  '250 kcmil': { c90: 290, c75: 255 },
+  '300 kcmil': { c90: 320, c75: 285 },
+  '350 kcmil': { c90: 350, c75: 310 },
+}
+
+/**
+ * Parse a wire spec like '#4/0 AWG CU THWN-2', '(2) #4/0 AWG', '1/0 AWG', or
+ * '250 kcmil CU' and look up NEC 310.16 ampacity. Returns {c90, c75} for the
+ * 90°C derate-from / 75°C terminal-cap columns. Returns {0, 0} when the size
+ * cannot be parsed (callers fall back to a sane default rather than render 0).
+ *
+ * Lookup keys in `NEC_AMPACITY_75C` use `#` for #14–#1 (small AWG) and bare
+ * `N/0` for paralleled AWG (1/0–4/0) — this helper normalizes either input
+ * form to the matching key.
+ */
+export function ampacityFor(wireSpec: string): { c90: number; c75: number } {
+  // `#` is optional so '1/0 AWG' (no #) and '#1 AWG' both match
+  const awg = wireSpec.match(/(#?\d+(?:\/0)?)\s*AWG/i)
+  if (awg) {
+    const raw = awg[1].toUpperCase()
+    // Table keys: '#14 AWG'…'#1 AWG' use '#'; '1/0 AWG'…'4/0 AWG' don't
+    const key = raw.includes('/0') ? `${raw.replace('#', '')} AWG` : `${raw.startsWith('#') ? raw : '#' + raw} AWG`
+    return NEC_AMPACITY_75C[key] ?? { c90: 0, c75: 0 }
+  }
+  const kcmil = wireSpec.match(/(\d+)\s*kcmil/i)
+  if (kcmil) {
+    return NEC_AMPACITY_75C[`${kcmil[1]} kcmil`] ?? { c90: 0, c75: 0 }
+  }
+  return { c90: 0, c75: 0 }
+}
+
 // ── Contractor ─────────────────────────────────────────────────────────────
 
 export const MICROGRID_CONTRACTOR = {
@@ -96,7 +147,8 @@ export const DURACELL_DEFAULTS = {
   dcStringWire: '#10 AWG CU PV WIRE',
   dcConduit: '3/4" EMT',
   acWireInverter: '#10 AWG CU THWN-2',
-  acWireToPanel: '#6 AWG CU THWN-2',
+  // #1 AWG sized for 78.1A continuous (62.5A × 1.25) per inverter — #6 AWG fails 75°C/0.91 derate.
+  acWireToPanel: '#1 AWG CU THWN-2',
   acConduit: '1-1/4" EMT',
   dcRunLengthFt: 100,
   acRunLengthFt: 50,
@@ -108,6 +160,10 @@ export const DURACELL_DEFAULTS = {
   systemTopology: 'string-mppt' as const,
   rapidShutdownModel: 'RSD-D-20',
   hasCantexBar: true,
+  // RGM (Revenue Grade Meter / PC-PRO-RGM) is OUT for Duracell projects per
+  // William Carter feedback (2026-04-26). Legacy DWG-era plansets included it;
+  // new MG-rendered Duracell installs do not. Per-project override available.
+  hasRgm: false,
 
   // Building defaults (can be overridden per project)
   roofType: 'COMP SHINGLE',
@@ -260,6 +316,8 @@ export interface PlansetData {
   systemTopology: 'string-mppt' | 'micro-inverter'
   rapidShutdownModel: string
   hasCantexBar: boolean
+  // Revenue Grade Meter (PC-PRO-RGM) — OUT for Duracell, IN for legacy/AHJ-required
+  hasRgm: boolean
 
   // Contractor
   contractor: typeof MICROGRID_CONTRACTOR
@@ -267,6 +325,14 @@ export interface PlansetData {
   // Computed
   vocCorrected: number
   pcsCurrentSetting: number
+
+  // NEC 705.12(B)(2)(b)(2) "120% rule" compliance for load-side backfeed.
+  // Sum of all backfeed breakers + main breaker must not exceed 120% × bus.
+  // When false, designer must use line-side tap, sub-panel feeder, PCS-limited
+  // output (NEC 705.13), or upsize the bus before submitting to AHJ.
+  totalBackfeedA: number
+  maxAllowableBackfeedA: number
+  loadSideBackfeedCompliant: boolean
 
   // Site plan image (uploaded or extracted from original planset)
   sitePlanImageUrl: string | null
@@ -350,6 +416,7 @@ export interface PlansetOverrides {
   systemTopology?: 'string-mppt' | 'micro-inverter'
   rapidShutdownModel?: string
   hasCantexBar?: boolean
+  hasRgm?: boolean
 }
 
 /**
@@ -398,6 +465,13 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
   // PCS controlled current setting: matches MSP bus rating (NEC 705.12 120% rule is for backfeed breaker sizing, not PCS)
   const busRatingNum = parseInt(mspBusRating) || 200
   const pcsCurrentSetting = busRatingNum
+
+  // NEC 705.12(B)(2)(b)(2) — 120% rule compliance check
+  const mainBreakerNumInt = parseInt(mainBreakerNum) || busRatingNum
+  const perInverterBackfeedA = clampToNecBreaker((inverterAcPower * 1000 / 240) * 1.25)
+  const totalBackfeedA = perInverterBackfeedA * inverterCount
+  const maxAllowableBackfeedA = Math.max(0, busRatingNum * 1.2 - mainBreakerNumInt)
+  const loadSideBackfeedCompliant = totalBackfeedA <= maxAllowableBackfeedA
 
   // Distribute strings across inverters
   const strings = overrides.strings ?? []
@@ -536,10 +610,14 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
     systemTopology: overrides.systemTopology ?? d.systemTopology,
     rapidShutdownModel: overrides.rapidShutdownModel ?? d.rapidShutdownModel,
     hasCantexBar: overrides.hasCantexBar ?? d.hasCantexBar,
+    hasRgm: overrides.hasRgm ?? d.hasRgm,
 
     contractor: MICROGRID_CONTRACTOR,
     vocCorrected: parseFloat(vocCorrected.toFixed(2)),
     pcsCurrentSetting,
+    totalBackfeedA,
+    maxAllowableBackfeedA,
+    loadSideBackfeedCompliant,
     sheetTotal: 10,  // base count — page.tsx overrides when enhanced mode adds sheets
     drawnDate,
   }

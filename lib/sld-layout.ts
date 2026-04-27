@@ -59,6 +59,16 @@ export interface SldConfig {
   systemTopology: 'string-mppt' | 'micro-inverter'
   rapidShutdownModel: string                         // e.g. 'RSD-D-20'
   hasCantexBar: boolean
+  // Revenue Grade Meter (PC-PRO-RGM) — gates the RGM rect between service
+  // disconnect and utility meter. OUT for Duracell projects (William Carter
+  // feedback 2026-04-26); legacy DWG-era plansets had it.
+  hasRgm: boolean
+  // NEC 705.12(B)(2)(b)(2) "120% rule" compliance — when false, the SLD notes
+  // surface a designer warning so AHJ rejection is caught before submittal.
+  loadSideBackfeedCompliant?: boolean
+  totalBackfeedA?: number
+  maxAllowableBackfeedA?: number
+  mainBreakerA?: number
 }
 
 // Text width estimation: ~0.58 * fontSize * charCount for Arial (padded to prevent overflow)
@@ -570,24 +580,30 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
   // Callout ⑦ — Service Disconnect
   elements.push({ type: 'callout', cx: gdX + 50, cy: busY - 30, number: 7 })
 
-  // Wire to RGM
-  elements.push({ type: 'line', x1: gdX + 100, y1: busY, x2: gdX + 125, y2: busY, strokeWidth: 1.5 })
-  elements.push({ type: 'text', x: gdX + 105, y: busY + 12, text: '(3) 250 kcmil CU THWN-2', fontSize: 4, fill: '#444', italic: true })
-
-  // Revenue Grade Meter
+  // Wire from Service Disc → (RGM →) Utility Meter
+  // RGM gated by config.hasRgm — Duracell projects skip it, legacy installs include.
+  // Utility meter position (umCx) is kept fixed regardless so downstream layout doesn't shift.
   const rgmX = gdX + 125
-  elements.push({ type: 'rect', x: rgmX, y: busY - 13, w: 70, h: 26, strokeWidth: 0.8 })
-  elements.push({ type: 'text', x: rgmX + 35, y: busY - 2, text: '(N) RGM', fontSize: 4.5, anchor: 'middle' })
-  elements.push({ type: 'text', x: rgmX + 35, y: busY + 7, text: 'PC-PRO-RGM-W2-BA-L', fontSize: 3.8, anchor: 'middle' })
-  // Callout ⑧ — RGM
-  elements.push({ type: 'callout', cx: rgmX + 35, cy: busY - 24, number: 8 })
-
-  // Wire to utility meter
-  elements.push({ type: 'line', x1: rgmX + 70, y1: busY, x2: rgmX + 95, y2: busY, strokeWidth: 1.5 })
-  elements.push({ type: 'text', x: rgmX + 72, y: busY + 12, text: '(3) 250 kcmil CU THWN-2', fontSize: 4, fill: '#444', italic: true })
-
-  // Utility meter circle
   const umCx = rgmX + 120
+  if (config.hasRgm) {
+    // Service Disc → RGM
+    elements.push({ type: 'line', x1: gdX + 100, y1: busY, x2: rgmX, y2: busY, strokeWidth: 1.5 })
+    elements.push({ type: 'text', x: gdX + 105, y: busY + 12, text: '(3) 250 kcmil CU THWN-2', fontSize: 4, fill: '#444', italic: true })
+    // Revenue Grade Meter
+    elements.push({ type: 'rect', x: rgmX, y: busY - 13, w: 70, h: 26, strokeWidth: 0.8 })
+    elements.push({ type: 'text', x: rgmX + 35, y: busY - 2, text: '(N) RGM', fontSize: 4.5, anchor: 'middle' })
+    elements.push({ type: 'text', x: rgmX + 35, y: busY + 7, text: 'PC-PRO-RGM-W2-BA-L', fontSize: 3.8, anchor: 'middle' })
+    // Callout ⑧ — RGM
+    elements.push({ type: 'callout', cx: rgmX + 35, cy: busY - 24, number: 8 })
+    // RGM → Meter
+    elements.push({ type: 'line', x1: rgmX + 70, y1: busY, x2: umCx - 22, y2: busY, strokeWidth: 1.5 })
+    elements.push({ type: 'text', x: rgmX + 72, y: busY + 12, text: '(3) 250 kcmil CU THWN-2', fontSize: 4, fill: '#444', italic: true })
+  } else {
+    // Direct: Service Disc → Meter (single wire, single label centered)
+    elements.push({ type: 'line', x1: gdX + 100, y1: busY, x2: umCx - 22, y2: busY, strokeWidth: 1.5 })
+    const labelX = (gdX + 100 + umCx - 22) / 2 - 60
+    elements.push({ type: 'text', x: labelX, y: busY + 12, text: '(3) 250 kcmil CU THWN-2', fontSize: 4, fill: '#444', italic: true })
+  }
   elements.push({ type: 'circle', cx: umCx, cy: busY, r: 22, strokeWidth: 1.5 })
   elements.push({ type: 'text', x: umCx, y: busY - 3, text: 'M', fontSize: 8, anchor: 'middle', bold: true })
   elements.push({ type: 'text', x: umCx, y: busY + 8, text: 'kWh', fontSize: 5.5, anchor: 'middle' })
@@ -611,8 +627,10 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
   elements.push({ type: 'text', x: umCx + 55, y: busY - 5, text: 'TO UTILITY', fontSize: 6, fill: '#666' })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 5, text: 'GRID', fontSize: 6, fill: '#666' })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 17, text: config.utility.toUpperCase(), fontSize: 5, fill: '#999' })
-  // Utility conduit routing annotation
-  elements.push({ type: 'text', x: umCx + 55, y: busY + 28, text: `${config.acConduit ?? '1-1/4" EMT'} TYPE CONDUIT`, fontSize: 4.5, fill: '#444', italic: true })
+  // Utility conduit routing — 250 kcmil service entrance always 2" EMT per
+  // Chapter 9 Table 4 (1-1/4" EMT can't fit 3× 250 kcmil). acConduit is for
+  // the inverter→MSP run, not the underground service feed.
+  elements.push({ type: 'text', x: umCx + 55, y: busY + 28, text: '2" EMT TYPE CONDUIT', fontSize: 4.5, fill: '#444', italic: true })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 36, text: `ROUGHLY ${config.acRunLengthFt ?? 50} FEET (DIRT)`, fontSize: 4.5, fill: '#444', italic: true })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 44, text: 'TRENCHING FROM UTILITY POLE', fontSize: 4.5, fill: '#444', italic: true })
   elements.push({ type: 'text', x: umCx + 55, y: busY + 52, text: 'TO HOME WALL', fontSize: 4.5, fill: '#444', italic: true })
@@ -635,6 +653,12 @@ export function calculateSldLayout(config: SldConfig): SldLayout {
     '7. ALL WORK SHALL BE IN ACCORD WITH THE 2020 NEC WITH SPECIAL EMPHASIS ON ARTICLE 690.',
     `NOTE: PCS CONTROLLED CURRENT SETTING: ${config.pcsCurrentSetting ?? 200}A.`,
     'NOTE: STRING CALCULATIONS REQUIRE PE REVIEW BEFORE PERMITTING.',
+    ...(config.loadSideBackfeedCompliant === false
+      ? [
+          `⚠ DESIGNER WARNING: 120% rule fails — total backfeed ${config.totalBackfeedA ?? 0}A + ${config.mainBreakerA ?? 200}A main exceeds 120% × bus (max allowable backfeed = ${config.maxAllowableBackfeedA ?? 0}A).`,
+          '   Use line-side tap (NEC 705.12(A)), sub-panel feeder, PCS-limited output (NEC 705.13), or upsize bus before submitting to AHJ.',
+        ]
+      : []),
   ]
   noteLines.forEach((line, i) => {
     elements.push({ type: 'text', x: 30, y: notesY + 24 + i * 9, text: line, fontSize: 5.5 })
@@ -1025,22 +1049,23 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
   elements.push({ type: 'text', x: sdX + 45, y: utilY + 28, text: '(N) EXPANSION FITTINGS', fontSize: 3.5, anchor: 'middle', fill: '#333', bold: true })
   elements.push({ type: 'text', x: sdX + 45, y: utilY + 35, text: `BOTH ENDS OF ${config.acConduit ?? '1-1/4" EMT'}`, fontSize: 3, anchor: 'middle', fill: '#666' })
 
-  // Wire to RGM
-  elements.push({ type: 'line', x1: sdX + 90, y1: utilY, x2: sdX + 110, y2: utilY, strokeWidth: 1.5 })
-
-  // RGM
+  // Wire from Service Disc → (RGM →) Utility Meter
+  // RGM gated by config.hasRgm. Meter position (umCx) kept fixed.
   const rgmX = sdX + 110
-  elements.push({ type: 'rect', x: rgmX, y: utilY - 12, w: 55, h: 24, strokeWidth: 0.8 })
-  elements.push({ type: 'text', x: rgmX + 27, y: utilY - 1, text: '(N) RGM', fontSize: 4, anchor: 'middle' })
-  elements.push({ type: 'text', x: rgmX + 27, y: utilY + 8, text: 'PC-PRO-RGM', fontSize: 3, anchor: 'middle', fill: '#666' })
-  elements.push({ type: 'callout', cx: rgmX + 27, cy: utilY - 22, number: 8 })
-
-  // Wire to meter
-  elements.push({ type: 'line', x1: rgmX + 55, y1: utilY, x2: rgmX + 75, y2: utilY, strokeWidth: 1.5 })
-  elements.push({ type: 'text', x: rgmX + 58, y: utilY + 12, text: `${config.acConduit ?? '1-1/4" EMT'} TYPE CONDUIT`, fontSize: 3.5, fill: '#444', italic: true })
-
-  // Utility meter
   const umCx = rgmX + 100
+  if (config.hasRgm) {
+    elements.push({ type: 'line', x1: sdX + 90, y1: utilY, x2: rgmX, y2: utilY, strokeWidth: 1.5 })
+    elements.push({ type: 'rect', x: rgmX, y: utilY - 12, w: 55, h: 24, strokeWidth: 0.8 })
+    elements.push({ type: 'text', x: rgmX + 27, y: utilY - 1, text: '(N) RGM', fontSize: 4, anchor: 'middle' })
+    elements.push({ type: 'text', x: rgmX + 27, y: utilY + 8, text: 'PC-PRO-RGM', fontSize: 3, anchor: 'middle', fill: '#666' })
+    elements.push({ type: 'callout', cx: rgmX + 27, cy: utilY - 22, number: 8 })
+    elements.push({ type: 'line', x1: rgmX + 55, y1: utilY, x2: umCx - 18, y2: utilY, strokeWidth: 1.5 })
+    elements.push({ type: 'text', x: rgmX + 58, y: utilY + 12, text: `${config.acConduit ?? '1-1/4" EMT'} TYPE CONDUIT`, fontSize: 3.5, fill: '#444', italic: true })
+  } else {
+    elements.push({ type: 'line', x1: sdX + 90, y1: utilY, x2: umCx - 18, y2: utilY, strokeWidth: 1.5 })
+    const labelX = (sdX + 90 + umCx - 18) / 2 - 35
+    elements.push({ type: 'text', x: labelX, y: utilY + 12, text: `${config.acConduit ?? '1-1/4" EMT'} TYPE CONDUIT`, fontSize: 3.5, fill: '#444', italic: true })
+  }
   elements.push({ type: 'circle', cx: umCx, cy: utilY, r: 18, strokeWidth: 1.5 })
   elements.push({ type: 'text', x: umCx, y: utilY - 2, text: 'M', fontSize: 7, anchor: 'middle', bold: true })
   elements.push({ type: 'text', x: umCx, y: utilY + 7, text: 'kWh', fontSize: 5, anchor: 'middle' })
@@ -1064,9 +1089,10 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
   elements.push({ type: 'text', x: ctX, y: mspY + 82, text: 'CT', fontSize: 4, anchor: 'middle', bold: true })
   elements.push({ type: 'text', x: ctX + 15, y: mspY + 80, text: 'CONSUMPTION CT.', fontSize: 3.5, fill: '#444' })
 
-  // Trenching detail (below utility chain)
+  // Trenching detail (below utility chain) — 250 kcmil service entrance is
+  // always 2" EMT (see comment at SLD trenching annotation above).
   const trenchY = utilY + 50
-  elements.push({ type: 'text', x: sdX, y: trenchY, text: `${config.acConduit ?? '1-1/4" EMT'} TYPE CONDUIT`, fontSize: 4, fill: '#444', italic: true })
+  elements.push({ type: 'text', x: sdX, y: trenchY, text: '2" EMT TYPE CONDUIT', fontSize: 4, fill: '#444', italic: true })
   elements.push({ type: 'text', x: sdX, y: trenchY + 8, text: `ROUGHLY ${config.acRunLengthFt ?? 50} FEET (DIRT/ROCK)`, fontSize: 4, fill: '#444', italic: true })
   elements.push({ type: 'text', x: sdX, y: trenchY + 16, text: 'TRENCHING FROM UTILITY POLE', fontSize: 4, fill: '#444', italic: true })
   elements.push({ type: 'text', x: sdX, y: trenchY + 24, text: 'TO HOME WALL', fontSize: 4, fill: '#444', italic: true })
@@ -1083,6 +1109,11 @@ function calculateSldLayoutSpatial(config: SldConfig): SldLayout {
     '5. IF CONDUIT IS USED ON EXTERIOR, RUNS SHALL BE MIN. 7/8" ABOVE ROOF.',
     '6. ALL WORK PER 2020 NEC WITH EMPHASIS ON ARTICLES 690, 705, 706.',
     `7. PCS CONTROLLED CURRENT SETTING: ${config.pcsCurrentSetting ?? 200}A. STRING CALCULATIONS REQUIRE PE REVIEW.`,
+    ...(config.loadSideBackfeedCompliant === false
+      ? [
+          `⚠ DESIGNER WARNING: 120% rule fails — total backfeed ${config.totalBackfeedA ?? 0}A + ${config.mainBreakerA ?? 200}A main exceeds 120% × bus (max allowable backfeed = ${config.maxAllowableBackfeedA ?? 0}A). Use line-side tap, sub-panel feeder, PCS-limited output, or upsize bus.`,
+        ]
+      : []),
   ]
   noteLines.forEach((line, i) => {
     elements.push({ type: 'text', x: 30, y: notesY + 22 + i * 9, text: line, fontSize: 5 })

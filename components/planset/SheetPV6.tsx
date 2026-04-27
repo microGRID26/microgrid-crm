@@ -1,4 +1,5 @@
 import type { PlansetData } from '@/lib/planset-types'
+import { ampacityFor } from '@/lib/planset-types'
 import { TitleBlockHtml } from './TitleBlockHtml'
 
 export function SheetPV6({ data }: { data: PlansetData }) {
@@ -88,7 +89,10 @@ export function SheetPV6({ data }: { data: PlansetData }) {
             ] : []),
             { tag: 7, from: 'FROM SERVICE DISCONNECT TO UTILITY METER', specs: [
               `(3) 250 kcmil CU THWN-2`,
-              `${data.acConduit} TYPE CONDUIT`,
+              // 250 kcmil conductors don't fit in 1-1/4" EMT per Chapter 9 Table 4.
+              // Service entrance always 2" EMT regardless of acConduit (which sizes
+              // the inverter→MSP run). Matches PV-8 conductor schedule row ⑦.
+              `2" EMT TYPE CONDUIT`,
               `ROUGHLY ${data.acRunLengthFt} FEET (DIRT) TRENCHING`,
               `FROM UTILITY POLE TO HOME WALL`,
             ]},
@@ -200,8 +204,8 @@ export function SheetPV6({ data }: { data: PlansetData }) {
           <tbody>
             {[
               ['STRING FUSE', `Isc \u00D7 1.56 = ${data.panelIsc} \u00D7 1.56`, `${stringFuseCalc.toFixed(1)}A`, `${stringFuseSize}A`, '600V DC'],
-              ['PV BREAKER (per INV)', 'Per inverter AC output rating', `${acCurrent125.toFixed(1)}A`, '100A', '240V AC'],
-              ['MAIN BREAKER', 'Per system total AC capacity', `${(acCurrent125 * data.inverterCount).toFixed(1)}A`, '200A', '240V AC'],
+              ['PV BREAKER (per INV)', 'Per inverter AC output rating', `${acCurrent125.toFixed(1)}A`, `${data.backfeedBreakerA}A`, '240V AC'],
+              ['MAIN BREAKER', 'Existing service main', `${(acCurrent125 * data.inverterCount).toFixed(1)}A`, data.mainBreaker, '240V AC'],
             ].map((row, i) => (
               <tr key={i} style={{ background: i % 2 === 0 ? '#f9f9f9' : 'white' }}>
                 {row.map((val, j) => <td key={j} style={{ padding: '2px 4px' }}>{val}</td>)}
@@ -245,12 +249,24 @@ export function SheetPV6({ data }: { data: PlansetData }) {
             </tr>
           </thead>
           <tbody>
-            {([
-              ['#10 AWG CU (DC STRING)', 40, 0.70, 37, 30],
-              ['#4 AWG CU (BATTERY)', 95, 0.70, 37, 85],
-              ['#1 AWG CU (INVERTER AC)', 145, 0.70, 37, 130],
-              ['#6 AWG CU (EGC)', 75, 1.0, 37, 65],
-            ] as [string, number, number, number, number][]).map((row, i) => {
+            {/*
+              Battery + inverter ampacity rows derive from data.batteryWire /
+              data.acWireToPanel via NEC_AMPACITY_75C lookup so this table
+              matches PV-8 conductor schedule and PV-4 detail labels.
+              DC string + EGC are static defaults (#10 AWG free air, #6 AWG EGC).
+            */}
+            {((): [string, number, number, number, number][] => {
+              const battAmp = ampacityFor(data.batteryWire)
+              const acAmp = ampacityFor(data.acWireToPanel)
+              const battSize = data.batteryWire.match(/#?\d+(?:\/0)?\s*AWG/i)?.[0] ?? '#4 AWG'
+              const acSize = data.acWireToPanel.match(/#?\d+(?:\/0)?\s*AWG/i)?.[0] ?? '#1 AWG'
+              return [
+                ['#10 AWG CU (DC STRING)', 40, 0.70, 37, 30],
+                [`${battSize} CU (BATTERY)`, battAmp.c90 || 95, 0.70, 37, battAmp.c75 || 85],
+                [`${acSize} CU (INVERTER AC)`, acAmp.c90 || 145, 0.70, 37, acAmp.c75 || 130],
+                ['#6 AWG CU (EGC)', 75, 1.0, 37, 65],
+              ]
+            })().map((row, i) => {
               const corrected = parseFloat((row[1] * row[2] * tempCF).toFixed(1))
               const usable = Math.min(corrected, row[4])
               return (

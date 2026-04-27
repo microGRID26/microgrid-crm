@@ -17,6 +17,15 @@ export function SheetPV71({ data }: { data: PlansetData }) {
   const inverterManufacturer = data.inverterModel.split(' ')[0].toUpperCase()
   const batteryManufacturer = data.batteryModel.split(' ')[0].toUpperCase()
 
+  // Guard against div-by-zero when inverterCount=0 (e.g., audit/draft project)
+  // and against rendering a zero-count battery placard for non-battery installs.
+  const batteriesPerInverter = data.inverterCount > 0
+    ? Math.round(data.batteryCount / data.inverterCount)
+    : 0
+  const stackCount = data.batteriesPerStack > 0
+    ? Math.ceil(data.batteryCount / data.batteriesPerStack)
+    : 0
+
   const placards: Placard[] = [
     {
       title: 'INVERTER PLACARD',
@@ -35,7 +44,8 @@ export function SheetPV71({ data }: { data: PlansetData }) {
         ['INSTALLATION', 'WALL-MOUNTED, ACCESSIBLE'],
       ],
     },
-    {
+    // Battery placard only renders for projects with batteries \u2014 skip on PV-only.
+    ...(data.batteryCount > 0 ? [{
       title: 'BATTERY PLACARD',
       rows: [
         ['EQUIPMENT', `(${data.batteryCount}) ${data.batteryModel}`],
@@ -44,14 +54,14 @@ export function SheetPV71({ data }: { data: PlansetData }) {
         ['CAPACITY PER UNIT', `${data.batteryCapacity} kWh`],
         ['TOTAL CAPACITY', `${data.totalStorageKwh} kWh`],
         ['NOMINAL VOLTAGE', '51.2V DC'],
-        ['CONFIGURATION', `${data.batteryCount / data.inverterCount} BATTERIES PER INVERTER`],
-        ['STACKING', `${data.batteriesPerStack} PER STACK (${Math.ceil(data.batteryCount / data.batteriesPerStack)} STACKS)`],
+        ['CONFIGURATION', `${batteriesPerInverter} BATTERIES PER INVERTER`],
+        ['STACKING', `${data.batteriesPerStack} PER STACK (${stackCount} STACKS)`],
         ['LISTING', 'UL 9540, UL 9540A'],
         ['ENCLOSURE', 'NEMA 3R, FLOOR/WALL MOUNT'],
         ['THERMAL PROTECTION', 'INTEGRATED BMS'],
         ['INSTALLATION', 'PER MANUFACTURER SPEC, MIN CLEARANCES REQUIRED'],
-      ],
-    },
+      ] as [string, string][],
+    }] : []),
     {
       title: 'PV MODULE PLACARD',
       rows: [
@@ -92,7 +102,17 @@ export function SheetPV71({ data }: { data: PlansetData }) {
       ['SOLAR PV SYSTEM', `${data.systemDcKw.toFixed(2)} kW DC / ${data.systemAcKw} kW AC`],
       ['RATED AC OUTPUT', `${data.systemAcKw * 1000}W @ 240/120V`],
       ['MAX OPERATING CURRENT', `${(data.systemAcKw * 1000 / 240).toFixed(1)}A @ 240V`],
-      ['BACKFEED BREAKER', `${Math.ceil((data.systemAcKw * 1000 / 240) * 1.25 / 5) * 5}A, LOAD-SIDE BACKFEED`],
+      // Single source-of-truth: PV-5 SLD shows data.backfeedBreakerA per-inverter.
+      // Total system backfeed = per-inverter × count. Render both to make the
+      // per-inverter and total figures consistent across sheets.
+      ['BACKFEED BREAKER', `(${data.inverterCount}) × ${data.backfeedBreakerA}A = ${data.backfeedBreakerA * data.inverterCount}A TOTAL, LOAD-SIDE BACKFEED`],
+      // 120% rule status — AHJs read placards, not SLD notes, so surface
+      // here directly. Phrased so the math is obvious at a glance:
+      // backfeed ≤ headroom (instead of "backfeed + main ≤ bus×1.2" which
+      // requires the reader to do the addition).
+      data.loadSideBackfeedCompliant
+        ? ['120% RULE (NEC 705.12)', `PASS — ${data.totalBackfeedA}A backfeed within ${data.maxAllowableBackfeedA}A headroom (${data.mspBusRating}A bus × 1.2 − ${data.mainBreaker} main)`]
+        : ['⚠ 120% RULE (NEC 705.12)', `FAIL — ${data.totalBackfeedA}A backfeed exceeds ${data.maxAllowableBackfeedA}A max allowable headroom (${data.mspBusRating}A bus × 1.2 − ${data.mainBreaker} main). Use line-side tap, sub-panel feeder, PCS-limited output (705.13), or upsize bus.`],
       ['ENERGY STORAGE', `${data.totalStorageKwh} kWh BATTERY (${data.batteryCount}× ${data.batteryModel})`],
       ['INVERTER LOCATION', 'SEE SITE PLAN (PV-3)'],
       ['AC DISCONNECT', 'ADJACENT TO INVERTER(S), ACCESSIBLE'],

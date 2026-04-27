@@ -81,6 +81,12 @@ export function SheetPV5({ data }: { data: PlansetData }) {
     systemTopology: data.systemTopology,
     rapidShutdownModel: data.rapidShutdownModel,
     hasCantexBar: data.hasCantexBar,
+    hasRgm: data.hasRgm,
+    // 120% rule status — surfaces a designer warning in the SLD notes when fails
+    loadSideBackfeedCompliant: data.loadSideBackfeedCompliant,
+    totalBackfeedA: data.totalBackfeedA,
+    maxAllowableBackfeedA: data.maxAllowableBackfeedA,
+    mainBreakerA: parseInt(data.mainBreaker) || 200,
   }
 
   const layout = calculateSldLayout(config)

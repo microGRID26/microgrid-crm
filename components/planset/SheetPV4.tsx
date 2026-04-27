@@ -53,16 +53,20 @@ export function SheetPV4({ data }: { data: PlansetData }) {
             <text x="20" y="170" fontSize="6" fill="#444">1&quot; EMT CONDUIT RUN</text>
             <line x1="80" y1="175" x2="80" y2="180" stroke="#333" strokeWidth="1" strokeDasharray="3,2" />
 
-            {/* ── Center: Main Breaker / Rapid Shutdown ── */}
+            {/* ── Center: Backfeed Breaker (per inverter, lives in MSP) ──
+                Previously labeled "(N) MAIN BREAKER / RAPID SHUTDOWN DEVICE" which
+                conflated two different pieces of equipment. The IMO RSD has its own
+                box on the right side; the main breaker is inside the MSP. This box
+                is the backfeed breaker. */}
             <rect x="200" y="180" width="90" height="50" fill="none" stroke="#333" strokeWidth="1.5" />
-            <text x="245" y="200" textAnchor="middle" fontSize="6" fill="#333" fontWeight="bold">(N) MAIN BREAKER</text>
-            <text x="245" y="212" textAnchor="middle" fontSize="5" fill="#666">RAPID SHUTDOWN</text>
-            <text x="245" y="222" textAnchor="middle" fontSize="5" fill="#666">DEVICE</text>
+            <text x="245" y="200" textAnchor="middle" fontSize="6" fill="#333" fontWeight="bold">(N) BACKFEED BREAKER</text>
+            <text x="245" y="212" textAnchor="middle" fontSize="5" fill="#666">{data.backfeedBreakerA}A, 2P, 240V</text>
+            <text x="245" y="222" textAnchor="middle" fontSize="5" fill="#666">PER INVERTER (×{data.inverterCount})</text>
 
-            {/* Conduit from main breaker down */}
+            {/* Conduit from backfeed breaker down to PV Disconnect — labels derive from data. */}
             <line x1="245" y1="230" x2="245" y2="260" stroke="#333" strokeWidth="1" />
-            <text x="300" y="244" fontSize="4" fill="#444">1-1/4&quot; EMT</text>
-            <text x="300" y="252" fontSize="4" fill="#444">#3 AWG CU THWN-2</text>
+            <text x="300" y="244" fontSize="4" fill="#444">{data.acConduit}</text>
+            <text x="300" y="252" fontSize="4" fill="#444">{data.acWireToPanel}</text>
 
             {/* ── PV Disconnect / Non-Fused ── */}
             <rect x="200" y="260" width="90" height="50" fill="none" stroke="#333" strokeWidth="1.5" />

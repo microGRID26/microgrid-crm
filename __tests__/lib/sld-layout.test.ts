@@ -46,6 +46,7 @@ function makeConfig(overrides: Partial<SldConfig> = {}): SldConfig {
     systemTopology: 'string-mppt',
     rapidShutdownModel: 'RSD-D-20',
     hasCantexBar: true,
+    hasRgm: false,  // Duracell projects skip RGM (William Carter feedback 2026-04-26)
     ...overrides,
   }
 }
@@ -154,17 +155,29 @@ describe('calculateSldLayout', () => {
 
   // ── Phase 3 SLD Enhancement tests ──
 
-  it('includes numbered callout circles (1-9)', () => {
+  it('includes numbered callout circles 1-7 + 9 (RGM/8 gated)', () => {
+    // Default Duracell config has hasRgm=false → callout ⑧ (RGM) is skipped
     const layout = calculateSldLayout(makeConfig())
     const callouts = layout.elements.filter(e => e.type === 'callout')
-    // With 2 inverters: each gets callouts 1-6, plus shared 7,8,9
-    // Inverter 1: ①②③④⑤⑥, Inverter 2: ①②③④⑤⑥, Shared: ⑦⑧⑨
-    expect(callouts.length).toBeGreaterThanOrEqual(9)
     const numbers = callouts.map(c => c.number)
-    // All TAG numbers 1-9 present
-    for (let n = 1; n <= 9; n++) {
+    for (const n of [1, 2, 3, 4, 5, 6, 7, 9]) {
       expect(numbers).toContain(n)
     }
+    expect(numbers).not.toContain(8)
+  })
+
+  it('includes callout ⑧ (RGM) when hasRgm=true', () => {
+    const layout = calculateSldLayout(makeConfig({ hasRgm: true }))
+    const callouts = layout.elements.filter(e => e.type === 'callout')
+    expect(callouts.map(c => c.number)).toContain(8)
+  })
+
+  it('does NOT render RGM rect when hasRgm=false', () => {
+    const layout = calculateSldLayout(makeConfig({ hasRgm: false }))
+    const rgmTexts = layout.elements.filter(
+      e => e.type === 'text' && /\(N\) RGM|PC-PRO-RGM/i.test(e.text),
+    )
+    expect(rgmTexts.length).toBe(0)
   })
 
   it('callout elements have positive radius', () => {

@@ -7,7 +7,10 @@ export function SheetPV7({ data }: { data: PlansetData }) {
     ? Math.max(...data.strings.map(s => s.vocCold)).toFixed(1) : '0.0'
   const totalAcAmps = (data.inverterAcPower * 1000 / 240).toFixed(1)
   const totalAcAmpsAll = (parseFloat(totalAcAmps) * data.inverterCount).toFixed(1)
-  const maxIsc = (data.panelIsc * 1.25).toFixed(2)
+  // NEC 690.53(4) requires actual short-circuit current (Isc) on the DC
+  // disconnect label, NOT 1.25 × Isc (which is the conductor sizing /
+  // OCPD calc per NEC 690.8). Previously this rendered 16.88A on a 13.5A panel.
+  const sccLabel = data.panelIsc.toFixed(2)
 
   // ── Sticker component renderers ──────────────────────────────────────────
 
@@ -178,7 +181,7 @@ export function SheetPV7({ data }: { data: PlansetData }) {
                         <ValueBox label="OPERATING CURRENT" value={`${data.panelImp.toFixed(2)}A`} />
                         <ValueBox label="OPERATING VOLTAGE" value={`${(data.panelVmp * (data.strings[0]?.modules || 1)).toFixed(1)}V`} />
                         <ValueBox label="MAX SYSTEM VOLTAGE" value={`${maxVocCold}V`} />
-                        <ValueBox label="SHORT CIRCUIT CURRENT" value={`${maxIsc}A`} />
+                        <ValueBox label="SHORT CIRCUIT CURRENT" value={`${sccLabel}A`} />
                       </div>
                     }
                     nec="NEC 690.53"
