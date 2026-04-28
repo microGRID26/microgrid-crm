@@ -16,6 +16,18 @@ export const CUT_SHEETS: CutSheetEntry[] = [
   // { src: '/cut-sheets/cantex-bar.pdf', title: 'Cantex High-Current Distribution Bar', sheetId: 'PV-14' },
 ]
 
+// Sheet count breakdown:
+//   Always: PV-1, PV-2, PV-2A, PV-3, PV-4, PV-5, PV-6, PV-7, PV-7.1, PV-8 = 10
+//   Enhanced extras: UTIL, PV-3.1, PV-4.1 = 3 (total 13)
+//   Plus N cut sheets (one sheetList entry per CUT_SHEETS entry)
+//
+// Single source for both the page-render header ("Sheet X of TOTAL") and the
+// SheetCutSheets test that verifies the formula. Adding a sheet now requires
+// one change here, not two in lockstep.
+export function computeSheetTotal(enhanced: boolean): number {
+  return (enhanced ? 13 : 10) + CUT_SHEETS.length
+}
+
 /**
  * Single cut-sheet page — one entry in sheetList per PDF.
  * Includes a screen-only banner warning that browser print skips PDF embeds.

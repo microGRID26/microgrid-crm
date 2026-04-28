@@ -54,12 +54,24 @@ export function RoofPolygonEditor({ faceId, initialPolygon, initialSetbacks, onS
 
   function handleBackdropClick(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget) return
-    // Check for unsaved changes vs. initial polygon
+    // Check for unsaved changes vs. initial polygon. Float === would falsely
+    // flag identical polygons after JSON round-trip (initial coords may carry
+    // FP drift after deserialize). Use 1e-6 tolerance — well below visible
+    // pixel resolution at the editor's 600×400 canvas.
     const initial = initialPolygon.map(([x, y]) => [x * W, y * H] as [number, number])
+    const PIXEL_EPS = 1e-6
     const changed = points.length !== initial.length ||
-      points.some((p, i) => p[0] !== initial[i]?.[0] || p[1] !== initial[i]?.[1])
+      points.some((p, i) =>
+        Math.abs(p[0] - (initial[i]?.[0] ?? 0)) > PIXEL_EPS ||
+        Math.abs(p[1] - (initial[i]?.[1] ?? 0)) > PIXEL_EPS
+      )
     if (changed && !window.confirm('Discard unsaved polygon changes?')) return
     onClose()
+  }
+
+  function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (canSave) handleSave()
   }
 
   const canSave = isValidPolygon(points.map(([x, y]) => [x / W, y / H] as [number, number]))
@@ -69,12 +81,15 @@ export function RoofPolygonEditor({ faceId, initialPolygon, initialSetbacks, onS
       className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-gray-800 rounded-lg p-4 max-w-3xl w-full">
+      <form
+        className="bg-gray-800 rounded-lg p-4 max-w-3xl w-full"
+        onSubmit={handleFormSubmit}
+      >
         <header className="flex justify-between items-center mb-3">
           <h2 className="text-white text-lg font-medium">
             Roof Plane Editor — Face #{faceId}
           </h2>
-          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-white">
+          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-white">
             ✕
           </button>
         </header>
@@ -154,13 +169,14 @@ export function RoofPolygonEditor({ faceId, initialPolygon, initialSetbacks, onS
           )}
           <div className="flex gap-2 justify-end">
             <button
+              type="button"
               onClick={handleClear}
               className="px-3 py-1.5 bg-gray-600 text-white rounded hover:bg-gray-500"
             >
               Clear
             </button>
             <button
-              onClick={handleSave}
+              type="submit"
               disabled={!canSave}
               className={`px-3 py-1.5 rounded ${canSave ? 'bg-green-600 text-white hover:bg-green-500' : 'bg-gray-500 text-gray-300 cursor-not-allowed'}`}
             >
@@ -168,7 +184,7 @@ export function RoofPolygonEditor({ faceId, initialPolygon, initialSetbacks, onS
             </button>
           </div>
         </footer>
-      </div>
+      </form>
     </div>
   )
 }

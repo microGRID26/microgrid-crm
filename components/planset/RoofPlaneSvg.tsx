@@ -8,6 +8,19 @@ interface Props {
   height: number
 }
 
+// Inset multipliers differ per edge type so multiple bands are visually
+// distinct. Hoisted to module scope so each render doesn't re-allocate.
+const SETBACK_CFG = [
+  { kind: 'ridge', insetFactor: 0.04, stroke: '#c33' },
+  { kind: 'eave',  insetFactor: 0.06, stroke: '#c63' },
+  { kind: 'rake',  insetFactor: 0.08, stroke: '#996' },
+] as const
+
+// Cap how many per-string label rows render before collapsing to overflow
+// indicator. Keeps dense roof faces (8+ strings) from pushing labels off
+// the polygon and into adjacent faces.
+const MAX_STRING_LABELS = 4
+
 /**
  * Renders roof planes as SVG polygons with fire-setback hatching, walking-
  * ridge labels, per-string callouts, and azimuth/tilt annotations.
@@ -35,13 +48,6 @@ export function RoofPlaneSvg({ faces, strings, width, height }: Props) {
         const path = polygonToSvgPath(scaledPoly)
         const [cx, cy] = polygonCentroid(scaledPoly)
         const facetStrings = stringsByFace.get(face.id) ?? []
-
-        // Inset multipliers differ per edge type so multiple bands are visually distinct
-        const SETBACK_CFG = [
-          { kind: 'ridge', insetFactor: 0.04, stroke: '#c33' },
-          { kind: 'eave',  insetFactor: 0.06, stroke: '#c63' },
-          { kind: 'rake',  insetFactor: 0.08, stroke: '#996' },
-        ] as const
 
         // pathClear label config
         const pathClear = face.setbacks.pathClear
@@ -82,8 +88,8 @@ export function RoofPlaneSvg({ faces, strings, width, height }: Props) {
               ROOF #{face.id}
             </text>
 
-            {/* Per-string label rows */}
-            {facetStrings.map((s, i) => (
+            {/* Per-string label rows — capped so dense faces don't overflow */}
+            {facetStrings.slice(0, MAX_STRING_LABELS).map((s, i) => (
               <text
                 key={s.id}
                 x={cx}
@@ -95,11 +101,23 @@ export function RoofPlaneSvg({ faces, strings, width, height }: Props) {
                 STRING {s.id} — {s.modules} MODULES
               </text>
             ))}
+            {facetStrings.length > MAX_STRING_LABELS && (
+              <text
+                x={cx}
+                y={cy + 10 + MAX_STRING_LABELS * 8}
+                textAnchor="middle"
+                fontSize={5.5}
+                fill="#666"
+                fontStyle="italic"
+              >
+                +{facetStrings.length - MAX_STRING_LABELS} more
+              </text>
+            )}
 
-            {/* Azimuth / tilt callout */}
+            {/* Azimuth / tilt callout (rows shown + overflow row when present) */}
             <text
               x={cx}
-              y={cy + 10 + facetStrings.length * 8 + 8}
+              y={cy + 10 + Math.min(facetStrings.length, MAX_STRING_LABELS) * 8 + (facetStrings.length > MAX_STRING_LABELS ? 8 : 0) + 8}
               textAnchor="middle"
               fontSize={5}
               fill="#666"

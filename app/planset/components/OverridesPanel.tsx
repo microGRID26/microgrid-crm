@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import type { PlansetData, PlansetOverrides, PlansetString, PlansetRoofFace } from '@/lib/planset-types'
 import { PANEL_PRESETS, PANEL_PRESET_LABELS } from '@/lib/planset-types'
+import { isValidPolygon } from '@/lib/planset-polygons'
 import { RoofPolygonEditor } from './RoofPolygonEditor'
 
 export interface PlansetImageUrls {
@@ -411,7 +412,13 @@ export function OverridesPanel({ data, strings, onStringsChange, overrides, onOv
                           onClick={() => setEditingPolygonFor(rf.id)}
                           className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-500"
                         >
-                          {rf.polygon.length > 0 ? `Edit (${rf.polygon.length}pts)` : 'Edit Polygon'}
+                          {/* Distinguish geometrically-valid polygons from raw vertex count */}
+                          {/* (e.g. 3 collinear points or 3 same-coord points = invalid). */}
+                          {isValidPolygon(rf.polygon)
+                            ? `Edit (${rf.polygon.length}pts)`
+                            : rf.polygon.length > 0
+                              ? `Edit (${rf.polygon.length}pts — invalid)`
+                              : 'Edit Polygon'}
                         </button>
                       </td>
                     </tr>

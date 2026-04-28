@@ -16,7 +16,10 @@ const LEGEND_ITEMS: LegendItem[] = [
   { sym: 'BAT',      label: 'Duracell 5+ Battery Module' },
   { sym: 'RSD',      label: 'Rapid Shutdown Device (RSD-D-20)' },
   { sym: 'CTX',      label: 'Cantex High-Current Distribution Bar' },
-  { sym: '═══',      label: 'EMT Conduit (above ground, wall mount)' },
+  // EMT conduit was rendered with U+2550 (BOX DRAWINGS DOUBLE HORIZONTAL).
+  // Some PDF viewers without box-drawing font fallback show tofu (□). Render
+  // as a paired-line SVG swatch instead — universal across PDF rasterizers.
+  { colorBar: { color: '#000', dashPattern: 'double' }, label: 'EMT Conduit (above ground, wall mount)' },
   { colorBar: { color: '#cc0000', dashPattern: 'dashed' },   label: 'Ridge Setback — 36 in (3 ft) from ridge per IFC 2018' },
   { colorBar: { color: '#ff8800', dashPattern: 'solid' },    label: 'Eave Setback — 18 in from eave per IFC 2018' },
   { colorBar: { color: '#888',    dashPattern: 'dotted' },   label: 'Rake Setback — 18 in from rake per IFC 2018' },
@@ -53,7 +56,17 @@ export function SheetPV2A({ data }: { data: PlansetData }) {
                   <td style={{ padding: '5px 8px', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '9pt', color: '#111' }}>
                     {'sym' in item
                       ? item.sym
-                      : <div style={{ width: '40px', borderTop: `2px ${item.colorBar.dashPattern} ${item.colorBar.color}` }} />}
+                      : item.colorBar.dashPattern === 'double'
+                        ? (
+                          // EMT conduit gets paired parallel lines so the row
+                          // is visually distinguishable from the dashed/solid/
+                          // dotted setback rows without leaning on color.
+                          <svg width={40} height={10} viewBox="0 0 40 10" aria-label="EMT conduit">
+                            <line x1={0} y1={3} x2={40} y2={3} stroke={item.colorBar.color} strokeWidth={1.5} />
+                            <line x1={0} y1={7} x2={40} y2={7} stroke={item.colorBar.color} strokeWidth={1.5} />
+                          </svg>
+                        )
+                        : <div style={{ width: '40px', borderTop: `2px ${item.colorBar.dashPattern} ${item.colorBar.color}` }} />}
                   </td>
                   <td style={{ padding: '5px 8px', color: '#333' }}>{item.label}</td>
                 </tr>

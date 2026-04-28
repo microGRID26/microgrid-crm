@@ -523,17 +523,31 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
   }
 
   // Derive roof faces from strings (group by roofFace, sum modules)
-  const roofFaces: PlansetRoofFace[] = overrides.roofFaces ?? (() => {
-    const faceMap = new Map<number, number>()
-    for (const s of strings) {
-      faceMap.set(s.roofFace, (faceMap.get(s.roofFace) ?? 0) + s.modules)
-    }
-    return Array.from(faceMap.entries()).map(([id, modules]) => ({
-      id, tilt: 0, azimuth: 0, modules,
-      polygon: [],
-      setbacks: { ridge: false, eave: false, rake: false, pathClear: 'walkable' as const },
-    }))
-  })()
+  // pathClear is clamped to known values — a stale planset blob carrying an
+  // old/typo'd value (e.g. 'open') would otherwise silently render as garbage
+  // in the legend without TypeScript catching it (overrides cross a serialize
+  // boundary).
+  const PATH_CLEAR_VALUES = ['walkable', 'partial', 'blocked'] as const
+  type PathClear = typeof PATH_CLEAR_VALUES[number]
+  const clampPathClear = (v: unknown): PathClear =>
+    PATH_CLEAR_VALUES.includes(v as PathClear) ? (v as PathClear) : 'walkable'
+
+  const roofFaces: PlansetRoofFace[] = overrides.roofFaces
+    ? overrides.roofFaces.map((face) => ({
+        ...face,
+        setbacks: { ...face.setbacks, pathClear: clampPathClear(face.setbacks?.pathClear) },
+      }))
+    : (() => {
+        const faceMap = new Map<number, number>()
+        for (const s of strings) {
+          faceMap.set(s.roofFace, (faceMap.get(s.roofFace) ?? 0) + s.modules)
+        }
+        return Array.from(faceMap.entries()).map(([id, modules]) => ({
+          id, tilt: 0, azimuth: 0, modules,
+          polygon: [],
+          setbacks: { ridge: false, eave: false, rake: false, pathClear: 'walkable' as const },
+        }))
+      })()
 
   // Compute racking details from panel count
   const attachmentCount = Math.ceil(panelCount * 2.2)

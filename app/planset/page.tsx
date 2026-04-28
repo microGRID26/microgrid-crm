@@ -8,7 +8,7 @@ import { handleApiError } from '@/lib/errors'
 import { loadProjectById } from '@/lib/api'
 import { buildPlansetData, DURACELL_DEFAULTS } from '@/lib/planset-types'
 import { autoDistributeStrings } from '@/lib/planset-calcs'
-import { SheetPV1, SheetPV2, SheetPV2A, SheetPV3, SheetPV31, SheetPV4, SheetPV41, SheetPV5, SheetPV6, SheetPV7, SheetPV71, SheetPV8, SheetCutSheet, CUT_SHEETS, UtilityBatteryLetter } from '@/components/planset'
+import { SheetPV1, SheetPV2, SheetPV2A, SheetPV3, SheetPV31, SheetPV4, SheetPV41, SheetPV5, SheetPV6, SheetPV7, SheetPV71, SheetPV8, SheetCutSheet, CUT_SHEETS, computeSheetTotal, UtilityBatteryLetter } from '@/components/planset'
 import type { PlansetData, PlansetOverrides, PlansetString, PlansetRoofFace } from '@/lib/planset-types'
 import { Loader2, Maximize2, X } from 'lucide-react'
 import { ProjectSelector } from './components/ProjectSelector'
@@ -448,7 +448,7 @@ function PlanSetPageInner() {
       setStrings(finalStrings)
 
       const plansetData = buildPlansetData(project, { ...overrides, strings: finalStrings, roofFaces: roofFaces.length > 0 ? roofFaces : undefined, sitePlanImageUrl: images.sitePlanImageUrl ?? undefined })
-      plansetData.sheetTotal = (enhanced ? 13 : 10) + CUT_SHEETS.length  // base + cut sheets; enhanced adds UTIL + PV-3.1 + PV-4.1
+      plansetData.sheetTotal = computeSheetTotal(enhanced)
       setRoofFaces(plansetData.roofFaces)
       setData(plansetData)
       setProjectId(id)
@@ -475,7 +475,7 @@ function PlanSetPageInner() {
       const project = await loadProjectById(projectId)
       if (!project) return
       const plansetData = buildPlansetData(project, { ...overrides, strings, roofFaces: roofFaces.length > 0 ? roofFaces : undefined, sitePlanImageUrl: images.sitePlanImageUrl ?? undefined })
-      plansetData.sheetTotal = (enhanced ? 13 : 10) + CUT_SHEETS.length  // base + cut sheets; enhanced adds UTIL + PV-3.1 + PV-4.1
+      plansetData.sheetTotal = computeSheetTotal(enhanced)
       setData(plansetData)
     } finally {
       setLoading(false)

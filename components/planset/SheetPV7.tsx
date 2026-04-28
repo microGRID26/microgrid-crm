@@ -48,8 +48,16 @@ export function SheetPV7({ data }: { data: PlansetData }) {
   function CautionSticker({ title, body, catalogs, nec }: {
     title: string; body: React.ReactNode; catalogs?: string; nec?: string
   }) {
+    // Yellow background loses all distinction in print grayscale (becomes
+    // pale gray indistinguishable from info-white). Heavy black left stripe
+    // and outer black border preserve the "caution" signal in chroma-less print.
     return (
-      <div style={{ ...stickerBase, background: '#ffcc00', color: '#000', border: '2px solid #cc9900' }}>
+      <div style={{
+        ...stickerBase,
+        background: '#ffcc00', color: '#000',
+        border: '2px solid #000',
+        borderLeft: '8px solid #000',
+      }}>
         <div style={{ fontSize: '9pt', fontWeight: 'bold', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
           <span style={{ fontSize: '11pt' }}>{'\u26A0'}</span> CAUTION
         </div>

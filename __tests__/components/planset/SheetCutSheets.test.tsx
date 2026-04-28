@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
-import { SheetCutSheets, SheetCutSheet, CUT_SHEETS } from '@/components/planset/SheetCutSheets'
+import { SheetCutSheets, SheetCutSheet, CUT_SHEETS, computeSheetTotal } from '@/components/planset/SheetCutSheets'
 import type { PlansetData } from '@/lib/planset-types'
 
 const baseData: Partial<PlansetData> = {}
@@ -64,17 +64,18 @@ describe('Planset sheetTotal formula alignment', () => {
   // Enhanced extras: UTIL, PV-3.1, PV-4.1 = 3 (total 13)
   // Plus N cut sheets (one sheetList entry per CUT_SHEETS entry)
 
-  it('non-enhanced sheetTotal formula = 10 base + cut sheets', () => {
-    // Documents the formula used in PlansetPage; fails if CUT_SHEETS is emptied
+  it('non-enhanced sheetTotal = 10 base + cut sheets', () => {
     expect(CUT_SHEETS.length).toBeGreaterThanOrEqual(2)
-    const nonEnhancedTotal = 10 + CUT_SHEETS.length
-    expect(nonEnhancedTotal).toBe(10 + CUT_SHEETS.length)
+    expect(computeSheetTotal(false)).toBe(10 + CUT_SHEETS.length)
   })
 
-  it('enhanced sheetTotal formula = 13 base + cut sheets', () => {
+  it('enhanced sheetTotal = 13 base + cut sheets', () => {
     expect(CUT_SHEETS.length).toBeGreaterThanOrEqual(2)
-    const enhancedTotal = 13 + CUT_SHEETS.length
-    expect(enhancedTotal).toBe(13 + CUT_SHEETS.length)
+    expect(computeSheetTotal(true)).toBe(13 + CUT_SHEETS.length)
+  })
+
+  it('enhanced adds exactly 3 extras over non-enhanced', () => {
+    expect(computeSheetTotal(true) - computeSheetTotal(false)).toBe(3)
   })
 
   it('each CUT_SHEETS entry has a unique sheetId', () => {
