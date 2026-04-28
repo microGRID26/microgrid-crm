@@ -90,6 +90,17 @@ describe('SheetPV8 OCPD columns — cross-sheet consistency', () => {
     expect(cell(genRow, COL_OCPD)).toBe('150')
   })
 
+  it("service-entrance GND SIZE = 'EXISTING' (no EGC on service conductors per NEC 250.64(C))", () => {
+    // Service-entrance row has no upstream OCPD, so NEC 250.122 EGC sizing
+    // doesn't apply. Grounding is bonded to the existing service electrode
+    // per NEC 250.64(C). #339 Path A.
+    const data = buildPlansetData(makeProject(), { panelCount: 45, inverterCount: 2, strings: patriciaStrings })
+    const { container } = render(<SheetPV8 data={data} />)
+    const genRow = findRowByCircuit(container, 'SERVICE DISCONNECT')!
+    const COL_GND_SIZE = 8
+    expect(cell(genRow, COL_GND_SIZE)).toBe('EXISTING')
+  })
+
   it('service-entrance OCPD falls back to 200 on garbage / 0 / negative mainBreaker', () => {
     // Defensive parse: parseInt('0A') = 0, but 0 isn't a valid service size,
     // so the guard treats it as garbage and falls back to 200A residential

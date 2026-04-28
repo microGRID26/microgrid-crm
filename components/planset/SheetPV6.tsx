@@ -242,7 +242,7 @@ export function SheetPV6({ data }: { data: PlansetData }) {
           <tbody>
             {[
               ['EQUIPMENT GROUNDING (EGC)', '#6 AWG BARE CU', 'NEC 250.122', 'SIZED PER LARGEST OCPD'],
-              ['GROUNDING ELECTRODE (GEC)', '#6 AWG BARE CU', 'NEC 250.66', 'TO EXISTING GROUNDING ELECTRODE'],
+              ['GROUNDING ELECTRODE (GEC)', 'EXISTING', 'NEC 250.64(C)', 'BONDED TO EXISTING SERVICE ELECTRODE — NO NEW GEC INSTALLED'],
               ['MODULE FRAME BONDING', '#6 AWG BARE CU', 'NEC 690.43', 'VIA RACKING GROUNDING LUGS'],
               ['DC SYSTEM GROUNDING', '#10 AWG CU', 'NEC 690.41', 'EQUIPMENT GROUNDING ONLY (UNGROUNDED)'],
             ].map((row, i) => (

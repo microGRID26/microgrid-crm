@@ -107,12 +107,18 @@ export function SheetPV8({ data }: { data: PlansetData }) {
     String(inv75CMax), String(invUsable),
   ])
 
-  // Generation disconnect — only for systems with utility interconnection
+  // Generation disconnect — only for systems with utility interconnection.
+  // GND column = 'EXISTING' because service-entrance conductors don't carry an
+  // EGC sized per NEC 250.122 (no upstream OCPD to reference). Grounding for
+  // this run is the bonding jumper to the EXISTING grounding electrode at the
+  // service equipment per NEC 250.64(C). PV-6 GEC table reflects the same.
+  // For new GEC installs sized per NEC 250.66 Table, swap to data-driven via
+  // gecSize field (#339 Path B — deferred until a project requires a new GEC).
   if (data.inverterCount > 0) {
     condRows.push([
       '⑦ GEN', 'SERVICE DISCONNECT → UTILITY METER',
       String(genFla), String(genFla125), String(genFla),
-      '3', '250 kcmil', '1', '#6 AWG', 'THWN-2', data.serviceEntranceConduit,
+      '3', '250 kcmil', '1', 'EXISTING', 'THWN-2', data.serviceEntranceConduit,
       String(gen250kcmilAmpacity), String(ambientTemp), '1.00', String(gen250kcmilAmpacity),
       String(gen250kcmilAmpacity), String(genUsable),
     ])

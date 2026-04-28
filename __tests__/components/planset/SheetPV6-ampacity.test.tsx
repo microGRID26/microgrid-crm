@@ -63,3 +63,32 @@ describe('SheetPV6 ampacity correction table — cross-sheet consistency', () =>
     expect(cell(stringRow, COL_75C)).toBe('50')
   })
 })
+
+describe('SheetPV6 grounding conductor table — GEC reflects existing electrode', () => {
+  // #339 Path A: service-entrance grounding bonds to the EXISTING grounding
+  // electrode per NEC 250.64(C). Old text said NEC 250.66 + #6 AWG, which
+  // would imply a NEW GEC sized per the 250.66 Table — and #6 AWG is
+  // undersized for 250 kcmil ungrounded conductor (Table requires #2 AWG).
+  // The corrected row makes it unambiguous to AHJ inspectors that no new GEC
+  // is being installed; the system bonds to the present service electrode.
+
+  const COL_SIZE = 1
+  const COL_REFERENCE = 2
+  const COL_NOTES = 3
+
+  it('GEC row size = EXISTING (not #6 AWG, not #2 AWG)', () => {
+    const data = buildPlansetData(makeProject(), { panelCount: 45, inverterCount: 2, strings: patriciaStrings })
+    const { container } = render(<SheetPV6 data={data} />)
+    const gecRow = findRowByConductor(container, 'GROUNDING ELECTRODE (GEC)')
+    expect(gecRow).toBeDefined()
+    expect(cell(gecRow!, COL_SIZE)).toBe('EXISTING')
+  })
+
+  it('GEC row references NEC 250.64(C) (bond to existing), not 250.66 (new GEC sizing table)', () => {
+    const data = buildPlansetData(makeProject(), { panelCount: 45, inverterCount: 2, strings: patriciaStrings })
+    const { container } = render(<SheetPV6 data={data} />)
+    const gecRow = findRowByConductor(container, 'GROUNDING ELECTRODE (GEC)')!
+    expect(cell(gecRow, COL_REFERENCE)).toBe('NEC 250.64(C)')
+    expect(cell(gecRow, COL_NOTES)).toMatch(/EXISTING.*NO NEW GEC/i)
+  })
+})
