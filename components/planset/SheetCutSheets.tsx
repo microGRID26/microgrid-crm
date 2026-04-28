@@ -1,4 +1,6 @@
-import type { PlansetData } from '@/lib/planset-types'
+'use client'
+
+import { useEffect, useState } from 'react'
 
 export interface CutSheetEntry {
   src: string       // path relative to /public/
@@ -30,9 +32,33 @@ export function computeSheetTotal(enhanced: boolean): number {
 
 /**
  * Single cut-sheet page — one entry in sheetList per PDF.
- * Includes a screen-only banner warning that browser print skips PDF embeds.
+ *
+ * Behavior:
+ *  - Fires a HEAD request on mount to verify the PDF exists. Missing files
+ *    render a visible "PDF UNAVAILABLE" overlay instead of the browser's
+ *    default broken-embed icon, so a designer notices a missing cut sheet
+ *    immediately rather than discovering it post-AHJ-submittal.
+ *  - Includes a screen-only banner warning that the browser print engine
+ *    skips <embed type="application/pdf"> (use server-side PDF merge to
+ *    bake the cut sheets into the final permit PDF — #323 P1).
  */
-export function SheetCutSheet({ entry, data: _data }: { entry: CutSheetEntry; data: PlansetData }) {
+export function SheetCutSheet({ entry }: { entry: CutSheetEntry }) {
+  const [status, setStatus] = useState<'pending' | 'ok' | 'missing'>('pending')
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(entry.src, { method: 'HEAD' })
+      .then((res) => {
+        if (cancelled) return
+        setStatus(res.ok ? 'ok' : 'missing')
+      })
+      .catch(() => {
+        if (cancelled) return
+        setStatus('missing')
+      })
+    return () => { cancelled = true }
+  }, [entry.src])
+
   return (
     <div
       data-cut-sheet={entry.sheetId}
@@ -99,26 +125,37 @@ export function SheetCutSheet({ entry, data: _data }: { entry: CutSheetEntry; da
         <code style={{ background: '#fef9c3', padding: '0 4px' }}>{entry.src}</code>
       </div>
 
-      {/* Full-height PDF embed */}
-      <embed
-        src={entry.src}
-        type="application/pdf"
-        style={{ width: '100%', height: '100%', display: 'block' }}
-      />
+      {/* Full-height PDF embed OR missing-file fallback */}
+      {status === 'missing' ? (
+        <div
+          data-cut-sheet-missing
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#fef2f2',
+            border: '2px dashed #dc2626',
+            color: '#7f1d1d',
+            padding: '24px',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: '14pt', fontWeight: 'bold', marginBottom: '8px' }}>
+            PDF UNAVAILABLE
+          </div>
+          <div style={{ fontSize: '8pt', maxWidth: '6in' }}>
+            <code style={{ background: '#fee2e2', padding: '0 4px' }}>{entry.src}</code> returned a non-OK response.
+            Verify the file exists in <code>public/cut-sheets/</code> and redeploy.
+          </div>
+        </div>
+      ) : (
+        <embed
+          src={entry.src}
+          type="application/pdf"
+          style={{ width: '100%', height: '100%', display: 'block' }}
+        />
+      )}
     </div>
-  )
-}
-
-/**
- * Legacy multi-sheet wrapper — renders all CUT_SHEETS in one component.
- * Kept for back-compat; planset page.tsx now spreads CUT_SHEETS into sheetList individually.
- */
-export function SheetCutSheets({ data }: { data: PlansetData }) {
-  return (
-    <>
-      {CUT_SHEETS.map(cs => (
-        <SheetCutSheet key={cs.src} entry={cs} data={data} />
-      ))}
-    </>
   )
 }

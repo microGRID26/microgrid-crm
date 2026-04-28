@@ -716,7 +716,7 @@ function PlanSetPageInner() {
                 ...CUT_SHEETS.map(cs => ({
                   id: cs.sheetId,
                   label: cs.title,
-                  component: <SheetCutSheet entry={cs} data={data} />,
+                  component: <SheetCutSheet entry={cs} />,
                 })),
               ]
 
