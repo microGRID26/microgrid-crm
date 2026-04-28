@@ -405,7 +405,10 @@ function PlanSetPageInner() {
   const searchParams = useSearchParams()
   const [toast, setToast] = useState<{message: string, type: 'success'|'error'|'info'} | null>(null)
 
-  const enhanced = searchParams.get('enhanced') === '1'
+  // Enhanced mode is now the default — designers shouldn't have to click in to
+  // get the canonical 13-sheet planset. ?enhanced=0 opts back into the legacy
+  // 10-sheet "classic" output for projects that need only the minimum.
+  const enhanced = searchParams.get('enhanced') !== '0'
   const [projectId, setProjectId] = useState<string>('')
   const [data, setData] = useState<PlansetData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -631,12 +634,12 @@ function PlanSetPageInner() {
               </div>
               <div className="flex items-center gap-3">
                 {enhanced ? (
-                  <a href={`/planset?project=${projectId}`}
+                  <a href={`/planset?project=${projectId}&enhanced=0`}
                     className="px-3 py-1.5 text-xs rounded-md bg-amber-600/20 text-amber-400 border border-amber-600/30">
                     Enhanced Mode &mdash; click for Classic
                   </a>
                 ) : (
-                  <a href={`/planset?project=${projectId}&enhanced=1`}
+                  <a href={`/planset?project=${projectId}`}
                     className="px-3 py-1.5 text-xs rounded-md bg-gray-800 text-gray-400 hover:text-green-400 hover:bg-gray-700 transition-colors">
                     Enable Enhanced Mode
                   </a>
