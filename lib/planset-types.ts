@@ -363,6 +363,26 @@ export interface PlansetData {
   maxAllowableBackfeedA: number
   loadSideBackfeedCompliant: boolean
 
+  // NEC 690.7 — max system voltage. The longest string's Voc-cold (Voc per
+  // module × modules in the string × cold-temp correction) must not exceed
+  // the inverter's maximum input voltage. When false, the inverter is at
+  // risk of damage on the first cold morning + the planset is a 690.7
+  // violation. Computed across all data.strings.
+  inverterMaxVoc: number          // copy of inverter spec for the rendered banner / readiness eval
+  maxStringVocCold: number        // longest string's Voc-cold; 0 when no strings configured
+  maxSystemVoltageCompliant: boolean
+
+  // P0-1 (R1 audit 2026-04-28) — Duracell Power Center Max Hybrid 15kW battery
+  // conductor sizing is currently driven by `batteryMaxCurrentA` which is the
+  // AC-EQUIVALENT of inverter output (kW / 240V), not the DC bus current. NEC
+  // 706.30 + 690.8 require sizing to 125% of MAX continuous DC current pulled
+  // from the battery stack. The rendered #4/0 may be undersized by ~5×, which
+  // is a fire risk + AHJ rejection + PE license exposure if shipped wrong.
+  // FAIL-CLOSED on Duracell projects until PE confirms the actual battery-port
+  // DC max from the manufacturer spec sheet. Designer can override per project
+  // when wire size has been independently verified.
+  batteryDcSizingVerified: boolean
+
   // Site plan image (uploaded or extracted from original planset)
   sitePlanImageUrl: string | null
 
@@ -454,6 +474,13 @@ export interface PlansetOverrides {
   rapidShutdownModel?: string
   hasCantexBar?: boolean
   hasRgm?: boolean
+
+  // P0-1 (R1 audit 2026-04-28) — per-project override of the Duracell battery
+  // DC fail-closed gate. Defaults: Duracell inverters → false (block until PE
+  // confirms manufacturer battery-port DC max); non-Duracell inverters → true
+  // (no known sizing issue). Set true on a per-project basis only after wire
+  // size has been independently verified against the manufacturer spec sheet.
+  batteryDcSizingVerified?: boolean
 }
 
 /**
@@ -510,8 +537,35 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
   const maxAllowableBackfeedA = Math.max(0, busRatingNum * 1.2 - mainBreakerNumInt)
   const loadSideBackfeedCompliant = totalBackfeedA <= maxAllowableBackfeedA
 
+  // P0-1 — Duracell battery-DC fail-closed gate. The current `batteryMaxCurrentA`
+  // default is the AC-equivalent (15kW / 240V = 62.5A); the actual DC bus
+  // current at 51.2V supporting 15kW is ~293A continuous. Until PE confirms the
+  // actual battery-port DC max from the manufacturer spec sheet, fail-closed
+  // on any inverter whose model name matches Duracell. Designer can override
+  // per project via the per-project overrides flag (PlansetOverrides field).
+  const inverterModel = overrides.inverterModel ?? d.inverterModel
+  const isDuracellInverter = /duracell/i.test(inverterModel)
+  const batteryDcSizingVerified = overrides.batteryDcSizingVerified
+    ?? !isDuracellInverter  // non-Duracell inverters default to verified (no known issue)
+
   // Distribute strings across inverters
   const strings = overrides.strings ?? []
+
+  // NEC 690.7 — max system voltage check (placed after `strings` is defined).
+  // Each string carries `vocCold` already computed when the string was built
+  // (see auto-distribute-strings + redesign tool); take the maximum across
+  // strings and compare to the inverter's max input voltage. With no strings
+  // configured (fresh project, no redesign yet) we have nothing to enforce —
+  // pre-string projects can't even render PV-7 with a real number, so default
+  // to compliant=false UNLESS the project also has zero panels (truly empty).
+  // This makes the export gate fail-closed on partially-configured projects.
+  const inverterMaxVoc = d.maxVoc
+  const maxStringVocCold = strings.length > 0
+    ? Math.max(...strings.map((s) => s.vocCold))
+    : 0
+  const maxSystemVoltageCompliant = strings.length === 0
+    ? panelCount === 0  // empty-project edge case: no panels means no string to check
+    : maxStringVocCold <= inverterMaxVoc
   const stringsPerInverter: number[][] = []
   if (strings.length > 0 && inverterCount > 0) {
     const perInv = Math.ceil(strings.length / inverterCount)
@@ -677,6 +731,10 @@ export function buildPlansetData(project: Project, overrides: PlansetOverrides =
     totalBackfeedA,
     maxAllowableBackfeedA,
     loadSideBackfeedCompliant,
+    inverterMaxVoc,
+    maxStringVocCold: parseFloat(maxStringVocCold.toFixed(2)),
+    maxSystemVoltageCompliant,
+    batteryDcSizingVerified,
     sheetTotal: 10,  // base count — page.tsx overrides when enhanced mode adds sheets
     drawnDate,
   }

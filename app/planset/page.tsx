@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Nav } from '@/components/Nav'
 import { useCurrentUser } from '@/lib/useCurrentUser'
@@ -8,9 +8,10 @@ import { handleApiError } from '@/lib/errors'
 import { loadProjectById } from '@/lib/api'
 import { buildPlansetData, DURACELL_DEFAULTS } from '@/lib/planset-types'
 import { autoDistributeStrings } from '@/lib/planset-calcs'
+import { evaluateExportReadiness, type CutSheetStatus } from '@/lib/planset-export-readiness'
 import { SheetPV1, SheetPV2, SheetPV2A, SheetPV3, SheetPV31, SheetPV4, SheetPV41, SheetPV5, SheetPV6, SheetPV7, SheetPV71, SheetPV8, SheetCutSheet, CUT_SHEETS, computeSheetTotal, UtilityBatteryLetter } from '@/components/planset'
 import type { PlansetData, PlansetOverrides, PlansetString, PlansetRoofFace } from '@/lib/planset-types'
-import { Loader2, Maximize2, X } from 'lucide-react'
+import { Loader2, Maximize2, X, AlertTriangle } from 'lucide-react'
 import { ProjectSelector } from './components/ProjectSelector'
 import { OverridesPanel } from './components/OverridesPanel'
 import { ZoomToolbar } from './components/ZoomToolbar'
@@ -333,6 +334,13 @@ body { background: white; }
 // Sheet + TitleBlockHtml components imported from @/components/planset/
 
 // ── PRINT HANDLER ───────────────────────────────────────────────────────────
+//
+// Always go through `evaluateExportReadiness(data, cutSheetStatus)` from the
+// caller before invoking this function. The caller is responsible for the
+// gate; this function only handles the actual print mechanics. Bypassing the
+// gate is a P0 audit-violation surface — the whole point of the readiness
+// chokepoint is that a noncompliant planset can't be exported without an
+// explicit, justified override.
 
 function handlePrintAll(data: PlansetData) {
   const sheetsContainer = document.getElementById('planset-sheets')
@@ -418,6 +426,12 @@ function PlanSetPageInner() {
   const [projectId, setProjectId] = useState<string>('')
   const [data, setData] = useState<PlansetData | null>(null)
   const [loading, setLoading] = useState(false)
+  // P1-13 (R1 audit 2026-04-28) — true between an OverridesPanel edit and the
+  // debounced rebuild that re-computes compliance flags. Without this gate,
+  // a designer who edits a string and immediately clicks "Download as PDF"
+  // would have their click evaluated against pre-edit data — defeating the
+  // export readiness chokepoint. Cleared when the rebuild finishes.
+  const [editsPending, setEditsPending] = useState(false)
   const [strings, setStrings] = useState<PlansetString[]>([])
   const [roofFaces, setRoofFaces] = useState<PlansetRoofFace[]>([])
   const [overrides, setOverrides] = useState<PlansetOverrides>({})
@@ -488,6 +502,7 @@ function PlanSetPageInner() {
       setData(plansetData)
     } finally {
       setLoading(false)
+      setEditsPending(false)
     }
   }, [projectId, strings, overrides, roofFaces, images.sitePlanImageUrl])
 
@@ -495,6 +510,7 @@ function PlanSetPageInner() {
   useEffect(() => {
     if (!projectId) return
     if (rebuildTimerRef.current) clearTimeout(rebuildTimerRef.current)
+    setEditsPending(true)
     rebuildTimerRef.current = setTimeout(() => rebuildData(), 500)
     return () => { if (rebuildTimerRef.current) clearTimeout(rebuildTimerRef.current) }
   }, [projectId, strings, overrides, roofFaces, images.sitePlanImageUrl, rebuildData])
@@ -568,6 +584,93 @@ function PlanSetPageInner() {
   const [fullscreenSheetId, setFullscreenSheetId] = useState<string | null>(null)
   const ZOOM_MIN = 0.25
   const ZOOM_MAX = 2.0
+
+  // ── Export readiness — single chokepoint for "can this planset go to AHJ?"
+  // Cut-sheet HEAD preflight runs once per page-load, in parallel with sheet
+  // rendering. The same status map drives (a) the page-level readiness gate
+  // and (b) the per-sheet "PDF UNAVAILABLE" placard inside SheetCutSheet —
+  // making it impossible for the cover-sheet warning to disagree with what
+  // the export button thinks. Re-runs when CUT_SHEETS list changes (dev/HMR
+  // rebuild only — the array is module-scoped at runtime).
+  const [cutSheetStatus, setCutSheetStatus] = useState<Map<string, CutSheetStatus>>(
+    () => new Map(CUT_SHEETS.map((cs) => [cs.sheetId, 'pending' as CutSheetStatus]))
+  )
+  useEffect(() => {
+    let cancelled = false
+    Promise.all(
+      CUT_SHEETS.map(async (cs): Promise<[string, CutSheetStatus]> => {
+        try {
+          const res = await fetch(cs.src, { method: 'HEAD' })
+          return [cs.sheetId, res.ok ? 'ok' : 'missing']
+        } catch {
+          return [cs.sheetId, 'missing']
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return
+      setCutSheetStatus(new Map(results))
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  // Readiness eval is pure + cheap — recomputes whenever data or cut-sheet
+  // statuses change. The button-disabled state during `editsPending` (P1-13)
+  // is wired separately so the readiness panel doesn't flash a confusing
+  // "edits pending" placeholder during the 500ms post-load/post-edit window.
+  const exportReadiness = useMemo(() => {
+    if (!data) return { canExport: false, failures: [], allOverridable: false }
+    return evaluateExportReadiness({ data, cutSheetStatus })
+  }, [data, cutSheetStatus])
+
+  // True while the export button should refuse clicks: either the readiness
+  // gate is failing OR an edit is mid-debounce-and-rebuild. Click-time check
+  // in `requestExport` re-validates against the latest readiness, so the
+  // editsPending guard is purely defensive — closes the race where a fast
+  // click within the 500ms window would have read stale compliance flags.
+  const exportBlockedDuringRecompute = editsPending && data !== null
+
+  // Override modal state — typed-OVERRIDE confirmation pattern. Persists only
+  // for the current export attempt; resets to null after print fires or modal
+  // dismisses. Reason text is captured + console-logged so the override is at
+  // least diagnostically traceable. (TODO: persist to an audit table when the
+  // ATLAS HQ planset_export_overrides surface lands — out of scope for this PR.)
+  const [overrideModal, setOverrideModal] = useState<{ confirmText: string; reason: string } | null>(null)
+
+  const requestExport = useCallback(() => {
+    if (!data) return
+    if (editsPending) return  // wait for the recompute; button is also disabled in this state
+    if (exportReadiness.canExport) {
+      handlePrintAll(data)
+      return
+    }
+    if (exportReadiness.allOverridable) {
+      setOverrideModal({ confirmText: '', reason: '' })
+      return
+    }
+    // Non-overridable failure (cut-sheet missing / pending) — refuse outright.
+    setToast({
+      message: `Cannot export: ${exportReadiness.failures.length} blocking issue${exportReadiness.failures.length === 1 ? '' : 's'} — see warning panel above the cover sheet.`,
+      type: 'error',
+    })
+    setTimeout(() => setToast(null), 5000)
+  }, [data, editsPending, exportReadiness])
+
+  const confirmOverride = useCallback(() => {
+    if (!data || !overrideModal) return
+    if (overrideModal.confirmText.trim().toUpperCase() !== 'OVERRIDE') return
+    if (overrideModal.reason.trim().length < 10) return
+    // Diagnostic log — captured in browser console + Vercel runtime logs if a
+    // designer ever needs to reconstruct who exported what under override.
+    console.warn('[planset export OVERRIDE]', {
+      projectId: data.projectId,
+      owner: data.owner,
+      reason: overrideModal.reason.trim(),
+      failures: exportReadiness.failures.map((f) => f.rule),
+      timestamp: new Date().toISOString(),
+    })
+    setOverrideModal(null)
+    handlePrintAll(data)
+  }, [data, overrideModal, exportReadiness.failures])
 
   // Escape key + backdrop-click close for fullscreen modal
   useEffect(() => {
@@ -666,9 +769,25 @@ function PlanSetPageInner() {
                   max={ZOOM_MAX}
                 />
                 <button
-                  onClick={() => handlePrintAll(data)}
-                  className="px-5 py-2 text-sm font-medium rounded-md bg-green-600 hover:bg-green-500 text-white transition-colors">
-                  Download as PDF
+                  onClick={requestExport}
+                  data-testid="export-pdf-button"
+                  disabled={exportBlockedDuringRecompute || (!exportReadiness.canExport && !exportReadiness.allOverridable)}
+                  className={`px-5 py-2 text-sm font-medium rounded-md text-white transition-colors ${
+                    exportBlockedDuringRecompute
+                      ? 'bg-gray-700 cursor-wait opacity-60'
+                      : exportReadiness.canExport
+                        ? 'bg-green-600 hover:bg-green-500'
+                        : exportReadiness.allOverridable
+                          ? 'bg-amber-600 hover:bg-amber-500'
+                          : 'bg-gray-700 cursor-not-allowed opacity-60'
+                  }`}>
+                  {exportBlockedDuringRecompute
+                    ? 'Recomputing…'
+                    : exportReadiness.canExport
+                      ? 'Download as PDF'
+                      : exportReadiness.allOverridable
+                        ? `Download — ${exportReadiness.failures.length} compliance issue${exportReadiness.failures.length === 1 ? '' : 's'}`
+                        : 'Download blocked — fix issues above'}
                 </button>
                 <span className="text-xs text-gray-500">Select &quot;Save as PDF&quot; in the print dialog</span>
               </div>
@@ -688,6 +807,44 @@ function PlanSetPageInner() {
               </div>
             )}
 
+            {/* Export-readiness panel — chokepoint for "this planset is not
+                ship-ready" (NEC compliance + asset availability + battery
+                DC unverified). Renders only when there's something to fix.
+                Mirrors what `requestExport` checks at click time, so the
+                designer can see the same list before/after pressing the
+                button. P0 fix from R1 audit 2026-04-28. */}
+            {!exportBlockedDuringRecompute && !exportReadiness.canExport && exportReadiness.failures.length > 0 && (
+              <div
+                data-testid="export-readiness-panel"
+                className={`mb-4 rounded-md border p-4 ${
+                  exportReadiness.allOverridable
+                    ? 'border-amber-700 bg-amber-900/20'
+                    : 'border-red-700 bg-red-900/20'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${exportReadiness.allOverridable ? 'text-amber-400' : 'text-red-400'}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className={`font-bold text-sm mb-1 ${exportReadiness.allOverridable ? 'text-amber-300' : 'text-red-300'}`}>
+                      {exportReadiness.failures.length} {exportReadiness.failures.length === 1 ? 'issue blocks' : 'issues block'} export to PDF
+                      {exportReadiness.allOverridable && ' (designer override available)'}
+                    </div>
+                    <ul className="space-y-2 mt-2">
+                      {exportReadiness.failures.map((f, i) => (
+                        <li key={i} className="text-xs text-gray-200">
+                          <div className={`font-bold ${exportReadiness.allOverridable ? 'text-amber-200' : 'text-red-200'}`}>
+                            {f.title}
+                            {!f.overridable && <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-red-800 text-red-100 rounded">CANNOT OVERRIDE</span>}
+                          </div>
+                          <div className="text-gray-400 mt-0.5 leading-relaxed">{f.detail}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <OverridesPanel
               data={data}
               strings={strings}
@@ -700,6 +857,72 @@ function PlanSetPageInner() {
               onImagesChange={setImages}
               enhanced={enhanced}
             />
+
+            {/* Typed-OVERRIDE confirmation modal. Designer must (a) type
+                "OVERRIDE" verbatim, (b) provide a reason ≥10 chars, before
+                the export proceeds. Reason is console-logged for diagnostic
+                traceability. Only reachable when allOverridable=true (so
+                non-overridable failures like missing cut sheets cannot be
+                bypassed by clicking through). */}
+            {overrideModal && (
+              <div
+                data-testid="override-modal"
+                className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+                onClick={(e) => { if (e.target === e.currentTarget) setOverrideModal(null) }}
+              >
+                <div className="bg-gray-900 border border-amber-700 rounded-lg max-w-2xl w-full p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <AlertTriangle className="w-6 h-6 text-amber-400" />
+                    <h2 className="text-lg font-bold text-amber-300">Override compliance gate?</h2>
+                  </div>
+                  <p className="text-sm text-gray-300 mb-2">
+                    This planset has {exportReadiness.failures.length} unresolved compliance {exportReadiness.failures.length === 1 ? 'issue' : 'issues'}. Exporting under override means you accept responsibility for resolving the {exportReadiness.failures.length === 1 ? 'issue' : 'issues'} before submitting to the AHJ — typically by attaching a line-side tap drawing, an alternate-method approval letter, or a manufacturer spec sheet that confirms the rendered values.
+                  </p>
+                  <ul className="text-xs text-amber-200 mb-4 space-y-1 list-disc pl-5">
+                    {exportReadiness.failures.map((f, i) => (
+                      <li key={i}>{f.title}</li>
+                    ))}
+                  </ul>
+                  <label className="block text-sm text-gray-300 mb-1">
+                    Reason (visible in browser console + future audit log) — minimum 10 chars
+                  </label>
+                  <textarea
+                    value={overrideModal.reason}
+                    onChange={(e) => setOverrideModal({ ...overrideModal, reason: e.target.value })}
+                    placeholder="e.g. CenterPoint approved line-side tap; drawing attached separately."
+                    className="w-full bg-gray-800 border border-gray-700 text-gray-100 text-sm rounded p-2 mb-3"
+                    rows={3}
+                  />
+                  <label className="block text-sm text-gray-300 mb-1">
+                    Type <span className="font-mono font-bold text-amber-300">OVERRIDE</span> to confirm
+                  </label>
+                  <input
+                    type="text"
+                    value={overrideModal.confirmText}
+                    onChange={(e) => setOverrideModal({ ...overrideModal, confirmText: e.target.value })}
+                    placeholder="OVERRIDE"
+                    className="w-full bg-gray-800 border border-gray-700 text-gray-100 font-mono text-sm rounded p-2 mb-4"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setOverrideModal(null)}
+                      className="px-4 py-2 text-sm rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700">
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmOverride}
+                      data-testid="override-confirm-button"
+                      disabled={
+                        overrideModal.confirmText.trim().toUpperCase() !== 'OVERRIDE' ||
+                        overrideModal.reason.trim().length < 10
+                      }
+                      className="px-4 py-2 text-sm rounded-md bg-amber-600 hover:bg-amber-500 text-white disabled:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50">
+                      Override and download
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Sheets — rendered at print size, scaled down for screen */}
             {(() => {
