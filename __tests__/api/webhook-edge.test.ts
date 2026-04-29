@@ -175,8 +175,10 @@ describe('EDGE webhook — timing-safe signature verification', () => {
 describe('EDGE webhook — idempotency', () => {
   it('returns success with already-processed message for duplicate events', async () => {
     const projectChain = mockChain({ data: { id: 'PROJ-001' }, error: null })
-    // Simulate duplicate found in edge_sync_log
-    const dupChain = mockChain({ data: { id: 'existing-log-id' }, error: null })
+    // Idempotency now keyed on INSERT-with-23505 unique violation against
+    // edge_sync_log(project_id, event_type, request_id) WHERE direction='inbound'.
+    // A racing duplicate insert hits the partial unique index and returns 23505.
+    const dupChain = mockChain({ data: null, error: { code: '23505' } })
     const logChain = mockChain({ data: null, error: null })
 
     mockDb.from.mockImplementation((table: string) => {
