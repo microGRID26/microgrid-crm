@@ -68,10 +68,28 @@ afterEach(() => {
 })
 
 function makeRequest(body: object, headers: Record<string, string> = {}): Request {
+  const bodyText = JSON.stringify(body)
+  const finalHeaders: Record<string, string> = { 'Content-Type': 'application/json', ...headers }
+  // Bearer fallback removed 2026-04-29 (audit Critical / #370). To keep the
+  // existing test corpus readable, the canonical `Authorization: Bearer
+  // webhook-secret-123` and `x-webhook-secret: webhook-secret-123` shorthands
+  // are auto-converted into a real body-only HMAC signature here. Tests that
+  // exercise rejection paths (wrong / short bearer) bypass this branch.
+  const isCorrectBearer =
+    finalHeaders.Authorization === 'Bearer webhook-secret-123' ||
+    finalHeaders['x-webhook-secret'] === 'webhook-secret-123'
+  if (isCorrectBearer) {
+    delete finalHeaders.Authorization
+    delete finalHeaders['x-webhook-secret']
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createHmac } = require('node:crypto') as typeof import('node:crypto')
+    const hex = createHmac('sha256', 'webhook-secret-123').update(bodyText).digest('hex')
+    finalHeaders['X-MicroGRID-Signature'] = `sha256=${hex}`
+  }
   return new Request('https://localhost/api/webhooks/subhub', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify(body),
+    headers: finalHeaders,
+    body: bodyText,
   })
 }
 
@@ -526,14 +544,91 @@ describe('POST /api/webhooks/subhub — HMAC header compatibility', () => {
     expect(res.status).toBe(401)
   })
 
-  it('bearer-token path still works when no HMAC header is present (rollout compat)', async () => {
+  it('bearer-only request without any HMAC header is rejected (#370 — bearer fallback removed 2026-04-29)', async () => {
+    // Direct Request — bypasses the makeRequest auto-HMAC shorthand.
+    const bodyText = JSON.stringify({ subhub_id: 'SH-BEARER', name: 'Bearer Customer', street: '1 Bearer Ln' })
+    const req = new Request('https://localhost/api/webhooks/subhub', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer webhook-secret-123' },
+      body: bodyText,
+    })
+    const { POST } = await import('@/app/api/webhooks/subhub/route')
+    const res = await POST(req as any)
+    expect(res.status).toBe(401)
+  })
+})
+
+// ── Timestamp window (#381 — replay protection) ─────────────────────────────
+
+describe('POST /api/webhooks/subhub — timestamp window', () => {
+  function tsSignedRequest(body: object, ts: number) {
+    const bodyText = JSON.stringify(body)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createHmac } = require('node:crypto') as typeof import('node:crypto')
+    const hex = createHmac('sha256', 'webhook-secret-123').update(`${ts}.${bodyText}`).digest('hex')
+    return new Request('https://localhost/api/webhooks/subhub', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-MicroGRID-Signature': `sha256=${hex}`,
+        'X-MicroGRID-Timestamp': String(ts),
+      },
+      body: bodyText,
+    })
+  }
+
+  function dbForProjectCreate() {
+    let callCount = 0
+    mockDb.from.mockImplementation(() => {
+      callCount++
+      if (callCount === 1) return mockChain({ data: [], error: null })
+      if (callCount === 2) return mockChain({ data: [], error: null })
+      if (callCount === 3) return mockChain({ data: [{ id: 'PROJ-30100' }], error: null })
+      return mockChain({ data: null, error: null })
+    })
+  }
+
+  it('accepts request with X-MicroGRID-Timestamp inside the 5-min past window', async () => {
     dbForProjectCreate()
-    const req = makeRequest(
-      { subhub_id: 'SH-BEARER', name: 'Bearer Customer', street: '1 Bearer Ln' },
-      { Authorization: 'Bearer webhook-secret-123' },
-    )
+    const ts = Date.now() - 60_000 // 1 min ago
+    const req = tsSignedRequest({ subhub_id: 'SH-TS1', name: 'Recent Customer', street: '1 Recent Ln' }, ts)
     const { POST } = await import('@/app/api/webhooks/subhub/route')
     const res = await POST(req as any)
     expect(res.status).not.toBe(401)
+  })
+
+  it('rejects request with timestamp older than 5 min', async () => {
+    const ts = Date.now() - 6 * 60_000 // 6 min ago
+    const req = tsSignedRequest({ subhub_id: 'SH-TS2', name: 'Stale Customer', street: '1 Stale Ln' }, ts)
+    const { POST } = await import('@/app/api/webhooks/subhub/route')
+    const res = await POST(req as any)
+    expect(res.status).toBe(401)
+  })
+
+  it('rejects request with timestamp more than 30 sec in the future (asymmetric window)', async () => {
+    const ts = Date.now() + 60_000 // 1 min ahead
+    const req = tsSignedRequest({ subhub_id: 'SH-TS3', name: 'Future Customer', street: '1 Future Ln' }, ts)
+    const { POST } = await import('@/app/api/webhooks/subhub/route')
+    const res = await POST(req as any)
+    expect(res.status).toBe(401)
+  })
+
+  it('rejects malformed (non-numeric) X-MicroGRID-Timestamp', async () => {
+    const bodyText = JSON.stringify({ subhub_id: 'SH-TS4', name: 'Bad TS', street: '1 Bad Ln' })
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createHmac } = require('node:crypto') as typeof import('node:crypto')
+    const hex = createHmac('sha256', 'webhook-secret-123').update(`notanumber.${bodyText}`).digest('hex')
+    const req = new Request('https://localhost/api/webhooks/subhub', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-MicroGRID-Signature': `sha256=${hex}`,
+        'X-MicroGRID-Timestamp': 'notanumber',
+      },
+      body: bodyText,
+    })
+    const { POST } = await import('@/app/api/webhooks/subhub/route')
+    const res = await POST(req as any)
+    expect(res.status).toBe(400)
   })
 })

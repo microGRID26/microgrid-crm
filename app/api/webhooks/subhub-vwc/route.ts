@@ -19,17 +19,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Server not configured' }, { status: 503 })
   }
 
-  // Auth — require secret when configured, reject all requests when not configured.
-  // .trim() so stray whitespace in Vercel UI doesn't silently break comparison
-  // (2026-04-17 incident on MG EDGE_WEBHOOK_SECRET).
-  const webhookSecret = (process.env.SUBHUB_WEBHOOK_SECRET || '').trim()
+  // Auth — bearer-token only because SubHub (external SaaS, stp-sales-tool)
+  // does not support outbound HMAC signing (verified 2026-04-29; see audit
+  // greg_action #377). Defense-in-depth applied:
+  //   1. Per-endpoint secret SUBHUB_VWC_WEBHOOK_SECRET (separation from main
+  //      subhub webhook — leak of one doesn't compromise the other). Falls
+  //      back to legacy SUBHUB_WEBHOOK_SECRET during cutover.
+  //   2. Asymmetric timestamp window (5min past + 30s future) — see below.
+  //   3. payload_hash dedup at DB layer (replay rejected at insert).
+  //   4. .trim() on env reads (2026-04-17 EDGE_WEBHOOK_SECRET incident).
+  const webhookSecret = (process.env.SUBHUB_VWC_WEBHOOK_SECRET ?? process.env.SUBHUB_WEBHOOK_SECRET ?? '').trim()
   if (!webhookSecret) {
-    console.error('[subhub-vwc] SUBHUB_WEBHOOK_SECRET not configured — rejecting request')
+    console.error('[subhub-vwc] SUBHUB_VWC_WEBHOOK_SECRET / SUBHUB_WEBHOOK_SECRET not configured — rejecting request')
     return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 })
   }
   {
     const authHeader = req.headers.get('authorization') ?? req.headers.get('x-webhook-secret') ?? ''
-    const candidate = authHeader.replace(/^Bearer\s+/i, '')
+    const candidate = authHeader.replace(/^Bearer\s+/i, '').trim()
     const a = Buffer.from(candidate)
     const b = Buffer.from(webhookSecret)
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
@@ -53,14 +59,20 @@ export async function POST(req: Request) {
   const customerName = data.name ?? data.customer_name ?? data.first_name ?? null
   const eventType = data.event_type ?? data.event ?? data.survey_type ?? 'unknown'
 
-  // Timestamp window: SubHub may or may not send one — when present, reject
-  // payloads whose skew from now exceeds 5 min in EITHER direction (R2 fix —
-  // R1 only rejected past-dated, so attacker could set ts=+1h and slide
-  // through). Absent timestamp → fall back to the payload_hash dedup below.
+  // Timestamp window: SubHub may or may not send one — when present, enforce
+  // asymmetric freshness (5 min past, 30 sec future). Asymmetry prevents
+  // attackers from setting ts=+5min to extend their replay window while
+  // tolerating real clock skew between MG and SubHub clocks.
+  // - Unparseable timestamps (NaN skew) reject — was previously silently
+  //   bypassed (Number.isFinite check returned false → no rejection).
+  // - Absent timestamp → fall back to payload_hash dedup at DB layer.
   const ts = data.timestamp ?? data.event_timestamp ?? data.received_at
   if (typeof ts === 'string' || typeof ts === 'number') {
     const skew = Date.now() - new Date(ts as string | number).getTime()
-    if (Number.isFinite(skew) && Math.abs(skew) > 5 * 60 * 1000) {
+    if (!Number.isFinite(skew)) {
+      return NextResponse.json({ error: 'Invalid timestamp' }, { status: 400 })
+    }
+    if (skew > 5 * 60 * 1000 || skew < -30 * 1000) {
       return NextResponse.json({ error: 'Timestamp outside window' }, { status: 400 })
     }
   }

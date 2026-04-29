@@ -48,18 +48,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 })
   }
 
-  // Verify webhook secret if configured.
+  // Verify webhook secret. HMAC required — bearer fallback removed 2026-04-29
+  // (audit-rotation Critical: same secret as bearer + HMAC = leak amplifier;
+  // greg_action #370).
   //
-  // Two HMAC header formats are accepted for backward compatibility:
+  // Two HMAC header formats accepted:
   //   1. `X-MicroGRID-Signature: sha256=<hex>`  — SPARK's SparkSign → MG
   //       webhook sender (see SPARK src/lib/microgrid-webhook.ts). Matches
   //       the GitHub/Stripe convention of an algorithm prefix on the value.
   //   2. `x-webhook-signature: <hex>`           — legacy header name used by
   //       earlier senders and the EDGE ↔ MG webhook path.
   //
-  // Either header → HMAC-SHA256(bodyText, SUBHUB_WEBHOOK_SECRET). If neither
-  // HMAC header is present, fall back to a bearer-token comparison for
-  // back-compat during HMAC rollout.
+  // Replay protection: when `X-MicroGRID-Timestamp` header is present, HMAC is
+  // computed over `${ts}.${body}` (Stripe scheme) and ts must be within
+  // (now - 5min, now + 30s). Senders that haven't migrated yet may send
+  // body-only HMAC without the timestamp header — accepted with warning during
+  // the deprecation window. Activation prerequisite (#370): all senders send
+  // timestamped HMAC, then this fallback is removed.
   if (WEBHOOK_SECRET) {
     const microgridHeader = request.headers.get('x-microgrid-signature') ?? ''
     const legacyHeader = request.headers.get('x-webhook-signature') ?? ''
@@ -68,24 +73,34 @@ export async function POST(request: NextRequest) {
       : microgridHeader
     const hmacCandidate = microgridHex || legacyHeader
 
-    let secretMatch = false
-
-    if (hmacCandidate) {
-      try {
-        const expected = crypto.createHmac('sha256', WEBHOOK_SECRET).update(bodyText).digest('hex')
-        const got = Buffer.from(hmacCandidate)
-        const exp = Buffer.from(expected)
-        secretMatch = got.length === exp.length && crypto.timingSafeEqual(got, exp)
-      } catch { secretMatch = false }
-    } else {
-      const authHeader = request.headers.get('authorization') ?? request.headers.get('x-webhook-secret') ?? ''
-      const candidate = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
-      try {
-        const a = Buffer.from(candidate)
-        const b = Buffer.from(WEBHOOK_SECRET)
-        secretMatch = a.length === b.length && crypto.timingSafeEqual(a, b)
-      } catch { secretMatch = false }
+    if (!hmacCandidate) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const tsHeader = request.headers.get('x-microgrid-timestamp') ?? ''
+    let signedPayload: string
+    if (tsHeader) {
+      const tsNum = Number(tsHeader)
+      if (!Number.isFinite(tsNum)) {
+        return NextResponse.json({ error: 'Invalid timestamp' }, { status: 400 })
+      }
+      const skew = Date.now() - tsNum
+      if (skew < -30_000 || skew > 5 * 60 * 1000) {
+        return NextResponse.json({ error: 'Timestamp outside window' }, { status: 401 })
+      }
+      signedPayload = `${tsHeader}.${bodyText}`
+    } else {
+      console.warn('[subhub] HMAC without X-MicroGRID-Timestamp; sender should migrate to ts.body scheme')
+      signedPayload = bodyText
+    }
+
+    let secretMatch = false
+    try {
+      const expected = crypto.createHmac('sha256', WEBHOOK_SECRET).update(signedPayload).digest('hex')
+      const got = Buffer.from(hmacCandidate)
+      const exp = Buffer.from(expected)
+      secretMatch = got.length === exp.length && crypto.timingSafeEqual(got, exp)
+    } catch { secretMatch = false }
 
     if (!secretMatch) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

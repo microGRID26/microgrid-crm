@@ -155,6 +155,7 @@ describe('POST /api/webhooks/subhub-vwc — auth', () => {
 
   it('returns 503 when no secret is configured (auth required)', async () => {
     delete process.env.SUBHUB_WEBHOOK_SECRET
+    delete process.env.SUBHUB_VWC_WEBHOOK_SECRET
 
     const req = makeRequest({ event_type: 'survey_completed' })
     const { POST } = await import('@/app/api/webhooks/subhub-vwc/route')
@@ -163,6 +164,37 @@ describe('POST /api/webhooks/subhub-vwc — auth', () => {
     expect(res.status).toBe(503)
     const json = await res.json()
     expect(json.error).toContain('not configured')
+  })
+
+  it('prefers SUBHUB_VWC_WEBHOOK_SECRET over legacy SUBHUB_WEBHOOK_SECRET (#377 separation of duties)', async () => {
+    process.env.SUBHUB_VWC_WEBHOOK_SECRET = 'vwc-only-secret'
+    process.env.SUBHUB_WEBHOOK_SECRET = 'legacy-secret'
+
+    const insertChain = mockChain({ data: null, error: null })
+    insertChain.then = vi.fn((cb: any) => Promise.resolve({ data: null, error: null }).then(cb))
+    mockDb.from.mockReturnValue(insertChain)
+
+    // Auth via the new dedicated secret should succeed
+    const req = makeRequest(
+      { event_type: 'survey_completed' },
+      { Authorization: 'Bearer vwc-only-secret' },
+    )
+    const { POST } = await import('@/app/api/webhooks/subhub-vwc/route')
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+  })
+
+  it('rejects requests using the legacy secret when SUBHUB_VWC_WEBHOOK_SECRET is set (#377)', async () => {
+    process.env.SUBHUB_VWC_WEBHOOK_SECRET = 'vwc-only-secret'
+    process.env.SUBHUB_WEBHOOK_SECRET = 'legacy-secret'
+
+    const req = makeRequest(
+      { event_type: 'survey_completed' },
+      { Authorization: 'Bearer legacy-secret' },
+    )
+    const { POST } = await import('@/app/api/webhooks/subhub-vwc/route')
+    const res = await POST(req)
+    expect(res.status).toBe(401)
   })
 })
 
@@ -396,11 +428,12 @@ describe('POST /api/webhooks/subhub-vwc — replay protection', () => {
     expect(json.error).toContain('window')
   })
 
-  it('rejects payloads with future timestamp skew > 5 min (R2 symmetric window)', async () => {
+  it('rejects payloads with future timestamp skew > 30 sec (asymmetric window — #381)', async () => {
     process.env.SUBHUB_WEBHOOK_SECRET = 'test-secret'
-    const tenMinAhead = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+    // Was 5min symmetric; now 30s future / 5min past. 60s ahead must reject.
+    const oneMinAhead = new Date(Date.now() + 60 * 1000).toISOString()
 
-    const req = makeRequest({ event_type: 'survey_completed', timestamp: tenMinAhead }, AUTH)
+    const req = makeRequest({ event_type: 'survey_completed', timestamp: oneMinAhead }, AUTH)
     const { POST } = await import('@/app/api/webhooks/subhub-vwc/route')
     const res = await POST(req)
 
@@ -409,7 +442,19 @@ describe('POST /api/webhooks/subhub-vwc — replay protection', () => {
     expect(json.error).toContain('window')
   })
 
-  it('accepts payloads within the 5-min window', async () => {
+  it('rejects malformed (unparseable) timestamp instead of silently bypassing (#381 — Number.isFinite gap)', async () => {
+    process.env.SUBHUB_WEBHOOK_SECRET = 'test-secret'
+
+    const req = makeRequest({ event_type: 'survey_completed', timestamp: 'garbage-string' }, AUTH)
+    const { POST } = await import('@/app/api/webhooks/subhub-vwc/route')
+    const res = await POST(req)
+
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.error).toContain('Invalid timestamp')
+  })
+
+  it('accepts payloads within the 5-min past window', async () => {
     process.env.SUBHUB_WEBHOOK_SECRET = 'test-secret'
     const insertChain = mockChain({ data: null, error: null })
     insertChain.then = vi.fn((cb: any) => Promise.resolve({ data: null, error: null }).then(cb))
