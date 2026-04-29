@@ -24,7 +24,7 @@ Each phase below is independently applicable, independently rollback-able, and g
 | Phase | Status | Migration file | Date applied |
 |---|---|---|---|
 | 1 — Backfill 75 NULL `org_id` rows | **applied 2026-04-28** | `183_rls_phase1_backfill_org_id_nulls.sql` | 2026-04-28 |
-| 2 — Drop 11 `auth_full_access` policies + add v2 write coverage + helper | pending | `184_rls_phase2_drop_auth_full_access.sql` | — |
+| 2 — Drop 11 `auth_full_access` policies + naked-table coverage + legacy SELECT fallback + helper | **drafted, awaiting branch dry-run** | `191-rls-phase2-drop-auth-full-access.sql` | — |
 | 3 — Rewrite 53 NULL-bypass v2 policies | pending | `185_rls_phase3_drop_null_bypass.sql` | — |
 | 4 — Enforce `org_id NOT NULL` on 9 backfilled tables | pending | `186_rls_phase4_org_id_not_null.sql` | — |
 | 5 — Add org-scoping to 130+ internal-writer policies | pending | `187_rls_phase5_internal_writer_org_scope.sql` | — |
@@ -90,6 +90,22 @@ GRANT EXECUTE ON FUNCTION public.auth_can_see_project(text) TO authenticated;
 2. Run the full test suite (`npm test`) against the branch.
 3. Manual smoke from a `manager` test account: project list loads, notes render on project detail, ticket creation works, customer-portal `/portal/[token]` loads.
 4. Diff `get_advisors(type='security')` before vs after on the branch — flag any new ERROR-level lint.
+
+**Drift-check findings (2026-04-29) folded into the migration as drafted:**
+
+- 4 naked tables (no v2 fallback today) get full SELECT/INSERT/UPDATE/DELETE coverage BEFORE the bypass drop: `funding_events`, `project_boms`, `task_due_dates`, `service_call_notes`. 0 row data-shape orphans found.
+- 113,913 `notes` + 15,292 `project_folders` + 16 `stage_history` rows on legacy-only projects (PROJ-NaN, PROJ-2232, PROJ-1656, etc. — real NetSuite-imported customer threads from Ann Flores, Jennifer Harper) would have gone DARK for non-platform internal users without an additional fallback. Migration adds three `*_select_legacy_internal` permissive policies that fire ONLY when the project is in `legacy_projects` AND NOT also in `projects` with an org_id. The NOT EXISTS guard prevents cross-org leak when MG onboards a second dealer (today single-tenant, but the 268 dual-presence projects would otherwise be readable by any internal writer regardless of org).
+- HIGH risk to validate in branch smoke: v2 write policies on notes / project_folders / schedule / service_calls / stage_history use `auth_is_manager() OR pm_id = auth_user_id()` — they exclude non-PM `user`/`sales`/`finance` writes via anon-key. MG's standard pattern is server-route writes via service-role (bypasses RLS), but step (d) of the smoke matrix below proves it.
+- HIGH risk to validate: `crews` write policy is admin-only after drop. If any manager UI writes to crews, broaden to `auth_is_manager()` before prod.
+
+**Smoke matrix (run on branch before prod):**
+- a) admin: create note + folder + schedule entry on any project → expect success
+- b) manager: same as (a) → expect success
+- c) `user` role: write note on a project where they ARE the PM → expect success
+- d) `user` role: write note on a project where they are NOT PM → expect FAIL (or broaden the *_write policies if this must succeed)
+- e) customer portal `/portal/[token]`: schedule + stage_history render → expect success
+- f) Manager opens a legacy-only project (e.g. PROJ-2232): notes load (proves legacy fallback is firing) → expect success
+- g) Manager creates a crew via UI (if such UI exists) → flag if FAIL, broaden crews_write
 
 ---
 
