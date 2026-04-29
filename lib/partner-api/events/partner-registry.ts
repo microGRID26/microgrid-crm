@@ -87,6 +87,17 @@ export function _resetPartnerRegistryCache(): void {
  *   pattern ending in `.*`   = match prefix + ANY suffix (cross-dot)
  *   middle `*`               = single segment only (no dots) */
 export function eventMatches(pattern: string, eventType: string): boolean {
+  // Defensive shape check (audit-rotation 2026-04-28 Low #2): only allow
+  // alphanumeric, `.`, `*`, `_`, `-` in patterns. Today the registry is env-
+  // configured by an admin so the pattern source is trusted; once Phase 4
+  // subscription CRUD lets partners post their own patterns, this gate
+  // prevents a pathological pattern (e.g. `(.*)*foo`) from reaching the
+  // RegExp constructor at all. Even though the existing escape() below is
+  // defensively-correct (`*` is the only operator that survives, and it
+  // can't form nested quantifiers), the upfront reject is cheaper and
+  // makes intent explicit. Runs BEFORE the equality short-circuit so
+  // patterns like "a+b" don't trivially self-match.
+  if (pattern !== '*' && !/^[A-Za-z0-9._*-]+$/.test(pattern)) return false
   if (pattern === '*') return true
   if (pattern === eventType) return true
   if (pattern.endsWith('.*')) {

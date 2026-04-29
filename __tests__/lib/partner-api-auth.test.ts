@@ -154,6 +154,36 @@ describe('verifySignature', () => {
     ).rejects.toMatchObject({ code: 'timestamp_invalid' })
   })
 
+  it('throws timestamp_invalid when timestamp is > 30 sec in the future (asymmetric window)', async () => {
+    const future = tsSec + 60  // 60 sec ahead — outside 30s future window
+    const bodyHash = sha256Hex(body)
+    const payload = `${future}.${method}.${path}.${bodyHash}`
+    const sig = await hmacSha256Hex(secret, payload)
+    await expect(
+      verifySignature({
+        secretPlaintext: secret,
+        timestampHeader: String(future),
+        signatureHeader: `sha256=${sig}`,
+        method, path, body, nowMs,
+      }),
+    ).rejects.toMatchObject({ code: 'timestamp_invalid' })
+  })
+
+  it('accepts timestamp up to 30 sec in the future (clock-skew tolerance)', async () => {
+    const future = tsSec + 20  // 20 sec ahead — within 30s tolerance
+    const bodyHash = sha256Hex(body)
+    const payload = `${future}.${method}.${path}.${bodyHash}`
+    const sig = await hmacSha256Hex(secret, payload)
+    await expect(
+      verifySignature({
+        secretPlaintext: secret,
+        timestampHeader: String(future),
+        signatureHeader: `sha256=${sig}`,
+        method, path, body, nowMs,
+      }),
+    ).resolves.toBeUndefined()
+  })
+
   it('throws signature_invalid when body has been tampered with', async () => {
     const sig = await sign()
     await expect(

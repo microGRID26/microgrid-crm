@@ -107,9 +107,17 @@ export async function verifySignature(args: VerifySignatureArgs): Promise<void> 
   if (!Number.isFinite(ts) || ts <= 0) {
     throw new ApiError('timestamp_invalid', 'X-MG-Timestamp must be a positive integer (seconds since epoch)')
   }
-  const ageMs = Math.abs(now - ts * 1000)
-  if (ageMs > SIG_FRESHNESS_MS) {
-    throw new ApiError('timestamp_invalid', `Signature timestamp outside 5-minute window (age=${Math.round(ageMs / 1000)}s)`)
+  // Asymmetric freshness window: tolerate legitimate past skew up to
+  // SIG_FRESHNESS_MS (5 min), but only 30 sec of future skew. A symmetric
+  // 5-min future window would let an attacker who captured a signature
+  // extend their replay reach by up to 5 min beyond legitimate clock drift.
+  // (audit-rotation 2026-04-28 webhook-signing-replay Low #1.)
+  const skewMs = now - ts * 1000
+  if (skewMs > SIG_FRESHNESS_MS) {
+    throw new ApiError('timestamp_invalid', `Signature timestamp too old (age=${Math.round(skewMs / 1000)}s)`)
+  }
+  if (skewMs < -30_000) {
+    throw new ApiError('timestamp_invalid', `Signature timestamp too far in the future (skew=${Math.round(-skewMs / 1000)}s)`)
   }
 
   const provided = args.signatureHeader.replace(/^sha256=/i, '').trim().toLowerCase()

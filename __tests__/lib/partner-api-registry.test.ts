@@ -31,6 +31,18 @@ describe('eventMatches', () => {
   it('miss when segments differ', () => {
     expect(eventMatches('project.stage_changed', 'engineering.assignment.created')).toBe(false)
   })
+  it('rejects pathological patterns at shape gate (audit-rotation Low #2)', () => {
+    // Patterns containing regex metacharacters never reach the RegExp constructor.
+    expect(eventMatches('(.*)*foo', 'engineering.foo')).toBe(false)
+    expect(eventMatches('a+b', 'a+b')).toBe(false)
+    expect(eventMatches('a|b', 'a')).toBe(false)
+    expect(eventMatches('a[bc]', 'ab')).toBe(false)
+    expect(eventMatches('a$', 'a')).toBe(false)
+  })
+  it('still allows underscores and dashes in pattern segments', () => {
+    expect(eventMatches('project.stage_changed', 'project.stage_changed')).toBe(true)
+    expect(eventMatches('engineering-svc.deliverable.*', 'engineering-svc.deliverable.created')).toBe(true)
+  })
 })
 
 describe('loadPartnerRegistry', () => {
