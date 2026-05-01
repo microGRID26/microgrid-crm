@@ -112,12 +112,18 @@ export interface SldLayout {
 export type SldElement =
   | { type: 'rect'; x: number; y: number; w: number; h: number; stroke?: string; strokeWidth?: number; dash?: boolean; fill?: string }
   | { type: 'line'; x1: number; y1: number; x2: number; y2: number; stroke?: string; strokeWidth?: number; dash?: boolean }
-  | { type: 'circle'; cx: number; cy: number; r: number; stroke?: string; strokeWidth?: number }
+  | { type: 'circle'; cx: number; cy: number; r: number; stroke?: string; strokeWidth?: number; fill?: string }
   | { type: 'text'; x: number; y: number; text: string; fontSize: number; anchor?: 'start' | 'middle' | 'end'; bold?: boolean; fill?: string; italic?: boolean }
   | { type: 'breaker'; x: number; y: number; label: string; amps?: string }
   | { type: 'disconnect'; x: number; y: number; label: string }
   | { type: 'ground'; x: number; y: number }
   | { type: 'callout'; cx: number; cy: number; number: number; r?: number }
+  // v6 hybrid renderer — see ~/.claude/plans/cozy-herding-quilt.md
+  // Embeds a registered SVG asset (Sonnen battery, Eaton disconnect, MSP, etc.)
+  // at the given position. Asset renders at native viewBox; w/h scale it to fit.
+  // props inject project-specific overrides into the asset (e.g. amp ratings,
+  // model numbers) via id-targeted text substitution inside the asset SVG.
+  | { type: 'svg-asset'; x: number; y: number; w: number; h: number; assetId: string; props?: Record<string, string | number> }
 
 export function calculateSldLayout(config: SldConfig): SldLayout {
   // Topology branch — micro-inverter installs (legacy Hyperion/APTOS) render

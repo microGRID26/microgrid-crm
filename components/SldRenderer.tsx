@@ -1,6 +1,7 @@
 'use client'
 
 import type { SldLayout, SldElement } from '@/lib/sld-layout'
+import { ASSET_REGISTRY } from '@/components/planset/sld-assets'
 
 export function SldRenderer({ layout }: { layout: SldLayout }) {
   return (
@@ -91,6 +92,25 @@ function renderElement(el: SldElement, key: number): React.ReactNode {
           </text>
         </g>
       )
+    }
+    case 'svg-asset': {
+      const Asset = ASSET_REGISTRY[el.assetId]
+      if (!Asset) {
+        // Missing asset — render a labeled placeholder so the gap is obvious
+        // during integration. Phase 1+ adds assets to ASSET_REGISTRY in
+        // components/planset/sld-assets/index.tsx.
+        return (
+          <g key={key}>
+            <rect x={el.x} y={el.y} width={el.w} height={el.h}
+              fill="#fee" stroke="#c00" strokeWidth="1" strokeDasharray="3,2" />
+            <text x={el.x + el.w / 2} y={el.y + el.h / 2}
+              fontSize="8" textAnchor="middle" fill="#900" fontWeight="bold">
+              missing asset: {el.assetId}
+            </text>
+          </g>
+        )
+      }
+      return <Asset key={key} x={el.x} y={el.y} w={el.w} h={el.h} props={el.props} />
     }
   }
 }
