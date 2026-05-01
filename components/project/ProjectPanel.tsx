@@ -94,6 +94,7 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
   const [showWOCreate, setShowWOCreate] = useState(false)
   const [woType, setWoType] = useState('install')
   const [woCreating, setWoCreating] = useState(false)
+  const [settingStage, setSettingStage] = useState(false)
 
   // Lock background scroll when panel is open
   useEffect(() => {
@@ -489,6 +490,59 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
     showToast(`Moved to ${STAGE_LABELS[nextStage]}`)
   }
 
+  async function setStageManually(target: string) {
+    if (settingStage) return
+    if (target === project.stage) return
+    if (!STAGE_ORDER.includes(target)) {
+      showToast('Invalid stage')
+      return
+    }
+    const prev = project.stage
+    const targetIdx = STAGE_ORDER.indexOf(target)
+    const prevIdx = STAGE_ORDER.indexOf(prev)
+    const direction = targetIdx > prevIdx ? 'forward' : 'backward'
+    const skipped = direction === 'forward'
+      ? canAdvance(prev, taskStates, project.ahj).missing
+      : []
+    const skipNote = skipped.length > 0
+      ? `\n\nIncomplete tasks in current stage that will be skipped:\n  • ${skipped.slice(0,5).join('\n  • ')}${skipped.length > 5 ? `\n  • (+${skipped.length - 5} more)` : ''}`
+      : ''
+    if (!confirm(`Manually move ${direction} from "${STAGE_LABELS[prev]}" to "${STAGE_LABELS[target]}"?\n\nStage history and audit log will record the change.${skipNote}`)) return
+    setSettingStage(true)
+    const today = new Date().toISOString().slice(0, 10)
+    const { data: updRows, error: stageErr } = await supabase
+      .from('projects')
+      .update({ stage: target, stage_date: today })
+      .eq('id', pid)
+      .eq('stage', prev)
+      .select('id')
+    if (stageErr) {
+      handleApiError(stageErr, '[ProjectPanel] manual stage set')
+      showToast('Failed to change stage')
+      setSettingStage(false)
+      return
+    }
+    if (!updRows || updRows.length === 0) {
+      showToast('Stage changed by another session — refresh and retry')
+      setSettingStage(false)
+      onProjectUpdated()
+      return
+    }
+    const { error: histErr } = await supabase.from('stage_history').insert({ project_id: pid, stage: target, entered: today })
+    if (histErr) handleApiError(histErr, '[ProjectPanel] manual stage_history insert')
+    const { error: auditErr } = await supabase.from('audit_log').insert({
+      project_id: pid, field: 'stage',
+      old_value: prev, new_value: target,
+      changed_by: currentUser?.name ?? null, changed_by_id: currentUser?.id ?? null,
+    })
+    if (auditErr) handleApiError(auditErr, '[ProjectPanel] manual audit_log insert')
+    setProject(p => ({ ...p, stage: target as Project['stage'], stage_date: today }))
+    setSettingStage(false)
+    onProjectUpdated()
+    edgeSync.notifyStageChanged(pid, prev, target)
+    showToast(`Stage set to ${STAGE_LABELS[target]}`)
+  }
+
   const stuckCount = stageTasks.filter(t => {
     const s = taskStates[t.id] ?? 'Not Ready'
     return s === 'Pending Resolution' || s === 'Revision Required'
@@ -608,6 +662,20 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
                 }`}>
                 {advancing ? 'Moving...' : `→ ${STAGE_LABELS[nextStage]}`}
               </button>
+            )}
+            {currentUser?.isAdmin && !showBlockerForm && (
+              <select
+                aria-label="Manually set stage"
+                title="Manually set stage (admin override — bypasses task completion gate)"
+                value={project.stage}
+                disabled={settingStage}
+                onChange={e => setStageManually(e.target.value)}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 focus:outline-none focus:border-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {STAGE_ORDER.map(s => (
+                  <option key={s} value={s}>{STAGE_LABELS[s]}</option>
+                ))}
+              </select>
             )}
             <div className="ml-auto flex items-center gap-1">
               {currentUser?.isAdmin && (
