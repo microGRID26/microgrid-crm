@@ -709,11 +709,14 @@ CREATE POLICY sq_insert ON public.saved_queries
   FOR INSERT TO authenticated
   WITH CHECK (auth_is_admin() OR auth_is_platform_user());
 
--- feedback (insert: any authenticated; select: admin/platform)
+-- feedback (insert: internal MG users only — bug-report submissions; select: admin/platform)
 DROP POLICY IF EXISTS "Authenticated users can insert feedback" ON public.feedback;
 CREATE POLICY "Authenticated users can insert feedback" ON public.feedback
   FOR INSERT TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (
+    auth_is_internal_writer()
+    AND ('a0000000-0000-0000-0000-000000000001'::uuid = ANY(auth_user_org_ids()) OR auth_is_platform_user())
+  );
 
 DROP POLICY IF EXISTS "Authenticated users can read feedback" ON public.feedback;
 CREATE POLICY "Authenticated users can read feedback" ON public.feedback
