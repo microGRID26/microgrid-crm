@@ -28,8 +28,8 @@ Each phase below is independently applicable, independently rollback-able, and g
 | 3 — Rewrite 53 NULL-bypass v2 policies | **applied 2026-04-29** (closes #350 + #360) | `193-rls-phase3-drop-null-bypass.sql` | 2026-04-29 |
 | 4 — Enforce `org_id NOT NULL` on 9 backfilled tables | **applied 2026-05-02** | `216-rls-phase4-org-id-not-null.sql` | 2026-05-02 |
 | 5 — Add org-scoping to 158 internal-writer policies | **applied 2026-05-02** (closes #352) | `217-rls-phase5a-helpers.sql` + `218-rls-phase5b-needs-org-scope.sql` + `219-rls-phase5c-needs-project-scope.sql` + `220-rls-phase5d-cross-tenant.sql` | 2026-05-02 |
-| 6 — Customer portal coverage gaps + advisor sweep | pending | `188_rls_phase6_finalization.sql` | — |
-| 7 — Performance indexes for new EXISTS predicates | **partially shipped in 219**; CONCURRENTLY promotion deferred | `219-rls-phase5c-needs-project-scope.sql` (5 indexes) | 2026-05-02 |
+| 6 — Customer portal coverage gaps + advisor sweep | **applied 2026-05-02** (no gaps found; advisor scan: 0 ERROR / 92 WARN hygiene / 6 INFO benign) | n/a — assessment-only, no SQL needed | 2026-05-02 |
+| 7 — Performance indexes for new EXISTS predicates | **applied 2026-05-02** (6 indexes shipped in 219; existing pre-Phase-5 indexes cover the helper FK joins) | `219-rls-phase5c-needs-project-scope.sql` | 2026-05-02 |
 
 ---
 
@@ -137,26 +137,36 @@ Programmatic DO block + `regexp_replace` for the additive case; explicit DROP/CR
 
 ---
 
-## Phase 6 — Customer portal coverage gaps + advisor sweep
+## Phase 6 — Customer portal coverage gaps + advisor sweep — APPLIED 2026-05-02
 
-Phases 2+5 will likely open narrow gaps in customer-portal reads that previously fell through `auth_full_access`. Add explicit `notes_customer_read` (and possibly `project_folders_customer_read`, `schedule_customer_read`) using `EXISTS (customer_accounts WHERE auth_user_id = auth.uid())`. Re-run `get_advisors(type='security')` to confirm no NEW lints.
+**Result: no SQL needed.** Investigation found that customer-portal users have a dedicated `customer_*` policy family (24 policies across 14 tables: projects, schedule, stage_history, tickets, ticket_comments, customer_billing_statements, customer_chat_sessions, customer_feedback, customer_feedback_attachments, customer_messages, customer_payment_methods, customer_payments, customer_referrals) that already grants them their needed scope via `EXISTS (customer_accounts ...)` checks. These coexist with the internal-writer policies via PG's permissive-OR. Phase 5 only tightened the internal-writer side; customer-portal access was never gated by `auth_is_internal_writer()`, so no regression occurred.
+
+Advisor sweep post-Phase-5: 0 ERROR, 92 WARN (SECURITY DEFINER hygiene + 1 `rls_policy_always_true` on the intentional `feedback` insert policy), 6 INFO (RLS-enabled-no-policy on snapshot/atlas-KB tables — intentional service-role-only artifacts). All benign.
+
+Customer-portal feature gaps (e.g., customer reading their project's documents/notes/folders) exist but are pre-existing — not introduced by Phase 5. Add per-feature when product surfaces the need.
 
 ---
 
-## Phase 7 — Performance indexes
+## Phase 7 — Performance indexes — APPLIED 2026-05-02
 
-`CREATE INDEX CONCURRENTLY` on the project_id columns the new EXISTS predicates query. Many likely exist already from earlier migrations — verify via `pg_indexes` first.
+**Indexes shipped in migration 219 (non-CONCURRENT, inside the txn):**
+- `idx_legacy_notes_project_id` (288k rows — the largest target)
+- `idx_notes_project_id`
+- `idx_project_folders_project_id`
+- `idx_task_state_project_id`
+- `idx_stage_history_project_id`
+- `idx_welcome_call_logs_project_id` (3k rows; added based on R1)
 
-```sql
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notes_project_id           ON public.notes (project_id);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_legacy_notes_project_id    ON public.legacy_notes (project_id);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_project_folders_project_id ON public.project_folders (project_id);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_task_state_project_id      ON public.task_state (project_id);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stage_history_project_id   ON public.stage_history (project_id);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customer_accounts_auth_uid ON public.customer_accounts (auth_user_id) WHERE status='active';
-```
+Non-CONCURRENT build was acceptable here — largest target (legacy_notes 73 MB) builds in seconds, locking the table only during the build itself. All 6 went in inside 219's atomic txn.
 
-`CREATE INDEX CONCURRENTLY` cannot run inside a transaction. Each statement is its own migration call OR run via direct SQL.
+**Already-present indexes from prior migrations (verified via pg_indexes 2026-05-02):**
+- `customer_accounts.idx_customer_accounts_auth_user`, `idx_customer_accounts_status`, `idx_customer_accounts_project` (helper customer-portal branch)
+- `org_memberships.idx_orgm_org`, `idx_orgm_user`, unique(user_id, org_id) (users.users_read self-join)
+- `purchase_orders/work_orders/jsa/tickets/material_requests/vendors/sales_reps`: PK on id (helper FK lookups go through the unique pkey)
+
+**Not built:** the partial index `idx_customer_accounts_auth_uid (auth_user_id) WHERE status='active'` from the original plan. The existing `idx_customer_accounts_auth_user` on `auth_user_id` (uniqueness-backed) plus `idx_customer_accounts_status` already cover the customer-portal branch's lookup pattern at single-row cost. A partial index would shave nothing meaningful for the unique-key pattern.
+
+**Promotion to CONCURRENTLY (deferred — non-blocking):** the 6 indexes built in 219 are operational. A future `REINDEX CONCURRENTLY` can rebuild them without a lock if a maintenance window opens. Functionally there's no difference; cosmetic only.
 
 ---
 
