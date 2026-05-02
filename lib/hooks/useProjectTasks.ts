@@ -549,17 +549,15 @@ export function useProjectTasks(opts: UseProjectTasksOptions): UseProjectTasksRe
       const updatedStatesForAdvance = { ...taskStates, [taskId]: status }
       const { ok } = canAdvance(project.stage, updatedStatesForAdvance, project.ahj)
       if (ok && nextStage) {
-        const { error: advErr } = await supabase.from('projects').update({ stage: nextStage, stage_date: today }).eq('id', pid)
-        if (advErr) { console.error('auto stage advance failed:', advErr); showToast('Failed to auto-advance stage'); return }
-        const { error: histErr } = await supabase.from('stage_history').insert({ project_id: pid, stage: nextStage, entered: today })
-        if (histErr) { console.error('stage_history insert failed:', histErr); showToast('Failed to log stage history') }
-        const { error: auditErr } = await supabase.from('audit_log').insert({
-          project_id: pid, field: 'stage',
-          old_value: project.stage, new_value: nextStage,
-          changed_by: currentUser?.name ?? null, changed_by_id: currentUser?.id ?? null,
+        const { data: advData, error: advErr } = await supabase.rpc('set_project_stage', {
+          p_project_id: pid,
+          p_target_stage: nextStage,
+          p_expected_stage: project.stage,
+          p_force: false,
         })
-        if (auditErr) console.error('audit_log insert failed:', auditErr)
-        setProject(p => ({ ...p, stage: nextStage as Project['stage'], stage_date: today }))
+        if (advErr) { console.error('auto stage advance failed:', advErr); showToast('Failed to auto-advance stage'); return }
+        const newStageDate = (Array.isArray(advData) ? advData[0]?.stage_date : null) ?? today
+        setProject(p => ({ ...p, stage: nextStage as Project['stage'], stage_date: newStageDate }))
         onProjectUpdated()
         edgeSync.notifyStageChanged(pid, project.stage, nextStage)
         sendCustomerPush(pid, 'Project Update', `Your project has moved to ${STAGE_LABELS[nextStage]}!`, { type: 'stage_advance', stage: nextStage })

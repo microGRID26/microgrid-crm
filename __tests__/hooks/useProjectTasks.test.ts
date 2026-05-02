@@ -27,6 +27,7 @@ function buildTrackedSupabase() {
       if (!chains[table]) chains[table] = buildChain({ data: [], error: null })
       return chains[table]
     }),
+    rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
     channel: vi.fn(() => ({ on: vi.fn().mockReturnThis(), subscribe: vi.fn() })),
     removeChannel: vi.fn(),
     auth: {

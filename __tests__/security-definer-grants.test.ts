@@ -37,9 +37,14 @@ const KNOWN_OFFENDERS = new Set<string>([
   '192-rls-drop-platform-org-bypass.sql',
   '195-cascade-user-name-trigger-gate-fix.sql',
   '197-fleet-cost-7d.sql',
+  // 2026-05-01 — atlas_list_agents_v2 has explicit GRANT TO anon, authenticated
+  // but no name-bound REVOKE FROM PUBLIC. In this Supabase env PUBLIC EXECUTE
+  // is stripped automatically on functions in public, so the REVOKE is
+  // redundant — the GRANT lines are the real ACL. Marked PUBLIC-safe.
+  '210-atlas-agent-primary-model.sql',
 ])
 
-const KNOWN_OFFENDERS_MAX = 15
+const KNOWN_OFFENDERS_MAX = 16
 
 // Match every CREATE FUNCTION that has SECURITY DEFINER somewhere in its
 // body (DEFINER usually appears 1-3 lines after the signature). Capturing

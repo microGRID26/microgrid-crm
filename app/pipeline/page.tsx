@@ -8,8 +8,6 @@ import { ProjectPanel } from '@/components/project/ProjectPanel'
 import { NewProjectModal } from '@/components/project/NewProjectModal'
 import { useSupabaseQuery, useServerFilter, clearQueryCache } from '@/lib/hooks'
 import { db } from '@/lib/db'
-import { updateProject } from '@/lib/api/projects'
-import { insertAuditLog, insertStageHistory } from '@/lib/api/tasks'
 import { useCurrentUser } from '@/lib/useCurrentUser'
 import { handleApiError } from '@/lib/errors'
 import { useErrorToast } from '@/components/ErrorToastProvider'
@@ -422,23 +420,20 @@ export default function PipelinePage() {
     if (!canAdvance || selectedProjects.length === 0) return
     const currentStage = selectedProjects[0].stage
     const nextStage = STAGE_ORDER[STAGE_ORDER.indexOf(currentStage) + 1]
-    const today = new Date().toISOString().split('T')[0]
     setAdvanceProgress({ current: 0, total: selectedProjects.length })
     const failures: string[] = []
+    const supabase = db()
     for (let i = 0; i < selectedProjects.length; i++) {
       const proj = selectedProjects[i]
       setAdvanceProgress({ current: i + 1, total: selectedProjects.length })
       try {
-        await updateProject(proj.id, { stage: nextStage, stage_date: today })
-        await insertAuditLog({
-          project_id: proj.id, field: 'stage',
-          old_value: proj.stage, new_value: nextStage,
-          changed_by: currentUser?.name ?? null, changed_by_id: currentUser?.id ?? null,
+        const { error } = await supabase.rpc('set_project_stage', {
+          p_project_id: proj.id,
+          p_target_stage: nextStage,
+          p_expected_stage: proj.stage,
+          p_force: false,
         })
-        await insertStageHistory({
-          project_id: proj.id, from_stage: proj.stage, to_stage: nextStage,
-          changed_by: currentUser?.name ?? null, changed_by_id: currentUser?.id ?? null,
-        })
+        if (error) throw error
       } catch (err) {
         handleApiError(err, `[pipeline] bulk advance ${proj.id}`)
         failures.push(`${proj.id} (${err instanceof Error ? err.message : 'unknown error'})`)
@@ -450,7 +445,7 @@ export default function PipelinePage() {
     }
     clearQueryCache()
     handleBulkComplete()
-  }, [canAdvance, selectedProjects, currentUser, handleBulkComplete])
+  }, [canAdvance, selectedProjects, handleBulkComplete])
 
   // ── Today string for follow-up comparison ────────────────────────────────
   // ISO date string comparison (< > ===) is safe for YYYY-MM-DD format — lexicographic order matches chronological order

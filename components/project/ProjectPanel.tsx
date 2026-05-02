@@ -467,23 +467,20 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       return
     }
     setAdvancing(true)
-    const today = new Date().toISOString().slice(0, 10)
-    const { error: stageErr } = await supabase.from('projects').update({ stage: nextStage, stage_date: today }).eq('id', pid)
+    const { data, error: stageErr } = await supabase.rpc('set_project_stage', {
+      p_project_id: pid,
+      p_target_stage: nextStage,
+      p_expected_stage: project.stage,
+      p_force: false,
+    })
     if (stageErr) {
       handleApiError(stageErr, '[ProjectPanel] stage advance')
       showToast('Failed to advance stage')
       setAdvancing(false)
       return
     }
-    const { error: histErr } = await supabase.from('stage_history').insert({ project_id: pid, stage: nextStage, entered: today })
-    if (histErr) handleApiError(histErr, '[ProjectPanel] stage_history insert')
-    const { error: auditErr3 } = await supabase.from('audit_log').insert({
-      project_id: pid, field: 'stage',
-      old_value: project.stage, new_value: nextStage,
-      changed_by: currentUser?.name ?? null, changed_by_id: currentUser?.id ?? null,
-    })
-    if (auditErr3) handleApiError(auditErr3, '[ProjectPanel] audit_log stage insert')
-    setProject(p => ({ ...p, stage: nextStage as Project['stage'], stage_date: today }))
+    const newStageDate = (Array.isArray(data) ? data[0]?.stage_date : null) ?? new Date().toISOString().slice(0, 10)
+    setProject(p => ({ ...p, stage: nextStage as Project['stage'], stage_date: newStageDate }))
     setAdvancing(false)
     onProjectUpdated()
     edgeSync.notifyStageChanged(pid, project.stage, nextStage)
@@ -509,34 +506,30 @@ export function ProjectPanel({ project: initialProject, onClose, onProjectUpdate
       : ''
     if (!confirm(`Manually move ${direction} from "${STAGE_LABELS[prev]}" to "${STAGE_LABELS[target]}"?\n\nStage history and audit log will record the change.${skipNote}`)) return
     setSettingStage(true)
-    const today = new Date().toISOString().slice(0, 10)
-    const { data: updRows, error: stageErr } = await supabase
-      .from('projects')
-      .update({ stage: target, stage_date: today })
-      .eq('id', pid)
-      .eq('stage', prev)
-      .select('id')
+    const reason = window.prompt(`Reason for manually setting stage to "${STAGE_LABELS[target]}"? (optional, recorded in audit log)`) || null
+    const { data, error: stageErr } = await supabase.rpc('set_project_stage', {
+      p_project_id: pid,
+      p_target_stage: target,
+      p_expected_stage: prev,
+      p_reason: reason,
+      p_force: true,
+    })
     if (stageErr) {
-      handleApiError(stageErr, '[ProjectPanel] manual stage set')
-      showToast('Failed to change stage')
-      setSettingStage(false)
-      return
-    }
-    if (!updRows || updRows.length === 0) {
-      showToast('Stage changed by another session — refresh and retry')
+      const msg = stageErr.message || ''
+      if (msg.includes('stage_changed_concurrently')) {
+        showToast('Stage changed by another session — refresh and retry')
+      } else if (msg.includes('force_requires_admin') || msg.includes('forbidden_role')) {
+        showToast('You do not have permission to set stage manually')
+      } else {
+        handleApiError(stageErr, '[ProjectPanel] manual stage set')
+        showToast('Failed to change stage')
+      }
       setSettingStage(false)
       onProjectUpdated()
       return
     }
-    const { error: histErr } = await supabase.from('stage_history').insert({ project_id: pid, stage: target, entered: today })
-    if (histErr) handleApiError(histErr, '[ProjectPanel] manual stage_history insert')
-    const { error: auditErr } = await supabase.from('audit_log').insert({
-      project_id: pid, field: 'stage',
-      old_value: prev, new_value: target,
-      changed_by: currentUser?.name ?? null, changed_by_id: currentUser?.id ?? null,
-    })
-    if (auditErr) handleApiError(auditErr, '[ProjectPanel] manual audit_log insert')
-    setProject(p => ({ ...p, stage: target as Project['stage'], stage_date: today }))
+    const newStageDate = (Array.isArray(data) ? data[0]?.stage_date : null) ?? new Date().toISOString().slice(0, 10)
+    setProject(p => ({ ...p, stage: target as Project['stage'], stage_date: newStageDate }))
     setSettingStage(false)
     onProjectUpdated()
     edgeSync.notifyStageChanged(pid, prev, target)
