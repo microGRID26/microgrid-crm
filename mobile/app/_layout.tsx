@@ -13,11 +13,16 @@ import { NPSPrompt } from '../components/NPSPrompt'
 import { getDueNpsMilestone, type NpsMilestone } from '../lib/feedback'
 import { registerForPushNotifications, addNotificationResponseListener } from '../lib/notifications'
 import { loadPersistentCache } from '../lib/cache'
+import { initSentry, wrap } from '../lib/sentry'
 import type { Session } from '@supabase/supabase-js'
+
+// Initialize Sentry as early as possible so any error from this point on is
+// captured. DSN-gated: no-op when EXPO_PUBLIC_SENTRY_DSN is unset.
+initSentry()
 
 SplashScreen.preventAutoHideAsync()
 
-export default function RootLayout() {
+function RootLayout() {
   const [session, setSession] = useState<Session | null>(null)
   const [initializing, setInitializing] = useState(true)
   const router = useRouter()
@@ -163,3 +168,7 @@ export default function RootLayout() {
     </ErrorBoundary>
   )
 }
+
+// Sentry.wrap captures uncaught errors + adds React profiler integration when
+// the DSN is configured. With no DSN it's a transparent passthrough.
+export default wrap(RootLayout)

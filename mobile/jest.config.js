@@ -1,0 +1,24 @@
+// Phase 2 of the unified-app plan: regression-pinning baseline. Goal isn't
+// 100% coverage — it's catching breakage on load-bearing data fetches in
+// lib/api.ts, the auth flow, and push-token registration.
+//
+// Uses jest-expo preset which handles the RN module mocks (FileSystem,
+// SecureStore, etc.) so individual tests don't need to.
+
+module.exports = {
+  preset: 'jest-expo',
+  testMatch: ['<rootDir>/__tests__/**/*.test.ts', '<rootDir>/__tests__/**/*.test.tsx'],
+  transformIgnorePatterns: [
+    'node_modules/(?!(jest-)?react-native|@react-native|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-clone-referenced-element|@react-native-community|expo-modules-core|@sentry/.*|lucide-react-native)',
+  ],
+  collectCoverageFrom: [
+    'lib/**/*.ts',
+    'lib/**/*.tsx',
+    '!lib/types.ts',
+    '!**/*.d.ts',
+  ],
+  moduleNameMapper: {
+    // Stub binary assets that Jest can't load
+    '\\.(png|jpg|jpeg|svg)$': '<rootDir>/__tests__/__mocks__/fileMock.js',
+  },
+}
